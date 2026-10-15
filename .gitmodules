@@ -1,0 +1,12 @@
+[submodule "src/external_dependencies/robstride_hardware_interface"]
+	path = src/external_dependencies/robstride_hardware_interface
+	url = https://github.com/PickNikRobotics/robstride_hardware_interface.git
+[submodule "src/external_dependencies/robstride_sdk"]
+	path = src/external_dependencies/robstride_sdk
+	url = https://github.com/PickNikRobotics/RobstrideSDK.git
+[submodule "src/external_dependencies/robstride_interfaces"]
+	path = src/external_dependencies/robstride_interfaces
+	url = https://github.com/kmj060703/robstride_interfaces.git
+[submodule "src/external_dependencies/rebot_description"]
+	path = src/external_dependencies/rebot_description
+	url = https://github.com/Seeed-Projects/reBot-DevArm.git

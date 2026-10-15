@@ -1,0 +1,16 @@
+based_on_package: rebot_b601_rs_sim
+hardware:
+  robot_description:
+    urdf_params:
+    - hardware_interface: real
+    - mujoco_model: ''
+    - mujoco_model_package: ''
+    - mujoco_keyframe: ''
+    - mujoco_viewer: false
+ros_global_params:
+  use_sim_time: false
+objectives:
+  objective_library_paths:
+    rebot_hw_objectives:
+      package_name: rebot_b601_rs_hw
+      relative_path: objectives

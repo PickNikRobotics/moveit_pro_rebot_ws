@@ -1,0 +1,28 @@
+<?xml version="1.0" ?>
+<package format="3">
+  <name>rebot_b601_rs_mock</name>
+  <version>10.3.0</version>
+  <description>
+    Stock reBot B601-RS arm and native jaw with mock hardware.
+  </description>
+  <maintainer email="support@picknik.ai">MoveIt Pro Maintainer</maintainer>
+  <license>BSD-3-Clause</license>
+  <license>CERN-OHL-W-2.0</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <exec_depend>rebot_description</exec_depend>
+  <exec_depend>hardware_interface</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
+  <exec_depend>joint_trajectory_admittance_controller</exec_depend>
+  <exec_depend>joint_velocity_controller</exec_depend>
+  <exec_depend>velocity_force_controller</exec_depend>
+  <exec_depend>moveit_studio_agent</exec_depend>
+  <exec_depend>moveit_pro_objectives</exec_depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
