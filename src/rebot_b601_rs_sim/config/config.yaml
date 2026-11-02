@@ -7,8 +7,10 @@ hardware:
     - mujoco_model_package: rebot_b601_rs_sim
     - mujoco_keyframe: default
     - mujoco_viewer: false
+# MoveIt Pro's MuJoCo hardware advances in the wall-clock control loop. It does
+# not publish /clock; selecting simulated time prevents controller activation.
 ros_global_params:
-  use_sim_time: true
+  use_sim_time: false
 objectives:
   objective_library_paths:
     rebot_sim_objectives:

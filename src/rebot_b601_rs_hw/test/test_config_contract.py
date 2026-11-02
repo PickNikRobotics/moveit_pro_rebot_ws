@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 from ament_index_python.packages import get_package_share_directory
 import pytest
 import xacro
+import yaml
 from moveit_studio_utils_py.system_config import load_system_config
 
 
@@ -33,7 +34,7 @@ def expanded(config):
     "mode,plugin,sim_time",
     [
         ("mock", "mock_components/GenericSystem", False),
-        ("sim", "picknik_mujoco_ros/MujocoSystem", True),
+        ("sim", "picknik_mujoco_ros/MujocoSystem", False),
         ("hw", "robstride_hardware_interface/RobstrideHardware", False),
     ],
 )
@@ -43,6 +44,25 @@ def test_backend_isolation(mode, plugin, sim_time):
     assert [p.text for p in robot.findall("ros2_control/hardware/plugin")] == [plugin]
     assert config.ros_global_params["use_sim_time"] is sim_time
     assert robot.findall("ros2_control/sensor") == []
+    if mode != "sim":
+        controller_path = (
+            Path(get_package_share_directory("rebot_b601_rs_mock"))
+            / "config/control/rebot.ros2_control.yaml"
+        )
+        parameters = yaml.safe_load(controller_path.read_text())[
+            "joint_state_broadcaster"
+        ]["ros__parameters"]
+        exported = {
+            f"{joint.get('name')}/{interface.get('name')}"
+            for joint in robot.findall("ros2_control/joint")
+            for interface in joint.findall("state_interface")
+        }
+        requested = {
+            f"{joint}/{interface}"
+            for joint in parameters["joints"]
+            for interface in parameters["interfaces"]
+        }
+        assert requested <= exported
     assert (
         config.hardware.additional_driver_launch_file.path == "launch/blank.launch.py"
     )
@@ -80,10 +100,14 @@ def test_physical_torque_policy_and_joint_contract():
     control = robot.find("ros2_control")
     joints = control.findall("joint")
     assert [j.get("name") for j in joints] == [f"joint{i}" for i in range(1, 8)]
-    assert all(
-        [i.get("name") for i in j.findall("command_interface")] == ["position"]
-        for j in joints
-    )
+    for index, joint in enumerate(joints):
+        expected = ["position", "effort"] if index < 6 else ["position"]
+        assert [i.get("name") for i in joint.findall("command_interface")] == expected
+        assert [i.get("name") for i in joint.findall("state_interface")] == [
+            "position",
+            "velocity",
+            "effort",
+        ]
     assert len(control.findall("gpio")) == 7
     for name in ["gripper_joint1", "gripper_joint2"]:
         mimic = robot.find(f"joint[@name='{name}']/mimic")
@@ -100,3 +124,36 @@ def test_physical_torque_policy_and_joint_contract():
             assert chain.get("base_link") in links and chain.get("tip_link") in links
     ee = srdf.find("end_effector")
     assert ee.get("parent_link") == "gripper_end" and ee.get("group") == "gripper"
+
+
+def test_physical_spring_and_nominal_gravity_startup():
+    config = resolved("hw")
+    robot = expanded(config)
+    assert config.ros2_control["controllers_active_at_startup"] == [
+        "joint_state_broadcaster",
+        "joint_trajectory_admittance_controller",
+        "gravity_compensation_controller",
+    ]
+    arm_kp = [50.0, 150.0, 150.0, 50.0, 50.0, 50.0]
+    arm_kd = [3.0, 10.0, 10.0, 5.0, 4.0, 4.0]
+    for index, gpio in enumerate(robot.findall("ros2_control/gpio")):
+        params = {p.get("name"): p.text for p in gpio.findall("param")}
+        assert params["control_mode"] == "motion"
+        if index < 6:
+            assert float(params["kp"]) == arm_kp[index]
+            assert float(params["kd"]) == arm_kd[index]
+    path = Path(get_package_share_directory("rebot_b601_rs_mock"))
+    controllers = yaml.safe_load(
+        (path / "config/control/rebot.ros2_control.yaml").read_text()
+    )
+    gravity = controllers["gravity_compensation_controller"]["ros__parameters"]
+    assert gravity["gains"] == [1.0] * 6
+    assert gravity["offsets"] == [0.0] * 6
+    assert gravity["payload_mass"] == 0.1504
+    assert controllers["controller_manager"]["ros__parameters"]["update_rate"] == 100
+    for mode in ["mock", "sim"]:
+        child = resolved(mode)
+        assert (
+            "gravity_compensation_controller"
+            not in child.ros2_control["controllers_active_at_startup"]
+        )

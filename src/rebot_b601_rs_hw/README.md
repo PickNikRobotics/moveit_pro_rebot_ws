@@ -3,8 +3,10 @@
 This 10.x/Jazzy config inherits the same stock arm and native jaw through the
 simulation config, then selects `robstride_hardware_interface/RobstrideHardware`
 and wall time. It has no camera launch, simulated sensor or simulation-only
-controller. The physical plugin uses only position commands in the baseline
-motion (impedance) mode. No gravity feedforward is enabled.
+controller. Hardware defaults to motion (MIT spring) mode with normal configured
+kp/kd. JTAC owns all seven position interfaces; the active standalone gravity
+controller owns the six arm effort interfaces. The jaw has no gravity effort
+command interface.
 
 ## Before starting hardware
 
@@ -54,10 +56,32 @@ supported. Validate the manufacturer's independent stop/power-isolation path
 before physical motion. The model, reference waypoints and software holding
 policy do not establish that an installation is safe to operate.
 
-Keep per-unit measurements and optional gravity gains in the office or
-installation configuration. The base kp/kd values and 100 Hz controller update
-rate are unchanged by this extraction. Motor status and fault telemetry remain
-available through the pinned driver's `~/robstride_state` topic and services.
+Keep per-unit measurements and fitted gravity gains in the office configuration.
+The arm kp/kd values and 100 Hz update rate are unchanged. Motor status and fault
+telemetry remain available through the pinned driver's `~/robstride_state` topic
+and services.
+
+## Stock gravity model
+
+The controller uses the nominal `base_link` → `gripper_end` chain, gains
+`[1,1,1,1,1,1]` and zero offsets. Its existing payload interface adds just the two
+supplied finger branches: mass **0.1504 kg**, nominal closed-jaw center
+`[-0.06064800135196754, 0, -0.00000006872199924541491]` m in `gripper_end`.
+The chain already contains the gripper body; adding that body again would double
+count it. The actual URDF retains both moving finger links for planning/physics.
+
+Symmetric jaw travel leaves the combined nominal center effectively fixed. The
+URDF's rounded rotations introduce less than 0.16 micrometers of drift over the
+full stroke, bounded by 2.4e-7 Nm in the offline whole-tree comparison. This
+algebraic agreement does not establish the accuracy of nominal physical masses,
+motor-reported torque, sag or float quality. The fitted Boston model is not used,
+and no fitted first moments are substituted into simulation inertias.
+
+The generic controller does not supply position holding, damping, a stop policy
+or a new torque limiter. Hardware feedforward remains subject to the driver's
+existing configured cap and the SDK wire range. Do not infer unbounded delivered
+effort from the controller's commanded-effort topic, or reset to the old driver
+fault-byte-swap branch.
 
 ## Verification and rollback
 

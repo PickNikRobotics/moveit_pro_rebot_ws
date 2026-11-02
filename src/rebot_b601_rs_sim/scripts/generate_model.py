@@ -36,7 +36,7 @@ def generate(urdf_path, output_path):
     }
     actuator = ET.SubElement(model, "actuator")
     equality = ET.SubElement(model, "equality")
-    gains = [(50, 3), (150, 10), (150, 10), (50, 5), (50, 4), (50, 4), (12, 0.05)]
+    gains = [(50, 3), (150, 10), (150, 10), (50, 5), (50, 4), (50, 4), (12, 0.5)]
     order = []
 
     def body(parent, joint):

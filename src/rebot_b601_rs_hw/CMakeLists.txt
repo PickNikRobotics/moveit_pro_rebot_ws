@@ -5,6 +5,22 @@ install(DIRECTORY config objectives DESTINATION share/${PROJECT_NAME})
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
   ament_add_pytest_test(test_config_contract test/test_config_contract.py TIMEOUT 60)
+  find_package(ament_cmake_gtest REQUIRED)
+  find_package(rebot_b601_rs_mock REQUIRED)
+  find_package(kdl_gravity_compensation_controller REQUIRED)
+  find_package(yaml-cpp REQUIRED)
+  set(MOCK_SHARE ${rebot_b601_rs_mock_DIR}/..)
+  set(TEST_URDF ${CMAKE_CURRENT_BINARY_DIR}/stock.urdf)
+  add_custom_command(OUTPUT ${TEST_URDF}
+    COMMAND xacro ${MOCK_SHARE}/description/rebot.urdf.xacro hardware_interface:=mock -o ${TEST_URDF}
+    DEPENDS ${MOCK_SHARE}/description/rebot.urdf.xacro VERBATIM)
+  add_custom_target(stock_gravity_model DEPENDS ${TEST_URDF})
+  ament_add_gtest(test_stock_gravity test/test_stock_gravity.cpp)
+  add_dependencies(test_stock_gravity stock_gravity_model)
+  target_link_libraries(test_stock_gravity
+    kdl_gravity_compensation_controller::kdl_gravity_compensation_controller yaml-cpp::yaml-cpp)
+  target_compile_definitions(test_stock_gravity PRIVATE
+    TEST_URDF="${TEST_URDF}" CONTROL_YAML="${MOCK_SHARE}/config/control/rebot.ros2_control.yaml")
 endif()
 install(FILES README.md DESTINATION share/${PROJECT_NAME})
 ament_package()

@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<!-- Derived from Seeed reBot-DevArm, CERN-OHL-W-2.0. Modified by PickNik Inc., 2026: stock visuals, motor-coordinate limits/J7 jaw coupling, backend selectors and identity world placement. Original SolidWorks exporter: Stephen Brawner, 1.6.0-4-g7f85cfe, build 1.6.7995.38578; http://wiki.ros.org/sw_urdf_exporter. See NOTICE.md. -->
+<!-- Derived from Seeed reBot-DevArm, CERN-OHL-W-2.0. Modified by PickNik Inc., 2026: stock visuals, motor-coordinate limits/J7 jaw coupling, backend selectors, arm effort interfaces and identity world placement. Original SolidWorks exporter: Stephen Brawner, 1.6.0-4-g7f85cfe, build 1.6.7995.38578; http://wiki.ros.org/sw_urdf_exporter. See NOTICE.md. -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="rebot_b601_rs">
   <xacro:arg name="mujoco_viewer" default="false" />
   <xacro:arg name="mujoco_keyframe" default="default" />
@@ -9,6 +9,9 @@
   <xacro:arg name="can_interface" default="can0" />
   <xacro:arg name="torque_enable" default="true" />
   <xacro:arg name="arm_control_mode" default="motion" />
+  <xacro:arg name="arm_effort_command" default="false" />
+  <xacro:arg name="jaw_kp" default="12.0" />
+  <xacro:arg name="jaw_kd" default="0.5" />
   <xacro:arg name="world_to_base_xyz" default="0 0 0" />
   <xacro:arg name="world_to_base_rpy" default="0 0 0" />
   <xacro:property name="world_to_base_xyz" default="$(arg world_to_base_xyz)" />
@@ -416,12 +419,15 @@
     <origin xyz="${world_to_base_xyz}" rpy="${world_to_base_rpy}" />
   </joint>
   <xacro:property name="arm_mode" value="${dict(motion='motion', position_csp='position_csp')['$(arg arm_control_mode)']}" />
-  <xacro:macro name="rebot_joint" params="name id model kp kd mode:=${arm_mode}">
+  <xacro:macro name="rebot_joint" params="name id model kp kd mode:=${arm_mode} feedforward:=true">
     <joint name="${name}">
       <xacro:if value="${'$(arg hardware_interface)' == 'real'}">
         <param name="id">${id}</param>
       </xacro:if>
       <command_interface name="position" />
+      <xacro:if value="${'$(arg arm_effort_command)' == 'true' and '$(arg hardware_interface)' == 'real' and mode == 'motion' and feedforward}">
+        <command_interface name="effort" />
+      </xacro:if>
       <xacro:if value="${'$(arg hardware_interface)' == 'mock'}">
         <command_interface name="velocity" />
       </xacro:if>
@@ -429,6 +435,9 @@
         <param name="initial_value">0.0</param>
       </state_interface>
       <state_interface name="velocity">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="effort">
         <param name="initial_value">0.0</param>
       </state_interface>
     </joint>
@@ -466,7 +475,7 @@
       <xacro:rebot_joint name="joint4" id="4" model="RS00" kp="50.0" kd="5.0" />
       <xacro:rebot_joint name="joint5" id="5" model="RS00" kp="50.0" kd="4.0" />
       <xacro:rebot_joint name="joint6" id="6" model="RS00" kp="50.0" kd="4.0" />
-      <xacro:rebot_joint name="joint7" id="7" model="RS00" kp="12.0" kd="0.05" mode="motion" />
+      <xacro:rebot_joint name="joint7" id="7" model="RS00" kp="$(arg jaw_kp)" kd="$(arg jaw_kd)" mode="motion" feedforward="false" />
     </ros2_control>
   </xacro:if>
   <xacro:if value="${'$(arg hardware_interface)' == 'mujoco'}">
