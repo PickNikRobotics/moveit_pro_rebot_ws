@@ -16,7 +16,11 @@ through the gravity controller's separate payload interface only because that
 controller selects a serial chain that excludes those finger branches. Stock visuals reference the whole upstream submodule through the
 rebot_description ament adapter. No office cameras or trim are installed.
 The configuration/control contract is ported from
-`PickNikRobotics/moveit_pro_example_ws@c7422c8853e495f0e481daa639c2919be24d73f9`.
+`PickNikRobotics/moveit_pro_example_ws@c7422c8853e495f0e481daa639c2919be24d73f9`,
+with reusable tuning from integrated source
+`7d7761965e8082d169be39817ab3545c924e446c`: J2/J3 lower allowances of
+-0.02/-0.01 rad, shared path tolerance 0.20 rad and J2 feedforward cap 18 Nm.
+These are software defaults, not per-unit calibration or a new physical acceptance.
 The supplied jaw's current kp=12/kd=0.5 and nominal masses are retained; office
 camera installations, modified trim, calibrated placements and leader calibration
 are not installed. Stock/default numeric boundaries are described in the

@@ -104,6 +104,12 @@ def test_physical_torque_policy_and_joint_contract():
     assert params["freeze_on_joint_loss"] == "true"
     assert params["torque_enable"] == "true"
     control = robot.find("ros2_control")
+    for gpio in control.findall("gpio"):
+        cap = gpio.findtext("param[@name='max_feedforward_effort']")
+        if gpio.get("name") == "joint2_motor":
+            assert float(cap) == 18.0
+        else:
+            assert cap is None  # SDK/driver defaults, no extra overrides.
     joints = control.findall("joint")
     assert [j.get("name") for j in joints] == [f"joint{i}" for i in range(1, 8)]
     for index, joint in enumerate(joints):
@@ -157,6 +163,31 @@ def test_physical_spring_and_nominal_gravity_startup():
     assert gravity["offsets"] == [0.0] * 6
     assert gravity["payload_mass"] == 0.1504
     assert controllers["controller_manager"]["ros__parameters"]["update_rate"] == 100
+    jtac = controllers["joint_trajectory_admittance_controller"]["ros__parameters"]
+    assert jtac["default_path_tolerance"] == 0.20
+    assert jtac["default_goal_tolerance"] == 0.1
+    assert jtac["default_goal_time_tolerance"] == 2.0
+    assert jtac["stop_accelerations"] == [0.6] * 6 + [6.0]
+    limits = yaml.safe_load((path / "config/moveit/joint_limits.yaml").read_text())[
+        "joint_limits"
+    ]
+    for joint, lower in [("joint2", -0.02), ("joint3", -0.01)]:
+        assert limits[joint]["min_position"] == lower
+        assert float(robot.find(f"joint[@name='{joint}']/limit").get("lower")) == lower
+    # Stop's source values must track the configured spring gains. The execution
+    # regression separately proves the ordering and actual service requests.
+    stop = ET.parse(
+        Path(get_package_share_directory("rebot_b601_rs_hw"))
+        / "objectives/stop_gravity_comp.xml"
+    ).getroot()
+    requests = stop.findall(".//Action[@ID='SetRebotMotorGain']")
+    assert [
+        (int(r.get("motor_id")), r.get("gain"), float(r.get("value"))) for r in requests
+    ] == [
+        (i + 1, gain, value)
+        for gain, values in [("kd", arm_kd), ("kp", arm_kp)]
+        for i, value in enumerate(values)
+    ]
     for mode in ["mock", "sim"]:
         child = resolved(mode)
         assert (

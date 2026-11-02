@@ -129,6 +129,7 @@
     <parent link="link1" />
     <child link="link2" />
     <axis xyz="0 0 1" />
+    <!-- Reusable motor-coordinate home allowance; verify each installation's zero. -->
     <limit lower="-0.020000000000" upper="3.543018381548" effort="36" velocity="0.6" />
   </joint>
   <link name="link3">
@@ -450,6 +451,10 @@
         <param name="control_mode">${mode}</param>
         <param name="kp">${kp}</param>
         <param name="kd">${kd}</param>
+        <!-- Reusable J2 feedforward tuning; other motors retain driver defaults. -->
+        <xacro:if value="${name == 'joint2'}">
+          <param name="max_feedforward_effort">18.0</param>
+        </xacro:if>
       </gpio>
     </xacro:if>
   </xacro:macro>

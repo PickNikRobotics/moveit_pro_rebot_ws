@@ -66,9 +66,13 @@ before physical motion. The model, reference waypoints and software holding
 policy do not establish that an installation is safe to operate.
 
 Keep per-unit measurements and fitted gravity gains in the office configuration.
-The arm kp/kd values and 100 Hz update rate are unchanged. Motor status and fault
-telemetry remain available through the pinned driver's `~/robstride_state` topic
-and services.
+Reusable tuning from the integrated source is shared by the stock configs:
+J2/J3 lower allowances -0.02/-0.01 rad, shared arm/jaw path tolerance 0.20 rad,
+and J2 `max_feedforward_effort` 18 Nm. Other feedforward caps retain their driver
+defaults. The arm kp/kd values, jaw kp=12/kd=0.5 and 100 Hz update rate are retained.
+These defaults are not calibration or physical acceptance for a new installation.
+Motor status and fault telemetry remain available through the pinned driver's
+`~/robstride_state` topic and services.
 
 ## Stock gravity model
 
@@ -91,6 +95,14 @@ or a new torque limiter. Hardware feedforward remains subject to the driver's
 existing configured cap and the SDK wire range. Do not infer unbounded delivered
 effort from the controller's commanded-effort topic, or reset to the old driver
 fault-byte-swap branch.
+
+## Start and Stop Gravity Comp
+
+[Start Gravity Comp and Stop Gravity Comp](docs/gravity-modes.md) preserve the
+published measured-pose anchor before damping/stiffness changes. Both finish
+without switching controllers; gravity stays active. They require the completed
+thermal recovery integration before physical use and do not certify float quality
+or motor-side gain delivery.
 
 ## Verification and rollback
 

@@ -2,7 +2,7 @@
 <root BTCPP_format="4" main_tree_to_execute="Stop Gravity Comp">
   <BehaviorTree
     ID="Stop Gravity Comp"
-    _description="Re-anchor the supported reBot arm at its measured pose before restoring configured spring gains, then finish. JTAC and fitted gravity compensation stay active. Retains torque; does not move HOME or disable motors."
+    _description="Re-anchor the supported reBot arm at its measured pose before restoring configured spring gains, then finish. JTAC and the configured gravity compensation stay active. Retains torque; does not move HOME or disable motors."
   >
     <Control ID="Sequence" name="stop_gravity_comp">
       <Action
@@ -45,7 +45,7 @@
     <SubTree ID="Stop Gravity Comp">
       <MetadataFields>
         <Metadata runnable="true" />
-        <Metadata subcategory="reBot Bench" />
+        <Metadata subcategory="reBot" />
       </MetadataFields>
     </SubTree>
   </TreeNodesModel>

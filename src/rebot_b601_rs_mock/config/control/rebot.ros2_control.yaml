@@ -1,5 +1,5 @@
-# Stock subset of the current B601-RS integration at c7422c8853e495f0e481daa639c2919be24d73f9.
-# No office leader controller or fitted gravity tuning. Rates and motion limits are retained.
+# Reusable B601-RS tuning from the integrated source at 7d7761965e8082d169be39817ab3545c924e446c.
+# No office leader controller or fitted gravity model/gains. Rates and motion limits are retained.
 # Gravity is spawned only by the physical child; simulation uses MuJoCo gravcomp.
 controller_manager:
   ros__parameters:
@@ -45,7 +45,8 @@ joint_trajectory_admittance_controller:
     - 0.6
     - 0.6
     - 6.0
-    default_path_tolerance: 0.15
+    # Shared arm/jaw tolerance from the integrated spring-mode configuration.
+    default_path_tolerance: 0.20
     default_goal_tolerance: 0.1
     default_goal_time_tolerance: 2.0
 joint_velocity_controller:

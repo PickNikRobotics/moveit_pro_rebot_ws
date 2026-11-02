@@ -1,3 +1,5 @@
+# Reusable B601-RS motor-coordinate limits from the integrated spring configuration.
+# Includes J2/J3 home allowances; verify zero/signs on each installation. See description/NOTICE.md.
 joint_limits:
   joint1:
     has_velocity_limits: true

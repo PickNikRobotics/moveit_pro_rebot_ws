@@ -79,19 +79,23 @@ TEST_P(ObjectiveLibraryTest, NativeServerLoadsAndInstantiatesStockObjectivesWith
   // Canonical full validation against this server's loaded plugin manifest,
   // followed by real tree instantiation to check ports and inherited SubTrees.
   // Never tick: the physical config's callbacks cannot send gains or motion.
-  for (const auto& entry : fs::directory_iterator(mock_share / "objectives"))
-  {
-    if (entry.path().extension() != ".xml")
-      continue;
-    SCOPED_TRACE(entry.path().string());
-    const auto text = readFile(entry.path());
-    const auto valid = server.verifyXML(text);
-    ASSERT_TRUE(valid.has_value()) << valid.error().what;
-    const auto name = moveit_studio::objective_server::utils::getObjectiveNameFromXml(text);
-    ASSERT_TRUE(name.has_value()) << name.error();
-    const auto created = server.createTree(name.value());
-    EXPECT_TRUE(created.has_value()) << created.error().what;
-  }
+  std::vector<fs::path> owned_libraries{ mock_share / "objectives" };
+  if (GetParam() == "rebot_b601_rs_hw")
+    owned_libraries.emplace_back(fs::path(ament_index_cpp::get_package_share_directory(GetParam())) / "objectives");
+  for (const auto& library : owned_libraries)
+    for (const auto& entry : fs::directory_iterator(library))
+    {
+      if (entry.path().extension() != ".xml")
+        continue;
+      SCOPED_TRACE(entry.path().string());
+      const auto text = readFile(entry.path());
+      const auto valid = server.verifyXML(text);
+      ASSERT_TRUE(valid.has_value()) << valid.error().what;
+      const auto name = moveit_studio::objective_server::utils::getObjectiveNameFromXml(text);
+      ASSERT_TRUE(name.has_value()) << name.error();
+      const auto created = server.createTree(name.value());
+      EXPECT_TRUE(created.has_value()) << created.error().what;
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(StockBackends, ObjectiveLibraryTest,

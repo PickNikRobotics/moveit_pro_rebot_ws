@@ -40,6 +40,28 @@ if(BUILD_TESTING)
     DEPENDS ${MOCK_SHARE}/description/rebot.urdf.xacro VERBATIM)
   add_custom_target(stock_gravity_model DEPENDS ${TEST_URDF})
   find_package(moveit_studio_agent REQUIRED)
+  find_package(controller_manager REQUIRED)
+  find_package(joint_trajectory_admittance_controller REQUIRED)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  set(TEST_MODE_URDF ${CMAKE_CURRENT_BINARY_DIR}/mode_memory.urdf)
+  add_custom_command(OUTPUT ${TEST_MODE_URDF}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/prepare_mode_model.py
+      ${MOCK_SHARE}/description/rebot.urdf.xacro ${TEST_MODE_URDF}
+    DEPENDS ${MOCK_SHARE}/description/rebot.urdf.xacro test/prepare_mode_model.py VERBATIM)
+  add_custom_target(mode_memory_model DEPENDS ${TEST_MODE_URDF})
+  add_executable(test_gravity_mode_execution test/test_gravity_mode_execution.cpp)
+  add_dependencies(test_gravity_mode_execution mode_memory_model)
+  target_compile_features(test_gravity_mode_execution PRIVATE cxx_std_20)
+  target_compile_definitions(test_gravity_mode_execution PRIVATE TEST_MODE_URDF="${TEST_MODE_URDF}")
+  target_link_libraries(test_gravity_mode_execution
+    controller_manager::controller_manager
+    joint_trajectory_admittance_controller::joint_trajectory_admittance_controller
+    kdl_gravity_compensation_controller::kdl_gravity_compensation_controller yaml-cpp::yaml-cpp)
+  ament_target_dependencies(test_gravity_mode_execution
+    moveit_pro_behavior_interface robstride_interfaces pluginlib)
+  ament_add_test(test_gravity_mode_execution
+    COMMAND $<TARGET_FILE:test_gravity_mode_execution> --ros-args --log-level error
+    TIMEOUT 60 GENERATE_RESULT_FOR_RETURN_CODE_ZERO)
   ament_add_gtest(test_objective_library test/test_objective_library.cpp TIMEOUT 60)
   add_dependencies(test_objective_library stock_gravity_model)
   target_compile_features(test_objective_library PRIVATE cxx_std_20)

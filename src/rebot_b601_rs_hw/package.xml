@@ -27,6 +27,8 @@
   <test_depend>ament_cmake_gtest</test_depend>
   <test_depend>moveit_pro_test_utils</test_depend>
   <test_depend>moveit_studio_agent</test_depend>
+  <test_depend>controller_manager</test_depend>
+  <test_depend>joint_trajectory_admittance_controller</test_depend>
   <test_depend>kdl_gravity_compensation_controller</test_depend>
   <test_depend>kdl_parser</test_depend>
   <test_depend>orocos_kdl</test_depend>
