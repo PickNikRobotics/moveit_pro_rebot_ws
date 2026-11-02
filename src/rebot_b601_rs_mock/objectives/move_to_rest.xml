@@ -5,14 +5,13 @@
   >
     <Control ID="Sequence" name="root">
       <SubTree
-        ID="Move to Waypoint"
+        ID="Move to Named Waypoint"
         _collapsed="true"
         waypoint_name="Zeroed Rest"
         joint_group_name="manipulator"
         velocity_scale_factor="0.10"
         acceleration_scale_factor="0.10"
         seed="0"
-        keep_orientation="false"
         controller_names="joint_trajectory_admittance_controller"
         controller_action_server="/joint_trajectory_admittance_controller/follow_joint_trajectory"
         collision_check_params="[{override_scene_link_padding: true, link_padding: 0.0}]"

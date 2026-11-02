@@ -5,7 +5,7 @@
 #include <moveit_pro_behavior_interface/shared_resources_node_loader.hpp>
 #include <moveit_pro_test_utils/ros_test.hpp>
 #include <pluginlib/class_loader.hpp>
-#include <rebot_bench_behaviors/set_rebot_motor_gain.hpp>
+#include <rebot_b601_rs_hw/set_rebot_motor_gain.hpp>
 
 #include <atomic>
 #include <chrono>
@@ -68,7 +68,7 @@ protected:
     auto client = std::make_unique<GainClient>();
     fake = client.get();
     fake->response.result = true;
-    behavior = std::make_unique<rebot_bench_behaviors::SetRebotMotorGain>("gain", config, context, std::move(client));
+    behavior = std::make_unique<rebot_b601_rs_hw::SetRebotMotorGain>("gain", config, context, std::move(client));
   }
   BT::NodeStatus run(rclcpp::Executor* executor = nullptr)
   {
@@ -88,7 +88,7 @@ protected:
   BT::NodeConfiguration config;
   std::shared_ptr<moveit_pro::behaviors::BehaviorContext> context;
   GainClient* fake = nullptr;
-  std::unique_ptr<rebot_bench_behaviors::SetRebotMotorGain> behavior;
+  std::unique_ptr<rebot_b601_rs_hw::SetRebotMotorGain> behavior;
 };
 
 TEST_F(MotorGainTest, QueuesExactArmGainWithBoundedTimeout)
@@ -245,7 +245,7 @@ TEST_F(MotorGainTest, RealRosClientTalksOnlyToFakeService)
   rclcpp::executors::SingleThreadedExecutor executor;
   executor.add_node(server);
   executor.add_node(context->node);
-  behavior = std::make_unique<rebot_bench_behaviors::SetRebotMotorGain>("gain", config, context);
+  behavior = std::make_unique<rebot_b601_rs_hw::SetRebotMotorGain>("gain", config, context);
   EXPECT_EQ(run(&executor), BT::NodeStatus::SUCCESS);
   EXPECT_TRUE(called);
   EXPECT_EQ(received.id, 2);
@@ -257,7 +257,7 @@ TEST_F(MotorGainTest, ConfiguredPluginLoaderInstantiatesExactId)
 {
   pluginlib::ClassLoader<moveit_pro::behaviors::SharedResourcesNodeLoaderBase> loader(
       "moveit_pro_behavior_interface", "moveit_pro::behaviors::SharedResourcesNodeLoaderBase");
-  auto plugin = loader.createSharedInstance("rebot_bench_behaviors::RebotBenchBehaviorsLoader");
+  auto plugin = loader.createSharedInstance("rebot_b601_rs_hw::RebotHardwareBehaviorsLoader");
   BT::BehaviorTreeFactory factory;
   plugin->registerBehaviors(factory, context);
   auto tree = factory.createTreeFromText(R"(

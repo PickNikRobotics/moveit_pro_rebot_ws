@@ -5,7 +5,7 @@
 #include <moveit_pro_behavior_interface/service_client_behavior_base.hpp>
 #include <robstride_interfaces/srv/set_data_to_robstride.hpp>
 
-namespace rebot_bench_behaviors
+namespace rebot_b601_rs_hw
 {
 /** Write one arm motor's motion-mode kp or kd through the owning driver's service.
  * Only reBot arm IDs 1-6 are accepted; the jaw and arbitrary register writes are excluded.
@@ -38,4 +38,4 @@ private:
   }
   std::shared_future<tl::expected<bool, std::string>> future_;
 };
-}  // namespace rebot_bench_behaviors
+}  // namespace rebot_b601_rs_hw

@@ -8,6 +8,15 @@ kp/kd. JTAC owns all seven position interfaces; the active standalone gravity
 controller owns the six arm effort interfaces. The jaw has no gravity effort
 command interface.
 
+## Integration status
+
+The stock model/controller composition is a software migration, not a physical
+acceptance. The preserved thermal guard and its tests are installed, but its
+native HOME dependency is not yet integrated into the stock launch. Do not
+commission this configuration until that recovery dependency is resolved.
+[Source provenance and limitations](docs/source-provenance.md) distinguish
+migrated functionality from unverified runtime behavior.
+
 ## Before starting hardware
 
 The arm has no brakes. Activation probes positions using Stop frames, which

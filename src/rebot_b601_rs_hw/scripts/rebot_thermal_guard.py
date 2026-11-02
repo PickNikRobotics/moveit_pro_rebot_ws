@@ -29,7 +29,8 @@ from std_msgs.msg import Bool, String, UInt64
 from std_srvs.srv import SetBool
 from trajectory_msgs.msg import JointTrajectoryPoint
 
-from rebot_leader import JOINT_NAMES
+# Hardware joint order is independent of any optional teleoperation device.
+JOINT_NAMES = tuple(f"joint{i}" for i in range(1, 8))
 
 # Each stage has its own bound, so time spent canceling never shortens native HOME.
 STAGE_LIMITS = {

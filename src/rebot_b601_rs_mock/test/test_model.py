@@ -3,7 +3,7 @@
 """Exercise the stock model with MoveIt Pro's model and FCL consumers.
 
 Adapted from moveit_pro_example_ws at c7422c8853e495f0e481daa639c2919be24d73f9:
-stock mesh package, zero lower bounds, and no office camera frames.
+stock mesh package, shared model/MoveIt bounds, and no office camera frames.
 """
 from math import radians
 from pathlib import Path

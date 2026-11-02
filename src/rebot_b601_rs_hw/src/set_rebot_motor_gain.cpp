@@ -1,12 +1,12 @@
 // Copyright 2026 PickNik Inc.
 // SPDX-License-Identifier: BSD-3-Clause
-#include <rebot_bench_behaviors/set_rebot_motor_gain.hpp>
+#include <rebot_b601_rs_hw/set_rebot_motor_gain.hpp>
 
 #include <cmath>
 #include <moveit_pro_behavior_interface/get_required_ports.hpp>
 #include <moveit_pro_behavior_interface/metadata_fields.hpp>
 
-namespace rebot_bench_behaviors
+namespace rebot_b601_rs_hw
 {
 SetRebotMotorGain::SetRebotMotorGain(const std::string& name, const BT::NodeConfiguration& config,
                                      const std::shared_ptr<moveit_pro::behaviors::BehaviorContext>& context)
@@ -31,7 +31,7 @@ BT::PortsList SetRebotMotorGain::providedPorts()
 
 BT::KeyValueVector SetRebotMotorGain::metadata()
 {
-  return { { moveit_pro::behaviors::kSubcategoryMetadataKey, "reBot Bench" },
+  return { { moveit_pro::behaviors::kSubcategoryMetadataKey, "reBot" },
            { moveit_pro::behaviors::kDescriptionMetadataKey,
              "Queues one arm motor kp/kd update through the existing RobStride driver. Requires motion mode. "
              "Re-anchor the trajectory controller to the measured pose before restoring kp. "
@@ -79,4 +79,4 @@ tl::expected<bool, std::string> SetRebotMotorGain::processResponse(const Service
         "RobStride driver rejected the motor gain write. Earlier writes, if any, remain applied.");
   return true;
 }
-}  // namespace rebot_bench_behaviors
+}  // namespace rebot_b601_rs_hw

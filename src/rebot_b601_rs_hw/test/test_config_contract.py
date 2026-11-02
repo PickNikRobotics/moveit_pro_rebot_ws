@@ -80,6 +80,12 @@ def test_backend_isolation(mode, plugin, sim_time):
         assert (Path(get_package_share_directory(package)) / path).is_file()
     loaders = config.objectives.behavior_loader_plugins
     assert "rebot" not in loaders
+    if mode == "hw":
+        assert loaders["rebot_hardware"] == [
+            "rebot_b601_rs_hw::RebotHardwareBehaviorsLoader"
+        ]
+    else:
+        assert "rebot_hardware" not in loaders
     assert all("Mujoco" not in loader for group in loaders.values() for loader in group)
     # The last library is the selected source config's own save destination.
     assert (
