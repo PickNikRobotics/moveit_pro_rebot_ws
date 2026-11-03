@@ -9,22 +9,28 @@ import pytest
 import xacro
 
 PACKAGE = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location("fit_gravity", PACKAGE / "scripts/fit_gravity.py")
+spec = importlib.util.spec_from_file_location(
+    "fit_gravity", PACKAGE / "scripts/fit_gravity.py"
+)
 fit_gravity = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(fit_gravity)
 
 
 @pytest.fixture
 def model():
-    return fit_gravity.GravityModel(xacro.process_file(
-        str(PACKAGE / "description/rebot.urdf.xacro"), mappings={"hardware_interface": "mock"}).toxml())
+    return fit_gravity.GravityModel(
+        xacro.process_file(
+            str(PACKAGE / "description/rebot.urdf.xacro"),
+            mappings={"hardware_interface": "mock"},
+        ).toxml()
+    )
 
 
 def samples():
-    t = np.arange(100) * .01 + 10
+    t = np.arange(100) * 0.01 + 10
     # Seven measured positions followed by seven measured efforts.
-    q = np.tile([.1, .8, 1.2, .2, .1, -.2, .009], (100, 1))
-    effort = np.sin(np.arange(100)[:, None] + np.arange(7)[None, :]) * .01 + 1
+    q = np.tile([0.1, 0.8, 1.2, 0.2, 0.1, -0.2, 0.009], (100, 1))
+    effort = np.sin(np.arange(100)[:, None] + np.arange(7)[None, :]) * 0.01 + 1
     return np.column_stack([t, q, effort]), np.column_stack([t, np.zeros((100, 3))])
 
 
@@ -35,7 +41,9 @@ def test_valid_static_window():
     assert not result["errors"]
 
 
-@pytest.mark.parametrize("case", ["constant", "comm", "drift", "missing", "nan", "health_gap"])
+@pytest.mark.parametrize(
+    "case", ["constant", "comm", "drift", "missing", "nan", "health_gap"]
+)
 def test_bad_window_rejected(case):
     s, h = samples()
     if case == "constant":
@@ -43,7 +51,7 @@ def test_bad_window_rejected(case):
     elif case == "comm":
         h[15, 1] = -2
     elif case == "drift":
-        s[-1, 1] += .004
+        s[-1, 1] += 0.004
     elif case == "missing":
         s = s[5:]
     elif case == "nan":
@@ -56,12 +64,17 @@ def test_bad_window_rejected(case):
 def test_synthetic_fit_holds_out_every_dataset_and_reload_agrees(model, tmp_path):
     rng = np.random.default_rng(303)
     expected = model.parameters.copy()
-    expected[model.first_moments] += rng.normal(0, .015, len(model.first_moments))
+    expected[model.first_moments] += rng.normal(0, 0.015, len(model.first_moments))
     rows = []
     for dataset in range(2):
         for pose in range(1, 25):
-            q = rng.uniform([-.3, .5, .5, -.8, -.4, -.7], [.3, 2.4, 3.7, .9, .4, .7])
-            approach = {"q_rad": q.tolist(), "tau_Nm": (model.regressor(q) @ expected).tolist()}
+            q = rng.uniform(
+                [-0.3, 0.5, 0.5, -0.8, -0.4, -0.7], [0.3, 2.4, 3.7, 0.9, 0.4, 0.7]
+            )
+            approach = {
+                "q_rad": q.tolist(),
+                "tau_Nm": (model.regressor(q) @ expected).tolist(),
+            }
             rows.append({"pose": pose, "dataset": dataset, "approaches": [approach]})
     parameters, report = fit_gravity.fit(model, rows)
     assert report["rank"] == 10
@@ -74,9 +87,14 @@ def test_synthetic_fit_holds_out_every_dataset_and_reload_agrees(model, tmp_path
     reloaded = fit_gravity.GravityModel(path.read_text())
     assert reloaded.geometry() == model.geometry()
     for _ in range(20):
-        q = rng.uniform([-.3, .5, .5, -.8, -.4, -.7], [.3, 2.4, 3.7, .9, .4, .7])
-        np.testing.assert_allclose(reloaded.regressor(q) @ reloaded.parameters,
-                                   model.regressor(q) @ expected, atol=1e-10)
+        q = rng.uniform(
+            [-0.3, 0.5, 0.5, -0.8, -0.4, -0.7], [0.3, 2.4, 3.7, 0.9, 0.4, 0.7]
+        )
+        np.testing.assert_allclose(
+            reloaded.regressor(q) @ reloaded.parameters,
+            model.regressor(q) @ expected,
+            atol=1e-10,
+        )
 
 
 def test_named_dataset_retries_once_then_skips(monkeypatch, model):
@@ -96,23 +114,38 @@ def test_named_dataset_retries_once_then_skips(monkeypatch, model):
     rows = np.vstack([first, retry, invalid, invalid_retry])
 
     def timestamp(t):
-        return Message(sec=int(t), nanosec=round((t-int(t))*1e9))
+        return Message(sec=int(t), nanosec=round((t - int(t)) * 1e9))
 
     def messages(path, topics):
         if path == "recording":
             import xml.etree.ElementTree as ET
-            yield "/robot_description", Message(data=ET.tostring(model.root, encoding="unicode")), 0
+
+            yield "/robot_description", Message(
+                data=ET.tostring(model.root, encoding="unicode")
+            ), 0
             return
         for label, start in ((25, 10), (26, 20)):
-            yield "/rosout", Message(msg=f"Gravity waypoint {label:02d}: static window begins",
-                                      stamp=timestamp(start)), start
+            yield "/rosout", Message(
+                msg=f"Gravity waypoint {label:02d}: static window begins",
+                stamp=timestamp(start),
+            ), start
         for row in rows:
             stamp = row[0]
-            yield "/joint_states", Message(name=[*fit_gravity.JOINTS, "joint7"], position=row[1:8],
-                                            effort=row[8:15], header=Message(stamp=timestamp(stamp))), stamp
+            yield "/joint_states", Message(
+                name=[*fit_gravity.JOINTS, "joint7"],
+                position=row[1:8],
+                effort=row[8:15],
+                header=Message(stamp=timestamp(stamp)),
+            ), stamp
             yield "/robstride_hardware_interface/robstride_state", Message(
-                id=list(range(1,8)), enabled=[True]*7, fault_bits=[0]*7, comm_state=0), stamp
-            yield "/robstride_hardware_interface/thermal_tripped", Message(data=False), stamp
+                id=list(range(1, 8)),
+                enabled=[True] * 7,
+                fault_bits=[0] * 7,
+                comm_state=0,
+            ), stamp
+            yield "/robstride_hardware_interface/thermal_tripped", Message(
+                data=False
+            ), stamp
 
     monkeypatch.setattr(fit_gravity, "messages", messages)
     _, observations, audit, _, _ = fit_gravity.load_dataset("recording", "health")
@@ -123,7 +156,10 @@ def test_named_dataset_retries_once_then_skips(monkeypatch, model):
 
 
 def test_underdetermined_fit_refused(model):
-    q = [.1, .8, 1.2, .2, .1, -.2]
-    rows = [{"pose": i, "approaches": [{"q_rad": q, "tau_Nm": [0] * 6}]} for i in range(1, 25)]
+    q = [0.1, 0.8, 1.2, 0.2, 0.1, -0.2]
+    rows = [
+        {"pose": i, "approaches": [{"q_rad": q, "tau_Nm": [0] * 6}]}
+        for i in range(1, 25)
+    ]
     with pytest.raises(ValueError, match="Underdetermined"):
         fit_gravity.fit(model, rows)

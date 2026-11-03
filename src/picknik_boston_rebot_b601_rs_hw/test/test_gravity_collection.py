@@ -10,7 +10,12 @@ import xml.etree.ElementTree as ET
 from geometry_msgs.msg import Pose
 from moveit_msgs.msg import CollisionObject
 from moveit_pro import planning
-from moveit_pro_base import collision_detection, planning_scene, robot_model, robot_state
+from moveit_pro_base import (
+    collision_detection,
+    planning_scene,
+    robot_model,
+    robot_state,
+)
 import numpy as np
 import pytest
 from shape_msgs.msg import SolidPrimitive
@@ -31,8 +36,10 @@ def waypoints():
 
 def collection_poses():
     entries = waypoints()
-    return [np.array(entries[f"Gravity {i:02d}"]["joint_state"]["position"], dtype=float)
-            for i in range(1, 49)]
+    return [
+        np.array(entries[f"Gravity {i:02d}"]["joint_state"]["position"], dtype=float)
+        for i in range(1, 49)
+    ]
 
 
 def collection_route():
@@ -40,8 +47,16 @@ def collection_route():
     calls = ET.parse(OBJECTIVES / "collect_rebot_gravity_data.xml").findall(
         ".//BehaviorTree/Control/SubTree[@ID='Move to Waypoint']"
     )
-    return [HOME, *[np.array(entries[call.get("waypoint_name")]["joint_state"]["position"][:6], dtype=float)
-                    for call in calls]]
+    return [
+        HOME,
+        *[
+            np.array(
+                entries[call.get("waypoint_name")]["joint_state"]["position"][:6],
+                dtype=float,
+            )
+            for call in calls
+        ],
+    ]
 
 
 @pytest.fixture(scope="module")
@@ -50,32 +65,47 @@ def collision_model(tmp_path_factory):
     # Expand the real package file so its relative includes retain their context.
     path = PACKAGE / "description/rebot.urdf.xacro"
     config = yaml.safe_load((PACKAGE / "config/config.yaml").read_text())
-    mappings = {key: str(value) for entry in config["hardware"]["robot_description"]["urdf_params"]
-                for key, value in entry.items()}
+    mappings = {
+        key: str(value)
+        for entry in config["hardware"]["robot_description"]["urdf_params"]
+        for key, value in entry.items()
+    }
     mappings["hardware_interface"] = "mock"
     mappings["boston_gravity_fit"] = "false"
     description = xacro.process_file(str(path), mappings=mappings).toxml()
     path = directory / "robot.urdf"
     path.write_text(description)
     model = robot_model.RobotModel(str(path), str(PACKAGE / "config/moveit/rebot.srdf"))
-    model.set_group_acceleration_bounds("manipulator", -np.ones(6)*1.2, np.ones(6)*1.2)
+    model.set_group_acceleration_bounds(
+        "manipulator", -np.ones(6) * 1.2, np.ones(6) * 1.2
+    )
     scene = planning_scene.PlanningScene(model)
     # Standard Move to Waypoint uses the installed 1 cm planning padding.
     scene.set_link_padding(0.01)
     frames = {}
-    for action in ET.parse(OBJECTIVES / "rebot_fixed_bench_scene.xml").findall(".//Action"):
+    for action in ET.parse(OBJECTIVES / "rebot_fixed_bench_scene.xml").findall(
+        ".//Action"
+    ):
         if action.get("ID") == "CreatePoseStamped":
-            frames[action.get("pose_stamped")] = [float(x) for x in action.get("position_xyz").split(";")]
+            frames[action.get("pose_stamped")] = [
+                float(x) for x in action.get("position_xyz").split(";")
+            ]
         elif action.get("ID") == "AddCollisionBox":
             obj = CollisionObject()
             obj.id = action.get("object_id")
             obj.header.frame_id = "world"
             pose = Pose()
-            pose.position.x, pose.position.y, pose.position.z = frames[action.get("pose")]
+            pose.position.x, pose.position.y, pose.position.z = frames[
+                action.get("pose")
+            ]
             pose.orientation.w = 1.0
             obj.primitive_poses = [pose]
-            obj.primitives = [SolidPrimitive(type=SolidPrimitive.BOX,
-                dimensions=[float(x) for x in action.get("dimensions").split(";")])]
+            obj.primitives = [
+                SolidPrimitive(
+                    type=SolidPrimitive.BOX,
+                    dimensions=[float(x) for x in action.get("dimensions").split(";")],
+                )
+            ]
             obj.operation = CollisionObject.ADD
             scene.apply_collision_object(obj)
     state = robot_state.RobotState(model)
@@ -93,7 +123,7 @@ def check(collision_model, q, *, bounds=True):
     model, scene, state, request = collision_model
     if bounds:
         low, high = model.get_group_position_bounds("manipulator")
-        assert np.all(q >= low-1e-9) and np.all(q <= high+1e-9), q
+        assert np.all(q >= low - 1e-9) and np.all(q <= high + 1e-9), q
     state.joint_positions = dict(zip(JOINTS, [*q, 0.0]))
     state.update()
     result = collision_detection.CollisionResult()
@@ -104,17 +134,23 @@ def check(collision_model, q, *, bounds=True):
 def test_mesh_collision_canary(collision_model):
     # This deliberately sagged state collides, proving failed resource loads
     # cannot silently turn the following thousands of checks into empty geometry.
-    assert check(collision_model, [0, 0, -.08, .5, .3, 0], bounds=False).collision
+    assert check(collision_model, [0, 0, -0.08, 0.5, 0.3, 0], bounds=False).collision
     assert not check(collision_model, HOME).collision
 
 
 def test_fixed_scene_is_shared_and_has_no_cubes():
     scene = ET.parse(OBJECTIVES / "rebot_fixed_bench_scene.xml")
-    assert {node.get("object_id") for node in scene.findall(".//Action[@ID='AddCollisionBox']")} == {
-        "rebot_bench", "rebot_wall"
-    }
+    assert {
+        node.get("object_id")
+        for node in scene.findall(".//Action[@ID='AddCollisionBox']")
+    } == {"rebot_bench", "rebot_wall"}
     for name in ("rebot_stack_scene.xml", "collect_rebot_gravity_data.xml"):
-        assert ET.parse(OBJECTIVES / name).find(".//SubTree[@ID='reBot Fixed Bench Scene']") is not None
+        assert (
+            ET.parse(OBJECTIVES / name).find(
+                ".//SubTree[@ID='reBot Fixed Bench Scene']"
+            )
+            is not None
+        )
 
 
 def test_all_collection_transits_and_home_paths(collision_model):
@@ -128,11 +164,13 @@ def test_all_collection_transits_and_home_paths(collision_model):
         legs.extend([(start, yaw), (yaw, HOME)])
     checked = 0
     for leg, (start, goal) in enumerate(legs):
-        for q in planning.interpolate_joint_path([start, goal], .005):
+        for q in planning.interpolate_joint_path([start, goal], 0.005):
             result = check(collision_model, q)
             assert not result.collision, (leg, q, result.contacts)
             checked += 1
-    print(f"Native FCL: {len(legs)} waypoint/HOME candidate paths; {checked} states; 0.005 rad spacing")
+    print(
+        f"Native FCL: {len(legs)} waypoint/HOME candidate paths; {checked} states; 0.005 rad spacing"
+    )
 
 
 def test_native_full_speed_timing_and_all_timed_samples(collision_model):
@@ -143,20 +181,24 @@ def test_native_full_speed_timing_and_all_timed_samples(collision_model):
     max_velocity = 0.0
     checked = 0
     for start, goal in zip(route, route[1:]):
-        trajectory = planning.create_trajectory_message_from_waypoints(group, [start, goal], 1.0, 1.0, 100)
+        trajectory = planning.create_trajectory_message_from_waypoints(
+            group, [start, goal], 1.0, 1.0, 100
+        )
         assert len(trajectory.points) > 1
         for point in trajectory.points:
             result = check(collision_model, point.positions)
             assert not result.collision, (point.positions, result.contacts)
-            assert max(abs(x) for x in point.velocities) <= .600001
+            assert max(abs(x) for x in point.velocities) <= 0.600001
             assert max(abs(x) for x in point.accelerations) <= 1.200001
             max_velocity = max(max_velocity, max(abs(x) for x in point.velocities))
             checked += 1
         end = trajectory.points[-1].time_from_start
-        duration += end.sec + end.nanosec*1e-9
-    print(f"Native waypoint timing cross-check: {len(route)-1} moves, {checked} timed states, "
-          f"{duration:.3f} s motion, peak {max_velocity:.6f} rad/s; runtime planner may choose another path")
-    assert max_velocity > .59  # full configured speed, not a reduced-scale first run
+        duration += end.sec + end.nanosec * 1e-9
+    print(
+        f"Native waypoint timing cross-check: {len(route)-1} moves, {checked} timed states, "
+        f"{duration:.3f} s motion, peak {max_velocity:.6f} rad/s; runtime planner may choose another path"
+    )
+    assert max_velocity > 0.59  # full configured speed, not a reduced-scale first run
 
 
 def test_waypoint_transit_envelope(collision_model):
@@ -168,14 +210,18 @@ def test_waypoint_transit_envelope(collision_model):
     checks = 0
     for start, goal in zip(route, route[1:]):
         low, high = np.minimum(start, goal), np.maximum(start, goal)
-        fractions = [np.array([(bits >> j) & 1 for j in range(6)]) for bits in range(64)]
+        fractions = [
+            np.array([(bits >> j) & 1 for j in range(6)]) for bits in range(64)
+        ]
         fractions.extend(rng.uniform(0, 1, size=(256, 6)))
         for fraction in fractions:
-            q = low + fraction * (high-low)
+            q = low + fraction * (high - low)
             result = check(collision_model, q)
             assert not result.collision, (start, goal, q, result.contacts)
             checks += 1
-    print(f"Waypoint transit envelope: {checks} sampled configurations across {len(route)-1} moves")
+    print(
+        f"Waypoint transit envelope: {checks} sampled configurations across {len(route)-1} moves"
+    )
 
 
 def test_collection_is_plain_standard_waypoints():
@@ -184,14 +230,26 @@ def test_collection_is_plain_standard_waypoints():
     assert sequence is not None
     assert set(node.tag for node in sequence) == {"Action", "SubTree"}
     actions = {node.get("ID") for node in sequence.findall("Action")}
-    assert actions == {"RecordEpisode", "SaveEpisode", "StopRecording", "WaitForDuration", "LogMessage"}
+    assert actions == {
+        "RecordEpisode",
+        "SaveEpisode",
+        "StopRecording",
+        "WaitForDuration",
+        "LogMessage",
+    }
     assert {node.get("ID") for node in sequence.findall("SubTree")} == {
-        "reBot Fixed Bench Scene", "Move to Waypoint"
+        "reBot Fixed Bench Scene",
+        "Move to Waypoint",
     }
     moves = sequence.findall("SubTree[@ID='Move to Waypoint']")
     assert [node.get("waypoint_name") for node in moves] == [
-        "Raised", *[f"Gravity {i:02d}" for i in range(1, 34)], "Gravity Elbow Clearance",
-        *[f"Gravity {i:02d}" for i in range(34, 49)], "Gravity Retreat", "Raised", "Zeroed Rest"
+        "Raised",
+        *[f"Gravity {i:02d}" for i in range(1, 34)],
+        "Gravity Elbow Clearance",
+        *[f"Gravity {i:02d}" for i in range(34, 49)],
+        "Gravity Retreat",
+        "Raised",
+        "Zeroed Rest",
     ]
     for move in moves:
         # Both installed defaults are 1.0; no robot-specific scaled wrapper.
@@ -200,9 +258,9 @@ def test_collection_is_plain_standard_waypoints():
         assert move.get("joint_group_name") == "manipulator"
     assert len(sequence.findall("Action[@delay_duration='{settle_seconds}']")) == 48
     assert len(sequence.findall("Action[@delay_duration='{sample_seconds}']")) == 48
-    assert [node.get("message") for node in sequence.findall("Action[@ID='LogMessage']")] == [
-        f"Gravity waypoint {i:02d}: static window begins" for i in range(1, 49)
-    ]
+    assert [
+        node.get("message") for node in sequence.findall("Action[@ID='LogMessage']")
+    ] == [f"Gravity waypoint {i:02d}: static window begins" for i in range(1, 49)]
     assert not root.findall(".//ScriptCondition")
     assert not root.findall(".//input_port[@name='approval']")
     for i in range(1, 49):

@@ -94,7 +94,9 @@ def test_missing_camera_skips_only_its_processes(
 )
 def test_camera_switches_are_independent(cameras, monkeypatch, wrist, scene, expected):
     monkeypatch.setattr(cameras, "detected_cameras", lambda: {"wrist", "scene"})
-    ctx = context(enable_wrist_camera=wrist, enable_scene_camera=scene, scene_depth_scale=1.0)
+    ctx = context(
+        enable_wrist_camera=wrist, enable_scene_camera=scene, scene_depth_scale=1.0
+    )
     actions = cameras.launch_cameras(ctx)
     assert executables(actions, ctx) == expected
     cameras.logger.warning.assert_not_called()

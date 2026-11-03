@@ -7,6 +7,8 @@ Objective library and are **not runnable** through this package.
 
 The original ordering/rest-to-rest HOME seed and failure-recording fixes are
 preserved here and in history for reproducing the meaning of the old dataset.
+XML formatting follows this workspace's hooks; the original bytes remain in
+source and import history.
 The active48named-waypoint collector comes from the later gravity collection
 source. It does not create opposing-approach pairs. Do not apply this archived
 collector over the active tree or use the old source proof as a new run claim.
