@@ -66,7 +66,7 @@ def main():
     parser.add_argument(
         "--config",
         type=Path,
-        default=Path(get_package_share_directory("rebot_bench_base_config"))
+        default=Path(get_package_share_directory("picknik_boston_rebot_b601_rs_hw"))
         / "config/rebot_leader_tuning.yaml",
     )
     parser.add_argument(

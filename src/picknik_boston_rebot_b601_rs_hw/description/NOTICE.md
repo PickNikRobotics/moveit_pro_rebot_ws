@@ -4,16 +4,17 @@ Arm URDF and the original `assets/{shared,visual}/*.STL` are derived from
 [Seeed Studio's reBot-DevArm](https://github.com/Seeed-Projects/reBot-DevArm/tree/58f9e433deec2ba118c5c22d60c07b9897e92acc/Rebot_Arm_description/RS)
 at commit `58f9e433deec2ba118c5c22d60c07b9897e92acc`.
 Upstream URDF: `Rebot_Arm_description/RS/urdf/ReBot_Arm_RS.urdf`.
-Mesh bytes are unchanged; `assets/` preserves upstream's `visual/` and `shared/`
-subdirectories. Unused MuJoCo-only collision meshes are omitted.
+Stock mesh bytes are unchanged and are referenced through the whole
+`rebot_description` dependency; they are not duplicated in this package.
 
 Hardware design copyright © 2026 Seeed Studio Co., Ltd.
 The model and derived `rebot.urdf.xacro` are distributed under **CERN-OHL-W-2.0**;
 the complete upstream license is in [LICENSE](LICENSE). Seeed's root README
 identifies hardware designs under this license separately from its software.
 The [upstream source location](https://github.com/Seeed-Projects/reBot-DevArm/tree/58f9e433deec2ba118c5c22d60c07b9897e92acc)
-also contains the editable mechanical designs. The modified model's source
-location is this public package in `PickNikRobotics/moveit_pro_example_ws`.
+also contains the editable mechanical designs. The original modified model's source is `PickNikRobotics/moveit_pro_example_ws`.
+This migrated assembly lives on branch `picknik_boston_rebot_b601_rs` of
+`PickNikRobotics/moveit_pro_rebot_ws`.
 
 Modified by PickNik Inc., 2026-10-09:
 
@@ -94,10 +95,9 @@ is replaced by the nominal camera assembly described below.
 [realsenseai/realsense-ros](https://github.com/realsenseai/realsense-ros/tree/9215f26e8348ad5922a608b77882a9bfe05940f0/realsense2_description),
 commit `9215f26e8348ad5922a608b77882a9bfe05940f0`, path
 `realsense2_description/meshes/d435.dae`, licensed **Apache-2.0**.
-The upstream license is retained in `assets/realsense/LICENSE` with trailing
-blank-line normalization. Upstream notices are retained in
-`assets/realsense/UPSTREAM_NOTICE.txt` with UTF-8/LF and trailing whitespace
-normalization; `source.json` records the upstream and modified
+The upstream license is retained byte-for-byte in `assets/realsense/LICENSE`.
+Upstream notices are retained byte-for-byte in
+`assets/realsense/UPSTREAM_NOTICE.txt`; `source.json` records the upstream and modified
 mesh SHA-256 and Git blob hashes. The assembly offsets are from Seeed's camera URDF referenced
 above; the body's mesh and nominal RGB optical offsets follow
 `realsense2_description/urdf/_d435.urdf.xacro` at the same RealSense revision
@@ -108,6 +108,16 @@ body frame and nominal color optical frame form one fixed chain. This is a
 visual assembly, not a measured hand-eye calibration; no collision or inertia
 is added for the camera. The scene camera remains frame-only.
 
-The link3 side panels are exchanged using a half turn about their common
-assembly Y axis. Mesh bytes and the lower cover pose are unchanged; only the
-two panel visual origins differ. See the README's transform table.
+The link3 side panels retain the integrated source transforms; mesh bytes and
+the lower cover pose are unchanged. The exact origins are in office_geometry.xacro.
+
+## Boston source separation (2026-11-02)
+
+Modified by PickNik Inc.: extracted the existing trim and camera blocks into
+`office_geometry.xacro`; reuse shared stock URDF/SRDF/controller interfaces;
+keep the six measured gravity-equivalent inertial-origin values in an office
+YAML file, restricted to real-backend model expansion. All joint frames, stock
+collision geometry and source camera/visual transforms are preserved.
+These fitted origins are not identified physical dynamic inertias and cannot
+be selected for mock/MuJoCo. The office SRDF retains the historical link2/link5
+collision exclusion. No new physical or camera calibration is claimed.

@@ -148,7 +148,7 @@ health bag. Give the original nominal-model recording first. Example in the
 normal sourced environment (replace the four bag paths):
 
 ```bash
-ros2 run rebot_bench_base_config fit_gravity.py \
+ros2 run picknik_boston_rebot_b601_rs_hw fit_gravity.py \
   --dataset /data/original_recording /data/original_health \
   --dataset /data/leaned_back_recording /data/leaned_back_health \
   --output /data/gravity_refit_01

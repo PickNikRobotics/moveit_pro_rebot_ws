@@ -26,7 +26,7 @@ class LeaderCollision:
         self.directory = tempfile.TemporaryDirectory(prefix="rebot-leader-")
         description = Path(self.directory.name) / "robot.urdf"
         description.write_text(urdf)
-        share = Path(get_package_share_directory("rebot_bench_base_config"))
+        share = Path(get_package_share_directory("picknik_boston_rebot_b601_rs_hw"))
         root = ET.fromstring(urdf)
         self.bounds = [
             (

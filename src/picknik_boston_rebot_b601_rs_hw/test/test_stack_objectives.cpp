@@ -176,7 +176,7 @@ protected:
         "LoadMotionScales",
         [this](BT::TreeNode& node) {
           const auto kind = node.getInput<std::string>("leg_kind").value();
-          EXPECT_EQ(node.getInput<std::string>("package_name").value(), "rebot_bench_base_config");
+          EXPECT_EQ(node.getInput<std::string>("package_name").value(), "picknik_boston_rebot_b601_rs_hw");
           const auto scales = settings.empty() ?
                                   rebot_bench_behaviors::readMotionScales(
                                       PACKAGE_DIR "/" + node.getInput<std::string>("file_path").value(), kind) :

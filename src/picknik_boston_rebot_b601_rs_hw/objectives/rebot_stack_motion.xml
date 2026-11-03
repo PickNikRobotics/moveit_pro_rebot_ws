@@ -7,7 +7,7 @@
     <Sequence>
       <Action
         ID="LoadMotionScales"
-        package_name="rebot_bench_base_config"
+        package_name="picknik_boston_rebot_b601_rs_hw"
         file_path="objectives/rebot_stack_motion.yaml"
         leg_kind="joint"
         velocity_scale_factor="{joint_velocity_scale_factor}"
@@ -15,7 +15,7 @@
       />
       <Action
         ID="LoadMotionScales"
-        package_name="rebot_bench_base_config"
+        package_name="picknik_boston_rebot_b601_rs_hw"
         file_path="objectives/rebot_stack_motion.yaml"
         leg_kind="cartesian"
         velocity_scale_factor="{cartesian_velocity_scale_factor}"
@@ -23,7 +23,7 @@
       />
       <Action
         ID="LoadMotionScales"
-        package_name="rebot_bench_base_config"
+        package_name="picknik_boston_rebot_b601_rs_hw"
         file_path="objectives/rebot_stack_motion.yaml"
         leg_kind="gripper"
         velocity_scale_factor="{gripper_velocity_scale_factor}"

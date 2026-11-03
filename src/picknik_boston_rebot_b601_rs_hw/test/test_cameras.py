@@ -78,7 +78,7 @@ def test_missing_camera_skips_only_its_processes(
     cameras, monkeypatch, devices, expected, warnings
 ):
     monkeypatch.setattr(cameras, "detected_cameras", lambda: devices)
-    ctx = context()
+    ctx = context(scene_depth_scale=1.0)
     actions = cameras.launch_cameras(ctx)
     assert executables(actions, ctx) == expected
     assert cameras.logger.warning.call_count == warnings
@@ -94,7 +94,7 @@ def test_missing_camera_skips_only_its_processes(
 )
 def test_camera_switches_are_independent(cameras, monkeypatch, wrist, scene, expected):
     monkeypatch.setattr(cameras, "detected_cameras", lambda: {"wrist", "scene"})
-    ctx = context(enable_wrist_camera=wrist, enable_scene_camera=scene)
+    ctx = context(enable_wrist_camera=wrist, enable_scene_camera=scene, scene_depth_scale=1.0)
     actions = cameras.launch_cameras(ctx)
     assert executables(actions, ctx) == expected
     cameras.logger.warning.assert_not_called()
@@ -139,9 +139,10 @@ def test_unknown_camera_does_not_start_a_supported_driver(
 
 def test_depth_is_unscaled_unless_a_measured_factor_is_configured(cameras, monkeypatch):
     monkeypatch.setattr(cameras, "detected_cameras", lambda: {"scene"})
-    ctx = context()
+    ctx = context(scene_depth_scale=1.0)
     assert "scale_depth.py" not in executables(cameras.launch_cameras(ctx), ctx)
-    ctx = context(scene_depth_scale=0.96)
+    ctx = context()
+    assert ctx.launch_configurations["scene_depth_scale"] == "0.96"
     assert "scale_depth.py" in executables(cameras.launch_cameras(ctx), ctx)
 
 

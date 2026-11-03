@@ -69,7 +69,7 @@ canceled or interrupted leg's held command be reconstructed afterwards.
 
 `LoadMotionScales` reads one leg kind's `velocity_scale_factor` and
 `acceleration_scale_factor` from a YAML file in a ROS package's share directory
-(`rebot_bench_base_config/objectives/rebot_stack_motion.yaml` for the stack
+(`picknik_boston_rebot_b601_rs_hw/objectives/rebot_stack_motion.yaml` for the stack
 Objectives). It fails on a missing file, entry or factor, or a factor outside
 (0, 1], so a bad settings file stops a run before any motion.
 

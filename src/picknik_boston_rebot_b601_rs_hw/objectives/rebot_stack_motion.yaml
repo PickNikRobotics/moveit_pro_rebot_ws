@@ -1,7 +1,7 @@
 # Planning speed of the pick-and-stack Objectives, as fractions of the joint
 # limits in config/moveit/joint_limits.yaml (0.6 rad/s on joints 1-6, 3.0 rad/s
 # on joint7). reBot Stack Motion loads it at the start of every run; edit it,
-# then rebuild rebot_bench_base_config (a symlink-install build reads the
+# then rebuild picknik_boston_rebot_b601_rs_hw (a symlink-install build reads the
 # source file directly). README.md explains the values and how to size the
 # bench speed guard against them before running the arm.
 

@@ -260,7 +260,7 @@ def collision_checker():
     import xacro
     from rebot_leader_collision import LeaderCollision
 
-    share = Path(get_package_share_directory("rebot_bench_base_config"))
+    share = Path(get_package_share_directory("picknik_boston_rebot_b601_rs_hw"))
     urdf = xacro.process_file(
         str(share / "description/rebot.urdf.xacro"),
         mappings={"hardware_interface": "mock"},

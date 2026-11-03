@@ -218,7 +218,7 @@ def launch_cameras(context):
         if scale != 1.0:
             nodes.append(
                 Node(
-                    package="rebot_bench_base_config",
+                    package="picknik_boston_rebot_b601_rs_hw",
                     executable="scale_depth.py",
                     name="scene_depth_scale",
                     output="screen",
@@ -248,7 +248,7 @@ def launch_cameras(context):
 
 def generate_launch_description():
     path = (
-        Path(get_package_share_directory("rebot_bench_base_config"))
+        Path(get_package_share_directory("picknik_boston_rebot_b601_rs_hw"))
         / "config/cameras.yaml"
     )
     defaults = yaml.safe_load(path.read_text())

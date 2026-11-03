@@ -1,6 +1,10 @@
 # Copyright 2026 PickNik Inc.
 # SPDX-License-Identifier: BSD-3-Clause
-"""Backend-owned leader and thermal recovery from the selected merged config."""
+"""Backend-owned Boston leader from the selected merged config.
+
+Thermal guard launch is intentionally not enabled until recovery integration
+has passed its separate dependency gate. Do not use this migration for hardware.
+"""
 import os
 from pathlib import Path
 
@@ -27,14 +31,14 @@ def startup_settings(config):
         raise ValueError(f"Unsupported reBot hardware_interface: {mode}")
     settings = {
         "hardware_interface": mode,
-        "thermal_guard": mode == "real",
+        "thermal_guard": False,
         "bridge": None,
     }
     if enabled:
         calibration = Path(params["rebot_leader_calibration_file"])
         if not calibration.is_absolute():
             calibration = (
-                Path(get_package_share_directory("rebot_bench_base_config"))
+                Path(get_package_share_directory("picknik_boston_rebot_b601_rs_hw"))
                 / calibration
             )
         settings["bridge"] = {
@@ -53,20 +57,11 @@ def configured_nodes(config):
     """Create the backend-owned processes selected by the startup contract."""
     settings = startup_settings(config)
     nodes = []
-    if settings["thermal_guard"]:
-        nodes.append(
-            Node(
-                package="rebot_bench_base_config",
-                executable="rebot_thermal_guard.py",
-                name="rebot_thermal_guard",
-                output="screen",
-            )
-        )
     if settings["bridge"] is not None:
         bridge = settings["bridge"]
         nodes.append(
             Node(
-                package="rebot_bench_base_config",
+                package="picknik_boston_rebot_b601_rs_hw",
                 executable="rebot_leader_bridge.py",
                 name="rebot_leader_bridge",
                 output="screen",

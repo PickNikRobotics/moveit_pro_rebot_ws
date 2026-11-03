@@ -11,10 +11,13 @@ import pytest
 import yaml
 import xacro
 
+OFFICE_SHARE = Path(get_package_share_directory("picknik_boston_rebot_b601_rs_hw"))
+STOCK_MESHES = Path(get_package_share_directory("rebot_description")) / "meshes"
+
 
 @pytest.fixture(scope="module")
 def model(tmp_path_factory):
-    share = Path(get_package_share_directory("rebot_bench_base_config"))
+    share = OFFICE_SHARE
     urdf = tmp_path_factory.mktemp("description") / "rebot.urdf"
     urdf.write_text(
         xacro.process_file(
@@ -51,7 +54,7 @@ def test_measured_motor_limits(model):
 
 
 def test_saved_waypoints_and_interpolated_moves_are_collision_free(model):
-    share = Path(get_package_share_directory("rebot_bench_base_config"))
+    share = OFFICE_SHARE
     waypoints = yaml.safe_load((share / "waypoints/rebot_waypoints.yaml").read_text())
     poses = {
         w["name"]: dict(zip(w["joint_state"]["name"], w["joint_state"]["position"]))
@@ -86,13 +89,12 @@ def test_wrist_mount_meshes_stay_separated_across_roll(model):
     Gripper_end is fixed to link6. J6 is their only relative motion with link5;
     its Z-axis rotation preserves the axial separating plane measured here.
     """
-    share = Path(get_package_share_directory("rebot_bench_base_config"))
     triangle = np.dtype(
         [("normal", "<f4", 3), ("vertices", "<f4", (3, 3)), ("attribute", "<u2")]
     )
     meshes = {}
     for name in ["link5", "gripper_end"]:
-        path = share / "description/assets/shared" / f"{name}.STL"
+        path = STOCK_MESHES / "shared" / f"{name}.STL"
         meshes[name] = np.fromfile(path, dtype=triangle, offset=84)["vertices"].reshape(
             -1, 3
         )
@@ -113,7 +115,7 @@ def test_wrist_mount_meshes_stay_separated_across_roll(model):
 
 def test_open_waypoint_increases_jaw_separation(model):
     """Check opening semantics from finger geometry, including dependent mimics."""
-    share = Path(get_package_share_directory("rebot_bench_base_config"))
+    share = OFFICE_SHARE
     waypoints = yaml.safe_load((share / "waypoints/rebot_waypoints.yaml").read_text())
     poses = {
         w["name"]: dict(zip(w["joint_state"]["name"], w["joint_state"]["position"]))
@@ -126,7 +128,7 @@ def test_open_waypoint_increases_jaw_separation(model):
     # overlap laterally at different heights and are not jaw contact surfaces.
     fingers = {
         side: np.fromfile(
-            share / f"description/assets/visual/pla_{side}.STL",
+            STOCK_MESHES / f"visual/pla_{side}.STL",
             dtype=triangle,
             offset=84,
         )["vertices"].reshape(-1, 3)

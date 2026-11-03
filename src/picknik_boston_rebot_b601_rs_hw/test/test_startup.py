@@ -14,7 +14,7 @@ import pytest
 @pytest.fixture
 def startup():
     path = (
-        Path(get_package_share_directory("rebot_bench_base_config"))
+        Path(get_package_share_directory("picknik_boston_rebot_b601_rs_hw"))
         / "launch/rebot_leader.launch.py"
     )
     spec = importlib.util.spec_from_file_location("rebot_startup", path)
@@ -25,20 +25,20 @@ def startup():
 
 @pytest.mark.parametrize("mode", ["mock", "real", "mujoco"])
 @pytest.mark.parametrize("enabled", [False, True])
-def test_merged_yaml_selects_one_reader_and_real_only_thermal_owner(
+def test_merged_yaml_selects_one_reader_without_enabling_incomplete_thermal_path(
     startup, mode, enabled, tmp_path
 ):
-    config = load_system_config("rebot_bench_base_config", tmp_path)[0]
+    config = load_system_config("picknik_boston_rebot_b601_rs_hw", tmp_path)[0]
     config.ros_global_params["rebot_leader_enabled"] = enabled
     for entry in config.hardware.robot_description.urdf_params:
         if "hardware_interface" in entry:
             entry["hardware_interface"] = mode
     settings = startup.startup_settings(config)
     assert settings["hardware_interface"] == mode
-    assert settings["thermal_guard"] == (mode == "real")
+    assert settings["thermal_guard"] is False
     assert (settings["bridge"] is not None) == enabled
     # Smoke-load the actual launch actions without executing hardware processes.
-    assert len(startup.configured_nodes(config)) == int(enabled) + int(mode == "real")
+    assert len(startup.configured_nodes(config)) == int(enabled)
     assert startup.generate_launch_description().entities
     if enabled:
         bridge = settings["bridge"]
@@ -49,7 +49,7 @@ def test_merged_yaml_selects_one_reader_and_real_only_thermal_owner(
             params["rebot_leader_port"],
             "--calibration-file",
             str(
-                Path(get_package_share_directory("rebot_bench_base_config"))
+                Path(get_package_share_directory("picknik_boston_rebot_b601_rs_hw"))
                 / params["rebot_leader_calibration_file"]
             ),
         ]
@@ -63,7 +63,7 @@ def test_invalid_yaml_enable_fails_without_starting_anything(startup, value):
 
 
 def test_absolute_calibration_and_custom_reader_settings(startup, tmp_path):
-    config = load_system_config("rebot_bench_base_config", tmp_path)[0]
+    config = load_system_config("picknik_boston_rebot_b601_rs_hw", tmp_path)[0]
     calibration = str(tmp_path / "calibration.json")
     config.ros_global_params.update(
         rebot_leader_enabled=True,

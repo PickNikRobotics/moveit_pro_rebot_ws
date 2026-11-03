@@ -47,15 +47,13 @@ def collection_route():
 @pytest.fixture(scope="module")
 def collision_model(tmp_path_factory):
     directory = tmp_path_factory.mktemp("gravity-model")
-    source = (PACKAGE / "description/rebot.urdf.xacro").read_text().replace(
-        "package://rebot_bench_base_config/", PACKAGE.as_uri() + "/"
-    )
-    path = directory / "robot.xacro"
-    path.write_text(source)
+    # Expand the real package file so its relative includes retain their context.
+    path = PACKAGE / "description/rebot.urdf.xacro"
     config = yaml.safe_load((PACKAGE / "config/config.yaml").read_text())
     mappings = {key: str(value) for entry in config["hardware"]["robot_description"]["urdf_params"]
                 for key, value in entry.items()}
     mappings["hardware_interface"] = "mock"
+    mappings["boston_gravity_fit"] = "false"
     description = xacro.process_file(str(path), mappings=mappings).toxml()
     path = directory / "robot.urdf"
     path.write_text(description)

@@ -37,4 +37,4 @@ scene_aligned_depth: true
 # bench's unit read 4% long, and on 2026-10-13 a factor of 0.96 put its mat at
 # 0 mm (median of 11,000 points, was -24 mm) and a 100 mm blue-on-red stack's
 # top at 100 mm (was 80 mm), in the calibrated world frame.
-scene_depth_scale: 1.0
+scene_depth_scale: 0.96
