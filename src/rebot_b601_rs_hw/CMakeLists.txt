@@ -64,7 +64,7 @@ if(BUILD_TESTING)
     COMMAND $<TARGET_FILE:test_gravity_mode_execution> --ros-args --log-level error
     TIMEOUT 60 GENERATE_RESULT_FOR_RETURN_CODE_ZERO)
   ament_add_pytest_test(test_mode_fixture_cleanup test/test_mode_fixture_cleanup.py
-    TIMEOUT 70 APPEND_ENV MODE_TEST_EXECUTABLE=$<TARGET_FILE:test_gravity_mode_execution>)
+    TIMEOUT 70 ENV MODE_TEST_EXECUTABLE=$<TARGET_FILE:test_gravity_mode_execution>)
   set_tests_properties(test_gravity_mode_execution test_mode_fixture_cleanup PROPERTIES
     RESOURCE_LOCK rebot_gravity_mode_fixture)
   ament_add_gtest(test_objective_library test/test_objective_library.cpp TIMEOUT 60)
