@@ -12,7 +12,7 @@
 #
 # See https://github.com/pre-commit/pre-commit
 # Upstream legal bytes are checked against immutable hashes, never normalized.
-exclude: ^src/external_dependencies/|^src/picknik_boston_rebot_b601_rs_hw/description/assets/realsense/(LICENSE|UPSTREAM_NOTICE\.txt)$
+exclude: ^src/external_dependencies/|^src/picknik_boston_rebot_b601_rs_(hw|sim)/description/assets/realsense/(LICENSE|UPSTREAM_NOTICE\.txt)$
 repos:
   # Standard hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks

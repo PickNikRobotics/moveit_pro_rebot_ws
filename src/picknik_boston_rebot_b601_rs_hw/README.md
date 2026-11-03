@@ -7,6 +7,16 @@ Office application source for **MoveIt Pro 10.x / ROS 2 Jazzy**, on the
 assembly, calibrated placement, OAK-D/D435, USB leader, collection/fit and cube
 application sources. Boulder and San Diego are not modeled here.
 
+Optional source twins are
+[`picknik_boston_rebot_b601_rs_sim`](../picknik_boston_rebot_b601_rs_sim/README.md)
+for the cube bench and
+[`picknik_boston_rebot_b601_rs_peg_sim`](../picknik_boston_rebot_b601_rs_peg_sim/README.md)
+for the frozen peg registration. They explicitly override the physical backend,
+launch and active-gravity defaults; selecting either does not start real drivers,
+the guard or a USB leader. This hardware config does not reference or depend on
+those child scenes. Both retain nominal dynamic inertias and their documented
+contact/calibration limitations.
+
 **Migration checkpoint, not physical readiness.** No physical startup, CAN,
 gain write, motion or recording was performed. The driver launch includes the
 stock physical-only thermal guard and native HOME; office recovery keeps its
