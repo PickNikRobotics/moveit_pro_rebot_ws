@@ -25,7 +25,7 @@
 // CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
-#include <rebot_bench_behaviors/clamp_robot_state_to_bounds.hpp>
+#include <motion_recovery_behaviors/clamp_robot_state_to_bounds.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -34,7 +34,7 @@
 #include <moveit_pro_behavior_interface/get_required_ports.hpp>
 #include <moveit_pro_behavior_interface/metadata_fields.hpp>
 
-namespace rebot_bench_behaviors
+namespace motion_recovery_behaviors
 {
 tl::expected<void, std::string> clampToBounds(const moveit_pro::base::RobotModel& model,
                                               sensor_msgs::msg::JointState& joints)
@@ -61,7 +61,7 @@ BT::PortsList ClampRobotStateToBounds::providedPorts()
 
 BT::KeyValueVector ClampRobotStateToBounds::metadata()
 {
-  return { { moveit_pro::behaviors::kSubcategoryMetadataKey, "reBot Bench" },
+  return { { moveit_pro::behaviors::kSubcategoryMetadataKey, "Motion - Planning" },
            { moveit_pro::behaviors::kDescriptionMetadataKey,
              "Clamps each joint of a robot state into the robot model's position bounds, so a joint that sagged past "
              "a bound can still be the command a plan is anchored to." } };
@@ -85,4 +85,4 @@ BT::NodeStatus ClampRobotStateToBounds::tick()
   setOutput("bounded_state", state);
   return BT::NodeStatus::SUCCESS;
 }
-}  // namespace rebot_bench_behaviors
+}  // namespace motion_recovery_behaviors

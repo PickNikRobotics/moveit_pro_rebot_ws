@@ -17,15 +17,28 @@ The reusable chainable controller is maintained as its own
 at `7d1a10ff9fa804694aea52ed729e5a2ec3d55b98`. This hardware loader does not wrap or
 replace the controller.
 
-## Recovery integration checkpoint
+## Recovery integration
 
-The thermal guard is built and installed, but **not yet launched by this stock
-config**. Its preserved native HOME request names `Return reBot Leader Home`,
-which is not in the stock Objective library. That source Objective depends on
-bounded-start planning, command-anchored motion and an office recorder. Merely
-renaming it to `Move to Rest` would change recovery semantics; copying the whole
-bench library would introduce office content. Complete that dependency split
-before treating this configuration as a commissioned hardware integration.
+The physical-only additional driver launch constructs one thermal guard; mock
+and MuJoCo construct none. Its preserved request names `Return reBot Leader Home`,
+now in the hardware library along with `reBot Move to Arm Waypoint`. Both are
+path-filtered imports from current example main (source commits
+`3a14193f5d2dc11c80654891fd3dda28c52091a8`,
+`7ff44f38cf5399c19e92acd0906b8035260e6af1`,
+`fd6f446aba27711a30b09ba974fe5ad1992b77f7`). Stock omits **only the recorder leaf**;
+Boston retains its recorder and consumes the same three helpers from
+`motion_recovery_behaviors`, whose README records the temporary common-package
+location and original tests. No generic framework or office plugin is loaded by stock.
+
+The source algorithm remains: activate/retain JTAC, skip motion in the inclusive
+0.08-rad HOME box, center joint5 first if needed, then return to Zeroed Rest at
+0.0833333333 velocity/acceleration scales (0.05 rad/s nominal maximum). Both
+plans use bounded measured starts; anchoring holds the jaw and retains the
+0.10-rad stale-command fallback. Only the rest leg has the existing collision-
+checked point-to-point fallback. Failure does not disable torque. These are
+source semantics, not a claim that a physical recovery from every sag succeeds.
+The source Xacro thermal cutoff/clear parameters are explicitly 100°C/75°C;
+leaving cutoff unset would disable the driver latch and is not equivalent.
 
 The preserved sequence is: fresh measured pose and healthy enabled motors →
 nonzero-stamped stationary JTAC anchor → two advancing matching references →
@@ -47,5 +60,10 @@ Objectives for mock, simulation and hardware configurations without ticking
 any tree. A separate offline test executes Stop → Start → Stop against actual
 ControllerManager/JTAC with memory-only hardware, observing all36gain-service
 requests after the measured command anchor while nominal gravity remains active.
-These checks do not exercise a real hardware interface, native HOME execution,
-UI controls or physical fault recovery.
+The HOME regression executes the actual source trees and real bounding/anchoring
+helpers with deterministic planner/trajectory seams: yaw-first order, inclusive
+HOME box, source speed scales, bounded starts, jaw holding, rest-only fallback,
+validation and failure-before-endpoint-commit. Three preserved native-planner
+cases explicitly skip without a MoveIt Pro license. Launch tests evaluate actions
+without executing the returned Node. These checks do not exercise a real hardware
+interface, licensed native HOME planning, UI controls or physical fault recovery.

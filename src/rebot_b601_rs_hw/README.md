@@ -11,9 +11,11 @@ command interface.
 ## Integration status
 
 The stock model/controller composition is a software migration, not a physical
-acceptance. The preserved thermal guard and its tests are installed, but its
-native HOME dependency is not yet integrated into the stock launch. Do not
-commission this configuration until that recovery dependency is resolved.
+acceptance. The physical backend launches the preserved thermal guard with its
+native HOME dependency, using the three shared recovery helpers. The latch is
+100°C with 75°C clear, matching the source configuration. Mock/MuJoCo do not
+launch the guard. Commissioning still requires separately authorized physical
+recovery checks; offline closure is not a hardware safety certification.
 [Source provenance and limitations](docs/source-provenance.md) distinguish
 migrated functionality from unverified runtime behavior.
 
@@ -100,9 +102,9 @@ fault-byte-swap branch.
 
 [Start Gravity Comp and Stop Gravity Comp](docs/gravity-modes.md) preserve the
 published measured-pose anchor before damping/stiffness changes. Both finish
-without switching controllers; gravity stays active. They require the completed
-thermal recovery integration before physical use and do not certify float quality
-or motor-side gain delivery.
+without switching controllers; gravity stays active. The independent thermal
+recovery sequence remains required during physical use. Source integration and
+offline tests do not certify float quality or motor-side gain delivery.
 
 ## Verification and rollback
 

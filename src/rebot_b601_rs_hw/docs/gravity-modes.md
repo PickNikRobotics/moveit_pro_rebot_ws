@@ -6,9 +6,9 @@ Stock gravity uses nominal inertials, unit gains, zero offsets and the native-fi
 payload. Boston can select its fitted gravity model without changing the mode
 Objectives' ordering contract.
 
-**Do not use floating before the thermal recovery integration is complete.**
-The guard's source and tests are included but its native HOME dependency and
-launch wiring remain incomplete; see [source provenance](source-provenance.md).
+**Physical floating still requires commissioned thermal recovery.**
+The guard, native HOME dependency and physical-only launch wiring are integrated
+and covered by offline tests; see [source provenance](source-provenance.md).
 An installed Objective is not permission or evidence of safe physical use.
 
 ## Start Gravity Comp

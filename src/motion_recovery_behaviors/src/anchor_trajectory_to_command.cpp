@@ -26,7 +26,7 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#include <rebot_bench_behaviors/anchor_trajectory_to_command.hpp>
+#include <motion_recovery_behaviors/anchor_trajectory_to_command.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -104,7 +104,7 @@ struct Fade
 }
 }  // namespace
 
-namespace rebot_bench_behaviors
+namespace motion_recovery_behaviors
 {
 AnchorTrajectoryToCommand::AnchorTrajectoryToCommand(
     const std::string& name, const BT::NodeConfiguration& config,
@@ -271,4 +271,4 @@ BT::NodeStatus AnchorTrajectoryToCommand::tick()
   setOutput(kPortIDAnchoredTrajectory, anchored);
   return BT::NodeStatus::SUCCESS;
 }
-}  // namespace rebot_bench_behaviors
+}  // namespace motion_recovery_behaviors

@@ -1,0 +1,12 @@
+<class_libraries>
+  <library path="motion_recovery_behaviors">
+    <class
+      type="motion_recovery_behaviors::MotionRecoveryBehaviorsLoader"
+      base_class_type="moveit_pro::behaviors::SharedResourcesNodeLoaderBase"
+    >
+      <description>
+        Generic bounded-start planning and command anchoring.
+      </description>
+    </class>
+  </library>
+</class_libraries>

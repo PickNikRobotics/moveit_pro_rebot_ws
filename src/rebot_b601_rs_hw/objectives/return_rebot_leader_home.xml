@@ -135,7 +135,7 @@
     <SubTree ID="Return reBot Leader Home">
       <MetadataFields>
         <Metadata runnable="true" />
-        <Metadata subcategory="reBot Bench" />
+        <Metadata subcategory="reBot" />
       </MetadataFields>
     </SubTree>
   </TreeNodesModel>

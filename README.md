@@ -46,8 +46,8 @@ velocity and acceleration scales. These poses are reference configurations;
 verify collision clearance in the actual installation before physical use.
 The JTAC teleoperation override and zero added collision padding are retained
 from the compact-arm configuration; mesh collision checking remains enabled.
-This is not a measured physical-clearance allowance. No custom Behavior
-library is required.
+This is not a measured physical-clearance allowance. Hardware additionally loads
+the motor-gain leaf and the small [generic recovery package](src/motion_recovery_behaviors/README.md).
 
 ## Joint and controller contract
 
@@ -70,6 +70,13 @@ explicit unit gains and zero offsets. The two native fingers are represented
 once by a 0.1504 kg payload at their nominal combined center of mass. This is
 not the fitted Boston model and not a physical balance certification. Mock and
 MuJoCo do not spawn this controller; MuJoCo supplies its own gravity compensation.
+
+The physical launch also includes the thermal guard. At the source 100°C latch,
+it anchors measured pose, restores configured spring gains, then follows the
+preserved cancel → yaw-first HOME → fresh HOME verification → OFF → cooling
+sequence (75°C clear). Stock HOME omits only office trajectory recording.
+This wiring and its offline tests do not certify real-arm recovery; see the
+[recovery limits](src/rebot_b601_rs_hw/docs/source-provenance.md).
 
 ## Minimal simulation
 

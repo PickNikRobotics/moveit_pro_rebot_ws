@@ -63,9 +63,12 @@ def test_backend_isolation(mode, plugin, sim_time):
             for interface in parameters["interfaces"]
         }
         assert requested <= exported
-    assert (
-        config.hardware.additional_driver_launch_file.path == "launch/blank.launch.py"
-    )
+    driver_launch = config.hardware.additional_driver_launch_file
+    if mode == "hw":
+        assert driver_launch.package == "rebot_b601_rs_hw"
+        assert driver_launch.path == "launch/rebot_thermal.launch.py"
+    else:
+        assert driver_launch.path == "launch/blank.launch.py"
     assert config.hardware.robot_description.urdf.package == "rebot_b601_rs_mock"
     assert config.ros2_control["config"]["package"] == "rebot_b601_rs_mock"
     links = {link.get("name") for link in robot.findall("link")}
@@ -81,6 +84,9 @@ def test_backend_isolation(mode, plugin, sim_time):
     loaders = config.objectives.behavior_loader_plugins
     assert "rebot" not in loaders
     if mode == "hw":
+        assert loaders["motion_recovery"] == [
+            "motion_recovery_behaviors::MotionRecoveryBehaviorsLoader"
+        ]
         assert loaders["rebot_hardware"] == [
             "rebot_b601_rs_hw::RebotHardwareBehaviorsLoader"
         ]
@@ -102,6 +108,8 @@ def test_physical_torque_policy_and_joint_contract():
     assert params["hold_torque_on_deactivate"] == "true"
     assert params["motor_can_timeout_ms"] == "0"
     assert params["freeze_on_joint_loss"] == "true"
+    assert float(params["thermal_cutoff_c"]) == 100.0
+    assert float(params["thermal_clear_c"]) == 75.0
     assert params["torque_enable"] == "true"
     control = robot.find("ros2_control")
     for gpio in control.findall("gpio"):

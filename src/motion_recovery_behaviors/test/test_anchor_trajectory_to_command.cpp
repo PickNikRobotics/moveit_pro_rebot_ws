@@ -34,22 +34,18 @@
 #include <vector>
 
 #include <behaviortree_cpp/bt_factory.h>
-#include <filesystem>
-#include <fstream>
+#include <motion_recovery_behaviors/anchor_trajectory_to_command.hpp>
 #include <moveit_msgs/msg/robot_state.hpp>
 #include <moveit_pro_behavior_interface/behavior_context.hpp>
 #include <moveit_pro_behavior_interface/shared_resources_node_loader.hpp>
 #include <rclcpp/rclcpp.hpp>
-#include <rebot_bench_behaviors/anchor_trajectory_to_command.hpp>
-#include <rebot_bench_behaviors/record_rebot_trajectory.hpp>
 #include <trajectory_msgs/msg/joint_trajectory.hpp>
 
-namespace rebot_bench_behaviors
+namespace motion_recovery_behaviors
 {
 namespace
 {
 using ::testing::ElementsAre;
-using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 
 constexpr double kTolerance = 1e-12;
@@ -246,53 +242,8 @@ TEST_F(AnchorTrajectoryToCommandTest, AlreadyOpenJawStillHasAnExecutableHoldAndE
   EXPECT_DOUBLE_EQ(tree_.rootBlackboard()->get<moveit_msgs::msg::RobotState>("end_state").joint_state.position[0], 5.25);
 }
 
-TEST_F(AnchorTrajectoryToCommandTest, RecordsEveryTrajectoryAndRefusesUnwritableAudit)
-{
-  moveit_pro::behaviors::registerBehavior<RecordRebotTrajectory>(factory_, "RecordRebotTrajectory", context_);
-  auto tree = factory_.createTreeFromText(R"(<root BTCPP_format="4"><BehaviorTree ID="Audit">
-    <Action ID="RecordRebotTrajectory" trajectory="{trajectory}" file_path="{path}" />
-    </BehaviorTree></root>)");
-  const auto path = std::filesystem::temp_directory_path() / "rebot-record-trajectory-test.yaml";
-  std::filesystem::remove(path);
-  tree.rootBlackboard()->set("trajectory", plannedTrajectory());
-  tree.rootBlackboard()->set("path", path.string());
-  EXPECT_EQ(tree.tickOnce(), BT::NodeStatus::SUCCESS);
-  const auto first_size = std::filesystem::file_size(path);
-  tree.haltTree();
-  EXPECT_EQ(tree.tickOnce(), BT::NodeStatus::SUCCESS);
-  EXPECT_GT(std::filesystem::file_size(path), first_size);
-  std::ifstream file(path);
-  const std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-  EXPECT_NE(text.find("dispatched_at:"), std::string::npos);
-  EXPECT_NE(text.find("positions:"), std::string::npos);
-  std::filesystem::remove(path);
-  tree.haltTree();
-  tree.rootBlackboard()->set("path", (path / "missing" / "audit.yaml").string());
-  EXPECT_EQ(tree.tickOnce(), BT::NodeStatus::FAILURE);
-}
-
-TEST_F(AnchorTrajectoryToCommandTest, ReportsMissingAuditInputsAndEmptyTrajectory)
-{
-  moveit_pro::behaviors::registerBehavior<RecordRebotTrajectory>(factory_, "RecordRebotTrajectory", context_);
-  for (const std::string scenario : { "missing trajectory", "missing path", "empty trajectory" })
-  {
-    SCOPED_TRACE(scenario);
-    auto tree = factory_.createTreeFromText(R"(<root BTCPP_format="4"><BehaviorTree ID="Audit">
-      <Action ID="RecordRebotTrajectory" trajectory="{trajectory}" file_path="{path}" />
-      </BehaviorTree></root>)");
-    if (scenario != "missing trajectory")
-      tree.rootBlackboard()->set(
-          "trajectory", scenario == "empty trajectory" ? trajectory_msgs::msg::JointTrajectory{} : plannedTrajectory());
-    if (scenario != "missing path")
-      tree.rootBlackboard()->set("path", std::string("/unused-audit.yaml"));
-
-    EXPECT_EQ(tree.tickOnce(), BT::NodeStatus::FAILURE);
-    EXPECT_THAT(context_->logger->consumeErrorLogBuffer(),
-                HasSubstr("Provide a trajectory with at least one point and a file_path."));
-  }
-}
 }  // namespace
-}  // namespace rebot_bench_behaviors
+}  // namespace motion_recovery_behaviors
 
 int main(int argc, char** argv)
 {

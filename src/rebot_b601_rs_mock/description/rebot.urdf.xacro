@@ -8,6 +8,8 @@
   <xacro:arg name="hardware_interface" default="mock" />
   <xacro:arg name="can_interface" default="can0" />
   <xacro:arg name="torque_enable" default="true" />
+  <xacro:arg name="thermal_cutoff_c" default="100.0" />
+  <xacro:arg name="thermal_clear_c" default="75.0" />
   <xacro:arg name="arm_control_mode" default="motion" />
   <xacro:arg name="arm_effort_command" default="false" />
   <xacro:arg name="jaw_kp" default="12.0" />
@@ -471,6 +473,8 @@
           <param name="hold_torque_on_deactivate">true</param>
           <param name="motor_can_timeout_ms">0</param>
           <param name="freeze_on_joint_loss">true</param>
+          <param name="thermal_cutoff_c">$(arg thermal_cutoff_c)</param>
+          <param name="thermal_clear_c">$(arg thermal_clear_c)</param>
           <param name="torque_enable">$(arg torque_enable)</param>
         </xacro:if>
       </hardware>

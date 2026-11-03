@@ -28,41 +28,33 @@
 
 #pragma once
 
-#include <behaviortree_cpp/action_node.h>
-#include <moveit_pro_behavior_interface/shared_resources_node.hpp>
-#include <sensor_msgs/msg/joint_state.hpp>
+#include <memory>
+#include <moveit_pro_behavior/behaviors/core/plan_to_joint_goal.hpp>
+#include <moveit_pro_behavior_interface/service_client_interface.hpp>
 #include <string>
-#include <tl/expected.hpp>
 
-namespace moveit_pro::base
+namespace motion_recovery_behaviors
 {
-class RobotModel;
-}  // namespace moveit_pro::base
-
-namespace rebot_bench_behaviors
-{
-/** Clamps each named joint into the robot model's position bounds; fails for a joint it cannot bound. */
-tl::expected<void, std::string> clampToBounds(const moveit_pro::base::RobotModel& model,
-                                              sensor_msgs::msg::JointState& joints);
-
 /**
- * @brief Clamps each joint of a robot state into the robot model's position bounds.
+ * @brief PlanToJointGoal, planned from the current state clamped into the robot model's position bounds.
  *
- * @details A joint held in impedance mode can sag past a bound. A command anchored to the clamped state keeps a
- * trajectory within the bounds from its first point. Fails for a joint the robot model does not know, or a non-finite
- * position.
- *
- * | Data Port Name | Port Type | Object Type                  |
- * | -------------- | --------- | ---------------------------- |
- * | robot_state    | input     | moveit_msgs::msg::RobotState |
- * | bounded_state  | output    | moveit_msgs::msg::RobotState |
+ * @details A joint held in impedance mode can sag past a bound. PlanToJointGoal then plans from past the bound, and
+ * refuses the start once the sag puts it in self-collision. This plans from that joint's bound instead; every port,
+ * collision check and detour is PlanToJointGoal's. Anchor the plan to the same clamped state, from
+ * ClampRobotStateToBounds, so it also executes from there.
  */
-class ClampRobotStateToBounds final : public moveit_pro::behaviors::SharedResourcesNode<BT::SyncActionNode>
+class PlanToJointGoalFromBoundedStart final : public moveit_pro::behaviors::PlanToJointGoal
 {
 public:
-  using SharedResourcesNode::SharedResourcesNode;
-  static BT::PortsList providedPorts();
+  PlanToJointGoalFromBoundedStart(const std::string& name, const BT::NodeConfiguration& config,
+                                  const std::shared_ptr<moveit_pro::behaviors::BehaviorContext>& shared_resources);
+
+  /** @brief Plans from the scene that @p scene_client returns, clamped, rather than from the scene service. */
+  PlanToJointGoalFromBoundedStart(
+      const std::string& name, const BT::NodeConfiguration& config,
+      const std::shared_ptr<moveit_pro::behaviors::BehaviorContext>& shared_resources,
+      std::unique_ptr<moveit_pro::behaviors::ClientInterfaceBase<moveit_pro::behaviors::GetPlanningScene>> scene_client);
+
   static BT::KeyValueVector metadata();
-  BT::NodeStatus tick() override;
 };
-}  // namespace rebot_bench_behaviors
+}  // namespace motion_recovery_behaviors

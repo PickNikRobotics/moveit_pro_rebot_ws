@@ -12,6 +12,11 @@
   <depend>robstride_interfaces</depend>
   <depend>pluginlib</depend>
   <exec_depend>rclpy</exec_depend>
+  <exec_depend>motion_recovery_behaviors</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>moveit_studio_utils_py</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
   <exec_depend>action_msgs</exec_depend>
   <exec_depend>control_msgs</exec_depend>
   <exec_depend>moveit_pro_controllers_msgs</exec_depend>
@@ -33,9 +38,8 @@
   <test_depend>kdl_parser</test_depend>
   <test_depend>orocos_kdl</test_depend>
   <test_depend>yaml-cpp</test_depend>
-  <test_depend>ament_index_python</test_depend>
   <test_depend>python3-yaml</test_depend>
-  <test_depend>moveit_studio_utils_py</test_depend>
+  <test_depend>tinyxml2_vendor</test_depend>
   <test_depend>xacro</test_depend>
   <export>
     <build_type>ament_cmake</build_type>

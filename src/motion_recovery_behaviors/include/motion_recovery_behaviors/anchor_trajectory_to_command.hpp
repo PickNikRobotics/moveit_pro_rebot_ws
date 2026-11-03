@@ -35,7 +35,7 @@
 #include <moveit_pro_behavior_interface/behavior_context.hpp>
 #include <moveit_pro_behavior_interface/shared_resources_node.hpp>
 
-namespace rebot_bench_behaviors
+namespace motion_recovery_behaviors
 {
 /**
  * @brief Moves a trajectory planned from the measured joint state so that it starts at the controller's command.
@@ -75,4 +75,4 @@ public:
 
   BT::NodeStatus tick() override;
 };
-}  // namespace rebot_bench_behaviors
+}  // namespace motion_recovery_behaviors

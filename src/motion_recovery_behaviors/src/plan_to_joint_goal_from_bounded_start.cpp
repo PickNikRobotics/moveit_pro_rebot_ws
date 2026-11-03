@@ -25,14 +25,14 @@
 // CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
-#include <rebot_bench_behaviors/plan_to_joint_goal_from_bounded_start.hpp>
+#include <motion_recovery_behaviors/plan_to_joint_goal_from_bounded_start.hpp>
 
+#include <motion_recovery_behaviors/clamp_robot_state_to_bounds.hpp>
 #include <moveit_pro_base/robot_model/robot_model.hpp>
 #include <moveit_pro_behavior_interface/metadata_fields.hpp>
-#include <rebot_bench_behaviors/clamp_robot_state_to_bounds.hpp>
 #include <utility>
 
-namespace rebot_bench_behaviors
+namespace motion_recovery_behaviors
 {
 namespace
 {
@@ -104,10 +104,10 @@ PlanToJointGoalFromBoundedStart::PlanToJointGoalFromBoundedStart(
 
 BT::KeyValueVector PlanToJointGoalFromBoundedStart::metadata()
 {
-  return { { moveit_pro::behaviors::kSubcategoryMetadataKey, "reBot Bench" },
+  return { { moveit_pro::behaviors::kSubcategoryMetadataKey, "Motion - Planning" },
            { moveit_pro::behaviors::kDescriptionMetadataKey,
              "PlanToJointGoal from the current state clamped into the robot model's position bounds, so a joint "
              "that sagged past a bound plans from the bound. Ports, collision checks and detours are "
              "PlanToJointGoal's." } };
 }
-}  // namespace rebot_bench_behaviors
+}  // namespace motion_recovery_behaviors
