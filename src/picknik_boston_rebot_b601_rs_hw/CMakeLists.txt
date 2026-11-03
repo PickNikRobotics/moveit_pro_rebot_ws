@@ -32,7 +32,9 @@ if(BUILD_TESTING)
   target_include_directories(test_stack_objectives PRIVATE
     $<TARGET_PROPERTY:rebot_bench_behaviors::rebot_bench_behaviors,INTERFACE_INCLUDE_DIRECTORIES>)
   target_link_libraries(test_stack_objectives tinyxml2::tinyxml2 yaml-cpp::yaml-cpp)
-  target_compile_definitions(test_stack_objectives PRIVATE PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  find_package(rebot_b601_rs_mock REQUIRED)
+  target_compile_definitions(test_stack_objectives PRIVATE PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    STOCK_OBJECTIVES_DIR="${rebot_b601_rs_mock_DIR}/../objectives")
   set(TEST_URDF ${CMAKE_CURRENT_BINARY_DIR}/test_rebot.urdf)
   add_custom_command(
     OUTPUT ${TEST_URDF}

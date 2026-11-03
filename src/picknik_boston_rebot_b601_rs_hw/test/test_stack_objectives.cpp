@@ -43,9 +43,9 @@
 
 namespace
 {
-// Every Objective in this package is loaded with its TreeNodesModel, so SubTree
-// port contracts are enforced as in the Objective Server. Leaf Actions and
-// SubTrees from other packages become recording stubs; the production control
+// Every Objective in this package and the inherited Close Gripper are loaded with
+// their TreeNodesModel, so SubTree port contracts are enforced as in the Objective
+// Server. Leaf Actions and other external SubTrees become recording stubs; the production control
 // flow, scripts and port remapping run unchanged. LoadMotionScales reads the
 // shipped settings file with the Behavior's own parser.
 const std::vector<std::string> kRecordedPorts{ "waypoint_name",
@@ -60,8 +60,11 @@ const std::vector<std::string> kRecordedPorts{ "waypoint_name",
                                                "cube",
                                                "max_offset",
                                                "min_height",
-                                               "maximum" };
-const std::set<std::string> kOwnStubs{ "LoadMotionScales", "IsJointAtLeast", "GetSizeOfVector", "GetElementOfVector" };
+                                               "maximum",
+                                               "end_state",
+                                               "_skipIf" };
+const std::set<std::string> kOwnStubs{ "LoadMotionScales",   "IsJointAtLeast", "GetSizeOfVector",
+                                       "GetElementOfVector", "Script",         "AlwaysFailure" };
 
 struct Call
 {
@@ -102,12 +105,14 @@ protected:
   {
     std::deque<tinyxml2::XMLDocument> documents;
     std::set<std::string> local_trees;
+    std::vector<std::filesystem::path> paths{ STOCK_OBJECTIVES_DIR "/close_gripper.xml" };
     for (const auto& entry : std::filesystem::directory_iterator(PACKAGE_DIR "/objectives"))
+      if (entry.path().extension() == ".xml")
+        paths.push_back(entry.path());
+    for (const auto& path : paths)
     {
-      if (entry.path().extension() != ".xml")
-        continue;
       auto& document = documents.emplace_back();
-      ASSERT_EQ(document.LoadFile(entry.path().c_str()), tinyxml2::XML_SUCCESS) << entry.path();
+      ASSERT_EQ(document.LoadFile(path.c_str()), tinyxml2::XML_SUCCESS) << path;
       for (auto* tree = document.RootElement()->FirstChildElement("BehaviorTree"); tree;
            tree = tree->NextSiblingElement("BehaviorTree"))
         local_trees.insert(tree->Attribute("ID"));
@@ -164,6 +169,10 @@ protected:
           }
           const bool fail = call.label == "ReportUnreachableCube" || depth_below_bound || past_maximum ||
                             (call.label == "ValidateTrajectory" && single_point_plan) || refused;
+          // The real scripts commit this symbolic endpoint after a successful leg.
+          // Typed trajectory/state correctness is exercised separately by JawLegs.
+          if (!fail && call.label == "AnchorTrajectoryToCommand")
+            node.setOutput("end_state", 1);
           return fail ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
         },
         { BT::InputPort<std::string>("operation"), BT::InputPort<std::string>("waypoint_name"),
@@ -171,7 +180,8 @@ protected:
           BT::InputPort<std::string>("task"), BT::InputPort<std::string>("message"), BT::InputPort<std::string>("cube"),
           BT::InputPort<std::string>("joint_group_name"), BT::InputPort<std::string>("planning_group_name"),
           BT::InputPort<double>("velocity_scale_factor"), BT::InputPort<double>("acceleration_scale_factor"),
-          BT::InputPort<double>("max_offset"), BT::InputPort<double>("min_height"), BT::InputPort<double>("maximum") });
+          BT::InputPort<double>("max_offset"), BT::InputPort<double>("min_height"), BT::InputPort<double>("maximum"),
+          BT::OutputPort<int>("end_state") });
     factory.registerSimpleAction(
         "LoadMotionScales",
         [this](BT::TreeNode& node) {
@@ -241,7 +251,7 @@ protected:
   {
     std::vector<std::string> result;
     for (const auto& call : calls)
-      if (call.label.starts_with("RetrieveWaypoint") || call.label.starts_with("Move to Waypoint") ||
+      if (call.label.starts_with("RetrieveWaypoint") || call.label.starts_with("Move to Named Waypoint") ||
           call.label == "HoldGripperInTrajectory holding measured jaw" || call.label.starts_with("jaw ") ||
           call.label == "DetachObject" || call.label == "PlanCartesianPath" || call.label == "ReportUnreachableCube")
         result.push_back(call.label);
@@ -297,7 +307,7 @@ const std::string kStack = R"(<SubTree ID="Stack Blue on Red" />)";
 const std::string kOpen = "RetrieveWaypoint Stack Gripper Open";
 const std::string kSurvey = "RetrieveWaypoint Pick and Stack Survey";
 const std::string kHome = "RetrieveWaypoint Zeroed Rest";
-const std::string kClose = "Move to Waypoint Gripper Closed";
+const std::string kClose = "Move to Named Waypoint Gripper Closed";
 // Recover Home detaches the cube from the planning scene once home.
 const std::string kDetach = "DetachObject";
 const std::vector<std::string> kReleased{ kOpen, "jaw open", "DetachObject", "PlanCartesianPath", kHome };
@@ -495,9 +505,9 @@ TEST_F(StackObjectives, ShortHomeOpeningsSendTheStackHomeAndCloseTheJaw)
             (std::vector<std::string>{ kClose, kOpen, "jaw short", kOpen, "jaw short", kHome, kClose, kDetach }));
 }
 
-TEST_F(StackObjectives, OpeningMarginallyShortOfTheControllerStartToleranceFails)
+TEST_F(StackObjectives, OpeningBelowTheJawConfirmationThresholdFails)
 {
-  // Arm legs hold the 5.25 rad open command; the controller rejects a start more than 0.16 rad away.
+  // The source jaw confirmation requires 5.1 rad, independently of the controller path tolerance.
   measured_jaw = { 5.05, 5.05 };
   EXPECT_EQ(run(kPick), BT::NodeStatus::FAILURE);
 }
@@ -903,8 +913,8 @@ TEST_F(StackObjectives, CycleUnstacksAStackPlacedJustInsideTheHeatReachBound)
   const auto reach_checks = std::ranges::count(calls, "IsPlannedJointAtMost", &Call::label);
   ASSERT_GT(reach_checks, 6);
   calls.clear();
-  // Every checked pose plans joint2 in the newly admitted 2.3-2.4 rad band, including the drawn spot.
-  planned_joint2 = std::deque<double>(reach_checks, 2.36);
+  // The integrated source admits joint2 through 2.6 rad, including the drawn spot.
+  planned_joint2 = std::deque<double>(reach_checks, 2.56);
   EXPECT_EQ(run(one_cycle), BT::NodeStatus::SUCCESS);
   EXPECT_TRUE(planned_joint2.empty());
   EXPECT_EQ(labelsStartingWith(calls, { "RecordEpisode", "SaveEpisode", "StopRecording" }),
@@ -916,11 +926,11 @@ TEST_F(StackObjectives, CycleUnstacksAStackPlacedJustInsideTheHeatReachBound)
 
 TEST_F(StackObjectives, StackAndUnstackRefuseAPosePastTheHeatReachBoundBeforeMotion)
 {
-  // Joint2 just past 2.4 rad at, in turn: the stack's place on red, the unstack's grasp, and both of its lifts.
+  // Joint2 just past 2.6 rad at, in turn: the stack's place on red, the unstack's grasp, and both of its lifts.
   for (const auto& [objective, planned, cube] : std::vector<std::tuple<std::string, std::deque<double>, std::string>>{
-           { kStack, { 2.36, 2.36, 2.41 }, "red cube" },
-           { kUnstack, { 2.36, 2.41 }, "blue cube" },
-           { kUnstack, { 2.36, 2.36, 2.41, 2.41 }, "blue cube" } })
+           { kStack, { 2.56, 2.56, 2.61 }, "red cube" },
+           { kUnstack, { 2.56, 2.61 }, "blue cube" },
+           { kUnstack, { 2.56, 2.56, 2.61, 2.61 }, "blue cube" } })
   {
     SCOPED_TRACE(objective + " " + std::to_string(planned.size()));
     calls.clear();
@@ -937,7 +947,7 @@ TEST_F(StackObjectives, SpotReleasePastTheHeatReachBoundIsRedrawnWithoutMotion)
 {
   // Each draw has two next-pick checks, then the corrected release check.
   for (int attempt = 0; attempt < 20; ++attempt)
-    for (const auto joint2 : { 2.36, 2.36, 2.41 })
+    for (const auto joint2 : { 2.56, 2.56, 2.61 })
       planned_joint2.push_back(joint2);
   EXPECT_EQ(run(R"(<SubTree ID="reBot Draw Place Spot" red_top="{red_top}" spot="{spot}" travel="{travel}" />)"),
             BT::NodeStatus::FAILURE);
