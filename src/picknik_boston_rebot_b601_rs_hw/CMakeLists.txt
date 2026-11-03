@@ -25,6 +25,8 @@ if(BUILD_TESTING)
   find_package(urdf REQUIRED)
   find_package(srdfdom REQUIRED)
   find_package(rebot_bench_behaviors REQUIRED)
+  find_package(motion_recovery_behaviors REQUIRED)
+  find_package(rebot_b601_rs_hw REQUIRED)
   ament_add_gtest(test_stack_objectives test/test_stack_objectives.cpp)
   ament_target_dependencies(test_stack_objectives behaviortree_cpp_picknik)
   target_compile_features(test_stack_objectives PRIVATE cxx_std_20)
@@ -34,7 +36,8 @@ if(BUILD_TESTING)
   target_link_libraries(test_stack_objectives tinyxml2::tinyxml2 yaml-cpp::yaml-cpp)
   find_package(rebot_b601_rs_mock REQUIRED)
   target_compile_definitions(test_stack_objectives PRIVATE PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
-    STOCK_OBJECTIVES_DIR="${rebot_b601_rs_mock_DIR}/../objectives")
+    STOCK_OBJECTIVES_DIR="${rebot_b601_rs_mock_DIR}/../objectives"
+    STOCK_HW_SHARE="${rebot_b601_rs_hw_DIR}/..")
   set(TEST_URDF ${CMAKE_CURRENT_BINARY_DIR}/test_rebot.urdf)
   add_custom_command(
     OUTPUT ${TEST_URDF}
@@ -54,8 +57,19 @@ if(BUILD_TESTING)
   add_dependencies(test_jaw_legs test_rebot_urdf)
   target_compile_features(test_jaw_legs PRIVATE cxx_std_20)
   ament_target_dependencies(test_jaw_legs moveit_pro_base urdf srdfdom)
-  target_link_libraries(test_jaw_legs rebot_bench_behaviors::rebot_bench_behaviors)
+  target_link_libraries(test_jaw_legs rebot_bench_behaviors::rebot_bench_behaviors
+    motion_recovery_behaviors::motion_recovery_behaviors)
   target_compile_definitions(test_jaw_legs PRIVATE
+    TEST_URDF="${TEST_URDF}" PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    STOCK_HW_SHARE="${rebot_b601_rs_hw_DIR}/..")
+  find_package(moveit_studio_agent REQUIRED)
+  find_package(moveit_pro_test_utils REQUIRED)
+  ament_add_gtest(test_objective_library test/test_objective_library.cpp TIMEOUT 60)
+  add_dependencies(test_objective_library test_rebot_urdf)
+  target_compile_features(test_objective_library PRIVATE cxx_std_20)
+  target_link_libraries(test_objective_library moveit_studio_agent::objective_server yaml-cpp::yaml-cpp)
+  ament_target_dependencies(test_objective_library moveit_pro_test_utils)
+  target_compile_definitions(test_objective_library PRIVATE
     TEST_URDF="${TEST_URDF}" PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
   find_package(ament_cmake_pytest REQUIRED)
   ament_add_pytest_test(test_stack_legs test/test_stack_legs.py TIMEOUT 60)

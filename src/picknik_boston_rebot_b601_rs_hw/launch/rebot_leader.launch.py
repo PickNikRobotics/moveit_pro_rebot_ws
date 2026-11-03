@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 """Backend-owned Boston leader from the selected merged config.
 
-Thermal guard launch is intentionally not enabled until recovery integration
-has passed its separate dependency gate. Do not use this migration for hardware.
+The driver launch separately includes the stock physical-only thermal guard.
+This module never starts a second guard.
 """
 import os
 from pathlib import Path

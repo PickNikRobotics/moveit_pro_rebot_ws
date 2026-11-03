@@ -25,7 +25,7 @@ def startup():
 
 @pytest.mark.parametrize("mode", ["mock", "real", "mujoco"])
 @pytest.mark.parametrize("enabled", [False, True])
-def test_merged_yaml_selects_one_reader_without_enabling_incomplete_thermal_path(
+def test_merged_yaml_selects_one_reader_without_duplicating_stock_guard(
     startup, mode, enabled, tmp_path
 ):
     config = load_system_config("picknik_boston_rebot_b601_rs_hw", tmp_path)[0]
@@ -80,6 +80,51 @@ def test_absolute_calibration_and_custom_reader_settings(startup, tmp_path):
             calibration,
         ],
     }
+
+
+def test_driver_launch_includes_stock_guard_once_without_executing_it(tmp_path):
+    from launch import LaunchContext
+    from launch.actions import IncludeLaunchDescription
+    from launch_ros.actions import Node
+    from launch.utilities import (
+        normalize_to_list_of_substitutions,
+        perform_substitutions,
+    )
+
+    share = Path(get_package_share_directory("picknik_boston_rebot_b601_rs_hw"))
+    path = share / "launch/rebot_drivers.launch.py"
+    spec = importlib.util.spec_from_file_location("boston_drivers", path)
+    drivers = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(drivers)
+    includes = drivers.generate_launch_description().entities
+    assert len(includes) == 3
+    context = LaunchContext()
+    destinations = []
+    for entry in includes:
+        assert isinstance(entry, IncludeLaunchDescription)
+        # Loading a description expands its location, but does not execute its
+        # OpaqueFunction or Node actions (including camera USB discovery).
+        source = entry.launch_description_source
+        assert source.get_launch_description(context) is not None
+        destinations.append(Path(source.location))
+    stock = (
+        Path(get_package_share_directory("rebot_b601_rs_hw"))
+        / "launch/rebot_thermal.launch.py"
+    )
+    assert destinations.count(stock) == 1
+    # Evaluate only the selected guard's construction function, not its Node.
+    spec = importlib.util.spec_from_file_location("stock_guard", stock)
+    guard = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(guard)
+    config = load_system_config("picknik_boston_rebot_b601_rs_hw", tmp_path)[0]
+    nodes = guard.configured_nodes(config)
+    assert len(nodes) == 1 and isinstance(nodes[0], Node)
+    assert (
+        perform_substitutions(
+            context, normalize_to_list_of_substitutions(nodes[0].node_package)
+        )
+        == "rebot_b601_rs_hw"
+    )
 
 
 def test_installed_sdk_imports_in_ros_python_without_training_dependencies():

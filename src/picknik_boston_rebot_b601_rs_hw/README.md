@@ -8,9 +8,9 @@ assembly, calibrated placement, OAK-D/D435, USB leader, collection/fit and cube
 application sources. Boulder and San Diego are not modeled here.
 
 **Migration checkpoint, not physical readiness.** No physical startup, CAN,
-gain write, motion or recording was performed. Thermal HOME integration remains
-an explicit prerequisite. The guard is inherited as source but not launched;
-do not use these files to operate the arm until that dependency is complete.
+gain write, motion or recording was performed. The driver launch includes the
+stock physical-only thermal guard and native HOME; office recovery keeps its
+trajectory recorder. This is software dependency closure, not commissioning.
 No new sag, float-quality, thermal-recovery or no-snap certification is claimed.
 
 ## Model and tuning boundary
@@ -59,7 +59,10 @@ Fitted gravity, scene/camera calibration and fixtures remain office-only.
 
 Stock Start/Stop Gravity Comp, native jaw and conference Teleoperate Objectives
 are inherited, not duplicated. Office cube/expert/recorder sources remain under
-`objectives/` and use the office-only `rebot_bench_behaviors` loader. The integrated
+`objectives/` and use the office-only `rebot_bench_behaviors` loader. The three
+bounded-start/anchoring helpers come from the stock `motion_recovery_behaviors`
+loader, registered only once. The unchanged Return reBot Leader Home is inherited;
+the office arm-waypoint override retains the recorder leaf. The integrated
 reach/lift settings are source snapshots, not a validated merge stack.
 
 **Collect reBot Gravity Data** is the later48named-waypoint/single-approach route

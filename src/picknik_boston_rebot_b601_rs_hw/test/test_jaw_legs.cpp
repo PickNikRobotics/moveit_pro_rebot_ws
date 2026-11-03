@@ -31,6 +31,9 @@
 #include <urdf_parser/urdf_parser.h>
 #include <yaml-cpp/yaml.h>
 #include <geometry_msgs/msg/pose_stamped.hpp>
+#include <motion_recovery_behaviors/anchor_trajectory_to_command.hpp>
+#include <motion_recovery_behaviors/clamp_robot_state_to_bounds.hpp>
+#include <motion_recovery_behaviors/plan_to_joint_goal_from_bounded_start.hpp>
 #include <moveit_msgs/msg/planning_scene.hpp>
 #include <moveit_msgs/msg/robot_state.hpp>
 #include <moveit_pro_base/planning_scene/planning_scene.hpp>
@@ -41,11 +44,8 @@
 #include <moveit_pro_behavior_interface/service_client_interface.hpp>
 #include <moveit_pro_behavior_interface/shared_resources_node_loader.hpp>
 #include <rclcpp/rclcpp.hpp>
-#include <rebot_bench_behaviors/anchor_trajectory_to_command.hpp>
-#include <rebot_bench_behaviors/clamp_robot_state_to_bounds.hpp>
 #include <rebot_bench_behaviors/hold_gripper_in_trajectory.hpp>
 #include <rebot_bench_behaviors/is_joint_at_least.hpp>
-#include <rebot_bench_behaviors/plan_to_joint_goal_from_bounded_start.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <trajectory_msgs/msg/joint_trajectory.hpp>
 
@@ -242,9 +242,9 @@ protected:
       }
       joint->setVariableBounds(name, bounds);
     }
-    moveit_pro::behaviors::registerBehavior<rebot_bench_behaviors::AnchorTrajectoryToCommand>(
+    moveit_pro::behaviors::registerBehavior<motion_recovery_behaviors::AnchorTrajectoryToCommand>(
         factory, "AnchorTrajectoryToCommand", context);
-    moveit_pro::behaviors::registerBehavior<rebot_bench_behaviors::ClampRobotStateToBounds>(
+    moveit_pro::behaviors::registerBehavior<motion_recovery_behaviors::ClampRobotStateToBounds>(
         factory, "ClampRobotStateToBounds", context);
     moveit_pro::behaviors::registerBehavior<rebot_bench_behaviors::IsJointAtLeast>(factory, "IsJointAtLeast", context);
     moveit_pro::behaviors::registerBehavior<rebot_bench_behaviors::HoldGripperInTrajectory>(
@@ -398,9 +398,10 @@ protected:
                                  { BT::InputPort<std::vector<std::string>>("joint_names"),
                                    BT::InputPort<std::vector<double>>("positions"),
                                    BT::OutputPort<RobotState>("joint_state_msg") });
-    for (const auto* objective : { "move_rebot_gripper.xml", "rebot_open_jaw.xml", "rebot_move_to_arm_waypoint.xml",
-                                   "rebot_move_to_pose.xml", "return_rebot_leader_home.xml" })
+    for (const auto* objective :
+         { "move_rebot_gripper.xml", "rebot_open_jaw.xml", "rebot_move_to_arm_waypoint.xml", "rebot_move_to_pose.xml" })
       factory.registerBehaviorTreeFromFile(std::string(PACKAGE_DIR "/objectives/") + objective);
+    factory.registerBehaviorTreeFromFile(STOCK_HW_SHARE "/objectives/return_rebot_leader_home.xml");
   }
 
   BT::NodeStatus run(const std::string& subtree_call, const Positions& commanded)
@@ -418,7 +419,7 @@ protected:
     factory.unregisterBuilder("PlanToJointGoal");
     factory.unregisterBuilder("PlanToJointGoalFromBoundedStart");
     registerPlanner<moveit_pro::behaviors::PlanToJointGoal>("PlanToJointGoal");
-    registerPlanner<rebot_bench_behaviors::PlanToJointGoalFromBoundedStart>("PlanToJointGoalFromBoundedStart");
+    registerPlanner<motion_recovery_behaviors::PlanToJointGoalFromBoundedStart>("PlanToJointGoalFromBoundedStart");
     moveit_pro::base::planning_scene::PlanningScene(context->robot_model).getPlanningSceneMsg(scene);
   }
 

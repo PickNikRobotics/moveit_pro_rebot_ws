@@ -1,7 +1,11 @@
 # reBot bench behaviors
 
-The base configuration loads `RebotBenchBehaviorsLoader`. The same behaviors and
-Objectives are inherited by the MuJoCo and hardware configurations.
+The Boston configuration loads `RebotBenchBehaviorsLoader`. This office-only
+package owns perception, jaw/application helpers and trajectory recording.
+The three generic recovery helpers are provided by the inherited
+[`motion_recovery_behaviors`](../motion_recovery_behaviors/README.md) loader,
+not registered again here. Source implementation/history and the seven anchoring
+tests moved with those helpers; the two original recorder tests remain here.
 
 `FitCubeToMask` fits an upright 50 mm cube resting on a horizontal surface at
 `support_height` (default 0, the world mat plane; 0.05 for a cube stacked on
@@ -85,13 +89,12 @@ gripper move can still report success.
 
 `IsPlannedJointAtMost` refuses a planned joint position above `maximum` in a
 `moveit_msgs/RobotState`, with the configured reason. The pre-motion reach
-checks use a 2.4 rad joint2 bound throughout pick, stack and unstack, including
-both lift routes and the drawn spot's release and next pick. A fresh blue-cube
-hover needed about 2.36 rad; the former 2.2 rad bound had also refused a
-reachable cube at 2.214 rad. Keep all checks in the three
+checks retain the integrated source's 2.6 rad joint2 bound throughout pick,
+stack and unstack, including both lift routes and the drawn spot's release and
+next pick. Keep all checks in the three
 `rebot_check_*_reach.xml` helpers and `rebot_draw_place_spot.xml` aligned.
 This is a geometric planning check, not a motor-temperature sensor; physical
-execution at 2.4 rad has not been verified.
+execution at this boundary has not been verified by the migration.
 
 `IsCubeStacked` succeeds only when a located cube's top centre lies within
 `max_offset` horizontally of the located top of the cube it should rest on, and
