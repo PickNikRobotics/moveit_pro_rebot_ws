@@ -10,6 +10,8 @@
 #include <array>
 #include <cmath>
 #include <controller_manager/controller_manager.hpp>
+#include <cstdlib>
+#include <exception>
 #include <fstream>
 #include <future>
 #include <iostream>
@@ -102,19 +104,14 @@ struct CommandAccess : hardware_interface::LoanedCommandInterface
     return &command_interface_;
   }
 };
-int main(int argc, char** argv)
+void runModeTest(const std::shared_ptr<rclcpp::executors::SingleThreadedExecutor>& executor,
+                 const std::shared_ptr<Manager>& manager, const std::string& urdf, const std::string& fault)
 {
-  std::cout << std::unitbuf;
-  rclcpp::init(argc, argv);
-  const auto urdf = readFile(TEST_MODE_URDF);
   const auto mock_share = ament_index_cpp::get_package_share_directory("rebot_b601_rs_mock");
   const auto hardware_share = ament_index_cpp::get_package_share_directory("rebot_b601_rs_hw");
   const auto srdf = readFile(mock_share + "/config/moveit/rebot.srdf");
   const auto settings = YAML::LoadFile(
       mock_share + "/config/control/rebot.ros2_control.yaml")["gravity_compensation_controller"]["ros__parameters"];
-  auto executor = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
-  auto manager = std::make_shared<Manager>(executor, urdf, true, "offline_cm");
-  executor->add_node(manager);
   require(manager->is_resource_manager_initialized(), "resource manager not initialized");
   const std::string name = "joint_trajectory_admittance_controller";
   auto controller = std::make_shared<ObservedJTAC>();
@@ -193,7 +190,7 @@ int main(int argc, char** argv)
   kdl_gravity_compensation_controller::GravityModel expected_gravity(
       urdf, "base_link", "gripper_end", KDL::Vector(0, 0, -9.81), settings["payload_mass"].as<double>(),
       KDL::Vector(payload_com.at(0), payload_com.at(1), payload_com.at(2)));
-  auto cycle = [&]() {
+  auto cycle = [&](bool process_callbacks = true) {
     const auto now = manager->get_trigger_clock()->now();
     manager->read(now, rclcpp::Duration::from_seconds(.01));
     for (size_t i = 0; i < 7; ++i)
@@ -213,23 +210,97 @@ int main(int argc, char** argv)
         require(std::abs(effort[i]->get_optional().value() - tau(i)) < 1e-12,
                 "active gravity command does not match nominal model plus fingers and unit gains");
     }
-    executor->spin_some();
+    if (process_callbacks)
+      executor->spin_some();
     std::this_thread::sleep_for(10ms);
   };
+  // Exercise the same controller-list lock as CM's diagnostics. Queue this
+  // callback before each switch; it must run afterwards, never in its update pump.
+  size_t callbacks = 0;
+  rclcpp::TimerBase::SharedPtr list_callback;
+  list_callback = manager->create_wall_timer(1ms, [&]() {
+    require(manager->get_loaded_controllers().size() == 2, "queued controller-list callback failed");
+    ++callbacks;
+    list_callback->cancel();
+  });
+  auto await_callback = [&](size_t expected) {
+    const auto deadline = std::chrono::steady_clock::now() + 1s;
+    while (callbacks < expected && std::chrono::steady_clock::now() < deadline)
+    {
+      // spin_some collects work only once; a newly added timer can need a
+      // further collection after the node's entity-notification waitable runs.
+      executor->spin_some();
+      std::this_thread::sleep_for(1ms);
+    }
+    require(callbacks == expected, "queued controller-list callback did not run");
+  };
+  await_callback(1);  // Prove the callback is registered before testing deferral.
   auto switch_controller = [&](bool activate) {
-    auto future = std::async(std::launch::async, [&]() {
-      return manager->switch_controller(
-          activate ? std::vector<std::string>{ name, gravity_name } : std::vector<std::string>{},
-          activate ? std::vector<std::string>{} : std::vector<std::string>{ name, gravity_name }, 2, false,
-          rclcpp::Duration::from_seconds(3.));
+    list_callback->reset();
+    const auto ready_deadline = std::chrono::steady_clock::now() + 1s;
+    while (!list_callback->is_ready() && std::chrono::steady_clock::now() < ready_deadline)
+      std::this_thread::sleep_for(1ms);
+    require(list_callback->is_ready(), "controller-list callback was not queued");
+    const auto callbacks_before = callbacks;
+    auto future = std::async(std::launch::async, [&, activate]() {
+      const auto start = fault == "--reject-switch" ? std::vector<std::string>{ "missing_test_controller" } :
+                                                      std::vector<std::string>{ name, gravity_name };
+      return manager->switch_controller(activate ? start : std::vector<std::string>{},
+                                        activate ? std::vector<std::string>{} :
+                                                   std::vector<std::string>{ name, gravity_name },
+                                        2, false, rclcpp::Duration::from_seconds(3.));
     });
+    std::exception_ptr cycle_failure;
     const auto deadline = std::chrono::steady_clock::now() + 5s;
     while (future.wait_for(0s) != std::future_status::ready && std::chrono::steady_clock::now() < deadline)
-      cycle();
-    require(future.wait_for(0s) == std::future_status::ready, "switch timeout");
-    require(future.get() == controller_interface::return_type::OK, "manager switch failed");
+    {
+      try
+      {
+        if (cycle_failure)
+        {
+          // The test is already failed. Finish the in-flight CM operation before
+          // rethrowing, rather than blocking in std::async's destructor. Do not
+          // spin callbacks or discard the original assertion failure.
+          const auto now = manager->get_trigger_clock()->now();
+          manager->read(now, rclcpp::Duration::from_seconds(.01));
+          manager->update(manager->now(), rclcpp::Duration::from_seconds(.01));
+          manager->write(now, rclcpp::Duration::from_seconds(.01));
+          std::this_thread::sleep_for(10ms);
+        }
+        else
+        {
+          require(fault != "--fail-during-switch", "injected failure during switch");
+          // CM holds its controller-list lock while awaiting BOTH the update
+          // handshake and the subsequent list-swap acknowledgement. spin_some()
+          // here can block in CM diagnostics on that lock and starve this pump.
+          // Match test_controller_chaining: only read/update/write until joined.
+          cycle(false);
+        }
+      }
+      catch (...)
+      {
+        if (!cycle_failure)
+          cycle_failure = std::current_exception();
+      }
+    }
+    if (future.wait_for(0s) != std::future_status::ready)
+    {
+      // No cancellation API exists for an in-flight CM switch. Never destroy
+      // its borrowed fixture or block forever in the future destructor. This
+      // memory-only test must fail, without claiming orderly cleanup or success.
+      std::cerr << "switch timeout: worker did not quiesce; terminating test process\n";
+      std::_Exit(2);
+    }
+    const auto result = future.get();
+    std::cout << "Controller switch worker joined\n";
+    if (cycle_failure)
+      std::rethrow_exception(cycle_failure);
+    require(result == controller_interface::return_type::OK, "manager switch failed");
+    require(callbacks == callbacks_before, "executor callback ran inside switch update pump");
+    await_callback(callbacks_before + 1);
   };
   switch_controller(true);
+  require(fault != "--fail-after-activation", "injected failure after activation");
   auto node = std::make_shared<rclcpp::Node>("offline_gravity_mode_objectives");
   executor->add_node(node);
   auto context = std::make_shared<moveit_pro::behaviors::BehaviorContext>(node, false);
@@ -323,10 +394,59 @@ int main(int argc, char** argv)
   std::cout << "3/3 exact source Objective runs PASS; 36 fake driver writes checked, 12 positive kp restorations "
                "preceded by exact measured commands.\n";
   executor->remove_node(node);
-  executor->remove_node(manager);
-  manager.reset();
-  controller.reset();
-  gravity.reset();
-  executor.reset();
+}
+
+int main(int argc, char** argv)
+{
+  std::cout << std::unitbuf;
+  rclcpp::init(argc, argv);
+  int result = 0;
+  try
+  {
+    const auto args = rclcpp::remove_ros_arguments(argc, argv);
+    require(args.size() <= 2, "unexpected test arguments");
+    const std::string fault = args.size() == 2 ? args[1] : "";
+    require(fault.empty() || fault == "--fail-during-switch" || fault == "--fail-after-activation" ||
+                fault == "--reject-switch",
+            "unknown fault-injection argument");
+    const auto urdf = readFile(TEST_MODE_URDF);
+    auto executor = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+    auto manager = std::make_shared<Manager>(executor, urdf, true, "offline_cm");
+    executor->add_node(manager);
+    try
+    {
+      runModeTest(executor, manager, urdf, fault);
+    }
+    catch (const std::exception& error)
+    {
+      std::cerr << "Mode test failed: " << error.what() << '\n';
+      result = 1;
+    }
+    // The switch worker has joined on both success and ordinary failure. Use
+    // CM's public teardown before destroying the resource manager, while all
+    // controller-owned interface loans still refer to live resources.
+    require(manager->shutdown_controllers(), "controller shutdown failed");
+    for (const auto& spec : manager->get_loaded_controllers())
+      require(spec.c->get_lifecycle_state().id() == lifecycle_msgs::msg::State::PRIMARY_STATE_FINALIZED,
+              "controller not finalized during cleanup");
+    for (size_t i = 0; i < 7; ++i)
+    {
+      const auto joint = "joint" + std::to_string(i + 1);
+      require(!manager->resources().command_interface_is_claimed(joint + "/position"), "position loan leaked");
+      if (i < 6)
+        require(!manager->resources().command_interface_is_claimed(joint + "/effort"), "effort loan leaked");
+    }
+    executor->remove_node(manager);
+    manager.reset();
+    executor.reset();
+    std::cout << "Fixture cleanup complete: controllers finalized, 13 command loans released\n";
+  }
+  catch (const std::exception& error)
+  {
+    std::cerr << "Fixture failed: " << error.what() << '\n';
+    result = 1;
+  }
   rclcpp::shutdown();
+  std::cout << "ROS context shutdown complete\n";
+  return result;
 }
