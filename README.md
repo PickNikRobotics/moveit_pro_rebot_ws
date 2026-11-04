@@ -12,6 +12,11 @@ B601-RS arm and supplied native jaw. The backend chain is:
 `main` contains the product configuration, with identity `world` → `base_link`
 placement. The separate public `picknik_boston_rebot_b601_rs` branch is reserved for
 the complete office application and its cameras, fixtures and calibration.
+On this office branch, select
+[`picknik_boston_rebot_b601_rs_hw`](src/picknik_boston_rebot_b601_rs_hw/README.md),
+[`picknik_boston_rebot_b601_rs_sim`](src/picknik_boston_rebot_b601_rs_sim/README.md),
+or the [frozen peg twin](src/picknik_boston_rebot_b601_rs_peg_sim/README.md).
+The optional twins are office overlays, not product defaults or insertion proof.
 The standalone `rebot_bench_sim` example remains in
 [moveit_pro_example_ws](https://github.com/PickNikRobotics/moveit_pro_example_ws).
 Copy and rename these configurations when creating a different robot or cell.

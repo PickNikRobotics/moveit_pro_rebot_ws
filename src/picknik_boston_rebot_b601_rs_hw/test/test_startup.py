@@ -1,0 +1,145 @@
+# Copyright 2026 PickNik Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+"""The installed backend resolves the same YAML leader choice in every mode."""
+import importlib.metadata
+import importlib.util
+from pathlib import Path
+from types import SimpleNamespace
+
+from ament_index_python.packages import get_package_share_directory
+from moveit_studio_utils_py.system_config import load_system_config
+import pytest
+
+
+@pytest.fixture
+def startup():
+    path = (
+        Path(get_package_share_directory("picknik_boston_rebot_b601_rs_hw"))
+        / "launch/rebot_leader.launch.py"
+    )
+    spec = importlib.util.spec_from_file_location("rebot_startup", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize("mode", ["mock", "real", "mujoco"])
+@pytest.mark.parametrize("enabled", [False, True])
+def test_merged_yaml_selects_one_reader_without_duplicating_stock_guard(
+    startup, mode, enabled, tmp_path
+):
+    config = load_system_config("picknik_boston_rebot_b601_rs_hw", tmp_path)[0]
+    config.ros_global_params["rebot_leader_enabled"] = enabled
+    for entry in config.hardware.robot_description.urdf_params:
+        if "hardware_interface" in entry:
+            entry["hardware_interface"] = mode
+    settings = startup.startup_settings(config)
+    assert settings["hardware_interface"] == mode
+    assert settings["thermal_guard"] is False
+    assert (settings["bridge"] is not None) == enabled
+    # Smoke-load the actual launch actions without executing hardware processes.
+    assert len(startup.configured_nodes(config)) == int(enabled)
+    assert startup.generate_launch_description().entities
+    if enabled:
+        bridge = settings["bridge"]
+        params = config.ros_global_params
+        assert bridge["publish_rate"] == params["rebot_leader_publish_rate"]
+        assert bridge["arguments"] == [
+            "--port",
+            params["rebot_leader_port"],
+            "--calibration-file",
+            str(
+                Path(get_package_share_directory("picknik_boston_rebot_b601_rs_hw"))
+                / params["rebot_leader_calibration_file"]
+            ),
+        ]
+
+
+@pytest.mark.parametrize("value", ["true", 1, None])
+def test_invalid_yaml_enable_fails_without_starting_anything(startup, value):
+    config = SimpleNamespace(ros_global_params={"rebot_leader_enabled": value})
+    with pytest.raises(ValueError, match="YAML boolean"):
+        startup.startup_settings(config)
+
+
+def test_absolute_calibration_and_custom_reader_settings(startup, tmp_path):
+    config = load_system_config("picknik_boston_rebot_b601_rs_hw", tmp_path)[0]
+    calibration = str(tmp_path / "calibration.json")
+    config.ros_global_params.update(
+        rebot_leader_enabled=True,
+        rebot_leader_port="/dev/leader",
+        rebot_leader_calibration_file=calibration,
+        rebot_leader_publish_rate=20.0,
+    )
+    assert startup.startup_settings(config)["bridge"] == {
+        "publish_rate": 20.0,
+        "arguments": [
+            "--port",
+            "/dev/leader",
+            "--calibration-file",
+            calibration,
+        ],
+    }
+
+
+def test_driver_launch_includes_stock_guard_once_without_executing_it(tmp_path):
+    from launch import LaunchContext
+    from launch.actions import IncludeLaunchDescription
+    from launch_ros.actions import Node
+    from launch.utilities import (
+        normalize_to_list_of_substitutions,
+        perform_substitutions,
+    )
+
+    share = Path(get_package_share_directory("picknik_boston_rebot_b601_rs_hw"))
+    path = share / "launch/rebot_drivers.launch.py"
+    spec = importlib.util.spec_from_file_location("boston_drivers", path)
+    drivers = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(drivers)
+    includes = drivers.generate_launch_description().entities
+    assert len(includes) == 3
+    context = LaunchContext()
+    destinations = []
+    for entry in includes:
+        assert isinstance(entry, IncludeLaunchDescription)
+        # Loading a description expands its location, but does not execute its
+        # OpaqueFunction or Node actions (including camera USB discovery).
+        source = entry.launch_description_source
+        assert source.get_launch_description(context) is not None
+        destinations.append(Path(source.location))
+    stock = (
+        Path(get_package_share_directory("rebot_b601_rs_hw"))
+        / "launch/rebot_thermal.launch.py"
+    )
+    assert destinations.count(stock) == 1
+    # Evaluate only the selected guard's construction function, not its Node.
+    spec = importlib.util.spec_from_file_location("stock_guard", stock)
+    guard = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(guard)
+    config = load_system_config("picknik_boston_rebot_b601_rs_hw", tmp_path)[0]
+    nodes = guard.configured_nodes(config)
+    assert len(nodes) == 1 and isinstance(nodes[0], Node)
+    assert (
+        perform_substitutions(
+            context, normalize_to_list_of_substitutions(nodes[0].node_package)
+        )
+        == "rebot_b601_rs_hw"
+    )
+
+
+def test_installed_sdk_imports_in_ros_python_without_training_dependencies():
+    import sys
+    import numpy
+    import motorbridge_smart_servo
+    from cv_bridge import CvBridge
+
+    dist = importlib.metadata.distribution("motorbridge-smart-servo")
+    assert dist.version == "0.0.4"
+    assert dist.metadata["License-Expression"] == "MIT"
+    assert dist.requires is None
+    assert callable(motorbridge_smart_servo.FashionStarServo)
+    cv = CvBridge()
+    bgr = numpy.full((4, 4, 3), [0, 1, 2], dtype=numpy.uint8)
+    image = cv.cv2_to_imgmsg(bgr, "bgr8")
+    assert numpy.array_equal(cv.imgmsg_to_cv2(image, "rgb8"), bgr[:, :, ::-1])
+    assert not any(name.startswith(("lerobot", "torch")) for name in sys.modules)
