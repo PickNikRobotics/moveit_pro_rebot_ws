@@ -1,0 +1,47 @@
+<?xml version="1.0" ?>
+<package format="3">
+  <name>rebot_b601_rs_hw</name>
+  <version>10.3.0</version>
+  <description>
+    Physical SocketCAN backend of the stock reBot B601-RS.
+  </description>
+  <maintainer email="support@picknik.ai">MoveIt Pro Maintainer</maintainer>
+  <license>BSD-3-Clause</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>moveit_pro_behavior_interface</depend>
+  <depend>robstride_interfaces</depend>
+  <depend>pluginlib</depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>motion_recovery_behaviors</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>moveit_studio_utils_py</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>action_msgs</exec_depend>
+  <exec_depend>control_msgs</exec_depend>
+  <exec_depend>moveit_pro_controllers_msgs</exec_depend>
+  <exec_depend>moveit_studio_sdk_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+  <exec_depend>trajectory_msgs</exec_depend>
+  <exec_depend>rebot_b601_rs_sim</exec_depend>
+  <exec_depend>robstride_hardware_interface</exec_depend>
+  <exec_depend>kdl_gravity_compensation_controller</exec_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>moveit_pro_test_utils</test_depend>
+  <test_depend>moveit_studio_agent</test_depend>
+  <test_depend>controller_manager</test_depend>
+  <test_depend>joint_trajectory_admittance_controller</test_depend>
+  <test_depend>kdl_gravity_compensation_controller</test_depend>
+  <test_depend>kdl_parser</test_depend>
+  <test_depend>orocos_kdl</test_depend>
+  <test_depend>yaml-cpp</test_depend>
+  <test_depend>python3-yaml</test_depend>
+  <test_depend>tinyxml2_vendor</test_depend>
+  <test_depend>xacro</test_depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

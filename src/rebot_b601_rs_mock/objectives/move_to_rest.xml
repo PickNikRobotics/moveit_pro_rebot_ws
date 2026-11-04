@@ -1,0 +1,30 @@
+<root BTCPP_format="4" main_tree_to_execute="Move to Rest">
+  <BehaviorTree
+    ID="Move to Rest"
+    _description="Plan and execute a conservative arm waypoint. Validate the workspace before physical use."
+  >
+    <Control ID="Sequence" name="root">
+      <SubTree
+        ID="Move to Named Waypoint"
+        _collapsed="true"
+        waypoint_name="Zeroed Rest"
+        joint_group_name="manipulator"
+        velocity_scale_factor="0.10"
+        acceleration_scale_factor="0.10"
+        seed="0"
+        controller_names="joint_trajectory_admittance_controller"
+        controller_action_server="/joint_trajectory_admittance_controller/follow_joint_trajectory"
+        collision_check_params="[{override_scene_link_padding: true, link_padding: 0.0}]"
+        execution_pipeline="jtac"
+      />
+    </Control>
+  </BehaviorTree>
+  <TreeNodesModel>
+    <SubTree ID="Move to Rest">
+      <MetadataFields>
+        <Metadata runnable="true" />
+        <Metadata subcategory="reBot" />
+      </MetadataFields>
+    </SubTree>
+  </TreeNodesModel>
+</root>

@@ -1,0 +1,14 @@
+<?xml version="1.0" ?>
+<package format="3">
+  <name>rebot_description</name>
+  <version>10.3.0</version>
+  <description>
+    Unmodified stock Seeed reBot B601-RS description assets.
+  </description>
+  <maintainer email="support@picknik.ai">MoveIt Pro Maintainer</maintainer>
+  <license>CERN-OHL-W-2.0</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

@@ -1,0 +1,13 @@
+<?xml version="1.0" ?>
+<library path="rebot_hardware_behaviors">
+  <class
+    name="rebot_b601_rs_hw::RebotHardwareBehaviorsLoader"
+    type="rebot_b601_rs_hw::RebotHardwareBehaviorsLoader"
+    base_class_type="moveit_pro::behaviors::SharedResourcesNodeLoaderBase"
+  >
+    <description>
+      Hardware-specific reBot arm gain operations through the existing driver
+      service.
+    </description>
+  </class>
+</library>

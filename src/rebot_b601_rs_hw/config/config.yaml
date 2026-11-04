@@ -1,0 +1,31 @@
+based_on_package: rebot_b601_rs_sim
+hardware:
+  additional_driver_launch_file:
+    package: rebot_b601_rs_hw
+    path: launch/rebot_thermal.launch.py
+  robot_description:
+    urdf_params:
+    - hardware_interface: real
+    - arm_control_mode: motion
+    - arm_effort_command: 'true'
+    - mujoco_model: ''
+    - mujoco_model_package: ''
+    - mujoco_keyframe: ''
+    - mujoco_viewer: false
+ros_global_params:
+  use_sim_time: false
+ros2_control:
+  controllers_active_at_startup:
+  - joint_state_broadcaster
+  - joint_trajectory_admittance_controller
+  - gravity_compensation_controller
+objectives:
+  behavior_loader_plugins:
+    motion_recovery:
+    - motion_recovery_behaviors::MotionRecoveryBehaviorsLoader
+    rebot_hardware:
+    - rebot_b601_rs_hw::RebotHardwareBehaviorsLoader
+  objective_library_paths:
+    rebot_hw_objectives:
+      package_name: rebot_b601_rs_hw
+      relative_path: objectives

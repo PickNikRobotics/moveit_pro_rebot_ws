@@ -1,0 +1,24 @@
+<?xml version="1.0" ?>
+<package format="3">
+  <name>rebot_b601_rs_sim</name>
+  <version>10.3.0</version>
+  <description>
+    Minimal free-space MuJoCo model of the stock reBot B601-RS.
+  </description>
+  <maintainer email="support@picknik.ai">MoveIt Pro Maintainer</maintainer>
+  <license>BSD-3-Clause</license>
+  <license>CERN-OHL-W-2.0</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <build_depend>rebot_b601_rs_mock</build_depend>
+  <build_depend>xacro</build_depend>
+  <build_depend>python3</build_depend>
+  <exec_depend>rebot_b601_rs_mock</exec_depend>
+  <exec_depend>picknik_mujoco_ros</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>python3-numpy</test_depend>
+  <test_depend>ament_index_python</test_depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
