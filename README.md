@@ -131,8 +131,10 @@ inverse dynamics across 50 arm poses and three jaw positions.
 The reusable controller's own model, loaned-interface and real ControllerManager
 fake-hardware tests are retained. SDK fault/freshness decoding has eight offline
 tests. Driver virtual-CAN lifecycle tests skip without an isolated virtual
-interface; a skip is not torque-lifecycle evidence. No physical-arm, live
-teleoperation, or end-to-end deployment acceptance is claimed.
+interface; a skip is not torque-lifecycle evidence. Live mock teleoperation is
+covered by the
+[smoke sequence](src/rebot_b601_rs_mock/README.md#teleoperation-on-the-mock).
+No physical-arm or end-to-end deployment acceptance is claimed.
 
 The workspace retains the empty-workspace Docker targets, `base` / `runtime` /
 `drivers` services, CI, LFS and formatting setup. See

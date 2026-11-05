@@ -1,0 +1,483 @@
+{
+ "checks": [
+  {
+   "phase": "startup",
+   "check": "trajectory controller owns all seven positions at startup",
+   "pass": true,
+   "claimed": [
+    "joint1/position",
+    "joint2/position",
+    "joint3/position",
+    "joint4/position",
+    "joint5/position",
+    "joint6/position",
+    "joint7/position"
+   ]
+  },
+  {
+   "phase": "startup",
+   "check": "velocity controllers inactive at startup",
+   "pass": true
+  },
+  {
+   "phase": "startup",
+   "check": "coupled fingers expose no command interface",
+   "pass": true,
+   "position_interfaces": [
+    "joint1/position",
+    "joint2/position",
+    "joint3/position",
+    "joint4/position",
+    "joint5/position",
+    "joint6/position",
+    "joint7/position"
+   ]
+  },
+  {
+   "phase": "joint_jog_joint1",
+   "check": "joint1 responds to +jog",
+   "pass": true,
+   "delta": 0.19999
+  },
+  {
+   "phase": "joint_jog_joint1",
+   "check": "joint1 jog moves no other axis",
+   "pass": true,
+   "max_other": 0.0
+  },
+  {
+   "phase": "joint_jog_joint1",
+   "check": "joint1 holds after input release",
+   "pass": true,
+   "drift": 0.0
+  },
+  {
+   "phase": "joint_jog_joint2",
+   "check": "joint2 responds to +jog",
+   "pass": true,
+   "delta": 0.19999
+  },
+  {
+   "phase": "joint_jog_joint2",
+   "check": "joint2 jog moves no other axis",
+   "pass": true,
+   "max_other": 0.0
+  },
+  {
+   "phase": "joint_jog_joint2",
+   "check": "joint2 holds after input release",
+   "pass": true,
+   "drift": 0.0
+  },
+  {
+   "phase": "joint_jog_joint3",
+   "check": "joint3 responds to +jog",
+   "pass": true,
+   "delta": 0.202
+  },
+  {
+   "phase": "joint_jog_joint3",
+   "check": "joint3 jog moves no other axis",
+   "pass": true,
+   "max_other": 0.0
+  },
+  {
+   "phase": "joint_jog_joint3",
+   "check": "joint3 holds after input release",
+   "pass": true,
+   "drift": 0.0
+  },
+  {
+   "phase": "joint_jog_joint4",
+   "check": "joint4 responds to +jog",
+   "pass": true,
+   "delta": 0.202
+  },
+  {
+   "phase": "joint_jog_joint4",
+   "check": "joint4 jog moves no other axis",
+   "pass": true,
+   "max_other": 0.0
+  },
+  {
+   "phase": "joint_jog_joint4",
+   "check": "joint4 holds after input release",
+   "pass": true,
+   "drift": 0.0
+  },
+  {
+   "phase": "joint_jog_joint5",
+   "check": "joint5 responds to +jog",
+   "pass": true,
+   "delta": 0.20201
+  },
+  {
+   "phase": "joint_jog_joint5",
+   "check": "joint5 jog moves no other axis",
+   "pass": true,
+   "max_other": 0.0
+  },
+  {
+   "phase": "joint_jog_joint5",
+   "check": "joint5 holds after input release",
+   "pass": true,
+   "drift": 0.0
+  },
+  {
+   "phase": "joint_jog_joint6",
+   "check": "joint6 responds to +jog",
+   "pass": true,
+   "delta": 0.202
+  },
+  {
+   "phase": "joint_jog_joint6",
+   "check": "joint6 jog moves no other axis",
+   "pass": true,
+   "max_other": 0.0
+  },
+  {
+   "phase": "joint_jog_joint6",
+   "check": "joint6 holds after input release",
+   "pass": true,
+   "drift": 0.0
+  },
+  {
+   "phase": "joint_jog_joint6",
+   "check": "arm jog: JTAC inactive, arm JVC owns six positions only",
+   "pass": true,
+   "claimed": [
+    "joint1/position",
+    "joint2/position",
+    "joint3/position",
+    "joint4/position",
+    "joint5/position",
+    "joint6/position"
+   ]
+  },
+  {
+   "phase": "gripper_jog",
+   "check": "gripper jog claims joint7 only",
+   "pass": true,
+   "claimed": [
+    "joint7/position"
+   ]
+  },
+  {
+   "phase": "gripper_jog",
+   "check": "gripper jog: nothing else claims joint7",
+   "pass": true
+  },
+  {
+   "phase": "gripper_jog",
+   "check": "joint7 responds to +jog",
+   "pass": true,
+   "delta": 0.99996
+  },
+  {
+   "phase": "gripper_jog",
+   "check": "gripper jog leaves the arm still",
+   "pass": true
+  },
+  {
+   "phase": "gripper_jog",
+   "check": "joint7 holds after input release",
+   "pass": true,
+   "drift": 0.0
+  },
+  {
+   "phase": "waypoint_raised",
+   "check": "waypoint move reaches Raised",
+   "pass": true
+  },
+  {
+   "phase": "pose_jog_setup",
+   "check": "pose jog: VFC owns six arm positions, JTAC inactive",
+   "pass": true,
+   "claimed": [
+    "joint1/position",
+    "joint2/position",
+    "joint3/position",
+    "joint4/position",
+    "joint5/position",
+    "joint6/position"
+   ]
+  },
+  {
+   "phase": "pose_jog_x",
+   "check": "pose jog +x moves gripper_end along x",
+   "pass": true,
+   "delta_m": [
+    0.0572,
+    -0.0,
+    -0.0003
+   ]
+  },
+  {
+   "phase": "pose_jog_y",
+   "check": "pose jog +y moves gripper_end along y",
+   "pass": true,
+   "delta_m": [
+    -0.0004,
+    0.043,
+    -0.0004
+   ]
+  },
+  {
+   "phase": "pose_jog_z",
+   "check": "pose jog +z moves gripper_end along z",
+   "pass": true,
+   "delta_m": [
+    -0.0,
+    -0.0,
+    0.0599
+   ]
+  },
+  {
+   "phase": "pose_jog_rotation",
+   "check": "pose jog rotates about the gripper_end origin",
+   "pass": true,
+   "rotation_rad": 0.14309,
+   "origin_shift_m": 0.0005
+  },
+  {
+   "phase": "open_gripper_from_pose_jog",
+   "check": "open gripper starts away from the waypoint",
+   "pass": true,
+   "joint7": 0.23998,
+   "target": 5.41052
+  },
+  {
+   "phase": "open_gripper_from_pose_jog",
+   "check": "open gripper reaches the waypoint",
+   "pass": true,
+   "joint7": 5.41052,
+   "target": 5.41052
+  },
+  {
+   "phase": "open_gripper_from_pose_jog",
+   "check": "open gripper leaves arm joints in place (partial goal)",
+   "pass": true,
+   "max_arm_delta": 0.0
+  },
+  {
+   "phase": "open_gripper_from_pose_jog",
+   "check": "open gripper: single command owner per interface",
+   "pass": true,
+   "active": {
+    "joint_trajectory_admittance_controller": [
+     "joint1/position",
+     "joint2/position",
+     "joint3/position",
+     "joint4/position",
+     "joint5/position",
+     "joint6/position",
+     "joint7/position"
+    ],
+    "joint_state_broadcaster": []
+   }
+  },
+  {
+   "phase": "close_gripper_from_pose_jog",
+   "check": "close gripper starts away from the waypoint",
+   "pass": true,
+   "joint7": 5.41052,
+   "target": 0.0
+  },
+  {
+   "phase": "close_gripper_from_pose_jog",
+   "check": "close gripper reaches the waypoint",
+   "pass": true,
+   "joint7": 0.0,
+   "target": 0.0
+  },
+  {
+   "phase": "close_gripper_from_pose_jog",
+   "check": "close gripper leaves arm joints in place (partial goal)",
+   "pass": true,
+   "max_arm_delta": 0.0
+  },
+  {
+   "phase": "close_gripper_from_pose_jog",
+   "check": "close gripper: single command owner per interface",
+   "pass": true,
+   "active": {
+    "joint_trajectory_admittance_controller": [
+     "joint1/position",
+     "joint2/position",
+     "joint3/position",
+     "joint4/position",
+     "joint5/position",
+     "joint6/position",
+     "joint7/position"
+    ],
+    "joint_state_broadcaster": []
+   }
+  },
+  {
+   "phase": "joint_jog_after_gripper",
+   "check": "joint jog works after gripper action",
+   "pass": true
+  },
+  {
+   "phase": "joint_jog_after_gripper",
+   "check": "no stale-target jump on switch back to jog",
+   "pass": true
+  },
+  {
+   "phase": "interactive_marker",
+   "check": "store target pose",
+   "pass": true
+  },
+  {
+   "phase": "interactive_marker",
+   "check": "interactive-marker plan executes to the target",
+   "pass": true,
+   "error_m": 0.00084,
+   "moved_m": 0.02923
+  },
+  {
+   "phase": "interactive_marker",
+   "check": "trajectory controller owns all seven positions after marker move",
+   "pass": true
+  },
+  {
+   "phase": "waypoint_rest",
+   "check": "waypoint move reaches rest",
+   "pass": true
+  },
+  {
+   "phase": "limit_joint2_negative",
+   "check": "joint2 jog stops short of the lower limit",
+   "pass": true,
+   "min_joint2": -9e-05,
+   "limit": -0.02
+  },
+  {
+   "phase": "limit_latched_jog",
+   "check": "jog input after a limit stop (every axis)",
+   "pass": null,
+   "max_delta_rad": 0.0,
+   "joint2": -9e-05
+  },
+  {
+   "phase": "limit_recover_by_trajectory",
+   "check": "waypoint move still recovers from the limit stop",
+   "pass": true
+  },
+  {
+   "phase": "limit_jog_after_trajectory",
+   "check": "jog after trajectory recovery in the same session",
+   "pass": null,
+   "moved_rad": 0.184
+  },
+  {
+   "phase": "exit_teleop",
+   "check": "Teleoperate exit succeeds",
+   "pass": true,
+   "goal_status": 4
+  },
+  {
+   "phase": "exit_teleop",
+   "check": "controllers after Teleoperate exit",
+   "pass": null,
+   "active": {
+    "joint_state_broadcaster": [],
+    "joint_velocity_controller": [
+     "joint1/position",
+     "joint2/position",
+     "joint3/position",
+     "joint4/position",
+     "joint5/position",
+     "joint6/position"
+    ]
+   }
+  },
+  {
+   "phase": "exit_teleop",
+   "check": "exit leaves no two controllers on one interface",
+   "pass": true
+  },
+  {
+   "phase": "trajectory_objective_after_exit",
+   "check": "Move to Rest succeeds after Teleoperate",
+   "pass": true
+  },
+  {
+   "phase": "trajectory_objective_after_exit",
+   "check": "Move to Rest reaches zero",
+   "pass": true,
+   "max_abs": 0.0
+  },
+  {
+   "phase": "trajectory_objective_after_exit",
+   "check": "trajectory controller owns all seven positions again, velocity controllers inactive",
+   "pass": true,
+   "active": {
+    "joint_trajectory_admittance_controller": [
+     "joint1/position",
+     "joint2/position",
+     "joint3/position",
+     "joint4/position",
+     "joint5/position",
+     "joint6/position",
+     "joint7/position"
+    ],
+    "joint_state_broadcaster": []
+   }
+  },
+  {
+   "phase": "restart_teleop",
+   "check": "restarting Teleoperate clears the limit inhibit",
+   "pass": true,
+   "moved_rad": 0.20401
+  },
+  {
+   "phase": "cancel_during_jog",
+   "check": "Teleoperate cancel ends the goal",
+   "pass": true,
+   "goal_status": 5
+  },
+  {
+   "phase": "cancel_during_jog",
+   "check": "Objective cancel while jogging stops motion and holds",
+   "pass": true,
+   "drift": 0.0
+  },
+  {
+   "phase": "cancel_during_jog",
+   "check": "cancel leaves no two controllers on one interface",
+   "pass": true,
+   "active": {
+    "joint_state_broadcaster": [],
+    "joint_velocity_controller": [
+     "joint1/position",
+     "joint2/position",
+     "joint3/position",
+     "joint4/position",
+     "joint5/position",
+     "joint6/position"
+    ]
+   }
+  },
+  {
+   "phase": "end_state",
+   "check": "controllers after cancel",
+   "pass": null,
+   "active": {
+    "joint_state_broadcaster": [],
+    "joint_velocity_controller": [
+     "joint1/position",
+     "joint2/position",
+     "joint3/position",
+     "joint4/position",
+     "joint5/position",
+     "joint6/position"
+    ]
+   }
+  }
+ ],
+ "passed": 58,
+ "observations": 4,
+ "failed": 0,
+ "joint_state_samples": 12171
+}
