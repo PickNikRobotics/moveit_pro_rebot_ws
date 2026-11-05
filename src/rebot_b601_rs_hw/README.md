@@ -108,6 +108,10 @@ offline tests do not certify float quality or motor-side gain delivery.
 
 ## Verification and rollback
 
+[Virtual CAN qualification](docs/vcan-qualification.md) runs the driver and this
+config's controllers against seven fake motors on `vcan`, and lists the bench
+timing and watchdog settings.
+
 No physical activation, CAN access or arm motion was performed here. Before
 physical use, verify timestamps, all seven measured positions, mode and fault
 telemetry, controller claims, actual stop behavior and reduced-scale motion
