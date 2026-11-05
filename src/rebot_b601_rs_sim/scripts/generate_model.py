@@ -3,8 +3,8 @@
 
 The URDF owns geometry, inertias, frames and joint limits. This model retains
 that tree and uses the existing B601-RS simulation actuator settings. Visuals
-never collide: this minimal model tests free-space control, not contact or
-insertion. Contact-rich applications own their own collision decompositions.
+never collide. The separately generated contact fixture reuses the native pad
+meshes; contact-rich applications still own their collision decompositions.
 """
 
 import sys
@@ -36,7 +36,7 @@ def generate(urdf_path, output_path):
     }
     actuator = ET.SubElement(model, "actuator")
     equality = ET.SubElement(model, "equality")
-    gains = [(50, 3), (150, 10), (150, 10), (50, 5), (50, 4), (50, 4), (12, 0.5)]
+    gains = [(50, 3), (150, 10), (150, 10), (50, 5), (50, 4), (50, 4), (12, 0.05)]
     order = []
 
     def body(parent, joint):
@@ -83,7 +83,9 @@ def generate(urdf_path, output_path):
                     armature="0.05" if idx < 3 else "0.002" if idx == 6 else "0.01",
                     damping="1" if idx < 3 else "0.02" if idx == 6 else "0.2",
                 )
-                effort = float(limit.get("effort"))
+                # Bound the jaw squeeze in simulation to 1 Nm. The nominal
+                # 14 Nm URDF bound crushed this fixture's soft contacts.
+                effort = 1.0 if idx == 6 else float(limit.get("effort"))
                 ET.SubElement(
                     actuator,
                     "position",
@@ -109,9 +111,15 @@ def generate(urdf_path, output_path):
                 ET.SubElement(
                     equality,
                     "joint",
-                    joint1=jname,
-                    joint2=mimic.get("joint"),
-                    polycoef=f"{mimic.get('offset', '0')} {mimic.get('multiplier', '1')} 0 0 0",
+                    # Express the residual in motor radians rather than tiny
+                    # jaw metres. The equivalent inverse relation transmits
+                    # contact to the motor instead of stretching the mimic.
+                    joint1=mimic.get("joint"),
+                    joint2=jname,
+                    polycoef=(
+                        f"{-float(mimic.get('offset', '0')) / float(mimic.get('multiplier', '1'))} "
+                        f"{1 / float(mimic.get('multiplier', '1'))} 0 0 0"
+                    ),
                 )
             ET.SubElement(node, "joint", **ja)
         for idx, visual in enumerate(link.findall("visual")):
