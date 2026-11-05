@@ -6,7 +6,7 @@ B601-RS arm and supplied native jaw. The backend chain is:
 | Config | Parent | Backend |
 | --- | --- | --- |
 | `rebot_b601_rs_mock` | — | ros2_control mock hardware |
-| `rebot_b601_rs_sim` | `rebot_b601_rs_mock` | Minimal MuJoCo free-space arm |
+| `rebot_b601_rs_sim` | `rebot_b601_rs_mock` | MuJoCo arm with isolated jaw-contact smoke fixture |
 | `rebot_b601_rs_hw` | `rebot_b601_rs_sim` | RobStride SocketCAN hardware |
 
 `main` contains the product configuration, with identity `world` → `base_link`
@@ -82,15 +82,18 @@ This wiring and its offline tests do not certify real-arm recovery; see the
 
 The simulator generates its body tree from the same expanded stock URDF.
 It has nine generalized coordinates (seven motors and two dependent jaws),
-seven named position actuators and a matching `default` reset keyframe.
+seven named position actuators and `default` / `contact_smoke` reset keyframes.
 Stock visuals use `package://rebot_description/...` assets.
 
-This is a gravity-compensated **free-space control model**. Visual geoms have
-contact disabled; it contains no bench, cameras, grasp proxy or contact task.
-It does not validate self-contact, grasping, payload response or insertion.
-Application simulations own their contact geometry and validation. Hardware
-uses the physical plugin and wall time; it starts no simulated sensors or
-simulation-specific controllers.
+Normal operation remains gravity-compensated free-space control. Only the two
+native PLA pads and a fixed 50 mm box collide; the box is parked at default and
+placed between the raised open jaws by `contact_smoke`. The contact smoke checks
+measured motor/jaw state and controller rejection of a blocked close, not grasp
+fidelity. It contains no bench, cameras or grasp proxy and does not validate
+self-contact, lifting, payload response or insertion. See the
+[simulation runbook](src/rebot_b601_rs_sim/README.md) for reset, timing and the
+reproducible headless MoveIt Pro smoke run. Hardware uses the physical plugin
+and wall time; its resolved config excludes simulation reset and sensors.
 
 ## Immutable source dependencies
 
@@ -134,7 +137,10 @@ tests. Driver virtual-CAN lifecycle tests skip without an isolated virtual
 interface; a skip is not torque-lifecycle evidence. Live mock teleoperation is
 covered by the
 [smoke sequence](src/rebot_b601_rs_mock/README.md#teleoperation-on-the-mock).
-No physical-arm or end-to-end deployment acceptance is claimed.
+Simulation has a separate recorded headless Runtime smoke covering
+plan/execute, Joint Jog, Pose Jog, open/close, blocked-jaw contact and reset
+([simulation README](src/rebot_b601_rs_sim/README.md)). No physical-arm,
+Desktop/IMarker or end-to-end deployment acceptance is claimed.
 
 The workspace retains the empty-workspace Docker targets, `base` / `runtime` /
 `drivers` services, CI, LFS and formatting setup. See

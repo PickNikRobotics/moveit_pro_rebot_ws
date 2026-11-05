@@ -92,7 +92,17 @@ def test_backend_isolation(mode, plugin, sim_time):
         ]
     else:
         assert "rebot_hardware" not in loaders
-    assert all("Mujoco" not in loader for group in loaders.values() for loader in group)
+    mujoco_loaders = [
+        loader for group in loaders.values() for loader in group if "Mujoco" in loader
+    ]
+    assert mujoco_loaders == (
+        ["moveit_pro::behaviors::MujocoBehaviorsLoader"] if mode == "sim" else []
+    )
+    if mode == "hw":
+        assert all(
+            library.package_name != "rebot_b601_rs_sim"
+            for library in config.objectives.objective_library_paths.values()
+        )
     # The last library is the selected source config's own save destination.
     assert (
         list(config.objectives.objective_library_paths.values())[-1].package_name
