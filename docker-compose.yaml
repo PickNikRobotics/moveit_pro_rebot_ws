@@ -14,6 +14,10 @@ services:
 
   # Starts the robot drivers.
   drivers:
+    # SIGINT lets the driver run on_deactivate on a normal stop (SIGTERM exits 143 without it).
+    stop_signal: SIGINT
+    # Run launch directly: the robot.app bash wrapper does not forward SIGINT to it, so Docker SIGKILLs (137).
+    command: ["ros2", "launch", "moveit_studio_agent", "robot_drivers.launch.py"]
     volumes:
       # Allow access to host hardware e.g. RealSense cameras
       - /dev:/dev
