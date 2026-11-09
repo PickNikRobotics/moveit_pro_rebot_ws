@@ -15,6 +15,7 @@ ament_target_dependencies(rebot_hardware_behaviors
 install(TARGETS rebot_hardware_behaviors EXPORT rebot_hardware_behaviorsTargets
   LIBRARY DESTINATION lib ARCHIVE DESTINATION lib RUNTIME DESTINATION bin)
 install(DIRECTORY include/ DESTINATION include)
+install(DIRECTORY description DESTINATION share/${PROJECT_NAME})
 pluginlib_export_plugin_description_file(moveit_pro_behavior_interface
   rebot_hardware_behaviors_plugin_description.xml)
 ament_export_targets(rebot_hardware_behaviorsTargets HAS_LIBRARY_TARGET)
@@ -26,6 +27,7 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_config_contract test/test_config_contract.py TIMEOUT 60)
   ament_add_pytest_test(test_thermal_guard test/test_thermal_guard.py TIMEOUT 60)
   ament_add_pytest_test(test_thermal_launch test/test_thermal_launch.py TIMEOUT 60)
+  ament_add_pytest_test(test_wrist_camera_launch test/test_wrist_camera_launch.py TIMEOUT 60)
   find_package(ament_cmake_gtest REQUIRED)
   find_package(moveit_pro_test_utils REQUIRED)
   ament_add_gtest(test_set_rebot_motor_gain test/test_set_rebot_motor_gain.cpp)

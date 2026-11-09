@@ -10,8 +10,9 @@ B601-RS arm and supplied native jaw. The backend chain is:
 | `rebot_b601_rs_hw` | `rebot_b601_rs_sim` | RobStride SocketCAN hardware |
 
 `main` contains the product configuration, with identity `world` → `base_link`
-placement. The separate public `picknik_boston_rebot_b601_rs` branch is reserved for
-the complete office application and its cameras, fixtures and calibration.
+placement and a stock Orbbec Gemini 305 wrist camera. The separate public
+`picknik_boston_rebot_b601_rs` branch is reserved for the complete office
+application, fixtures and per-unit calibration.
 The standalone `rebot_bench_sim` example remains in
 [moveit_pro_example_ws](https://github.com/PickNikRobotics/moveit_pro_example_ws).
 Copy and rename these configurations when creating a different robot or cell.
@@ -78,6 +79,11 @@ sequence (75°C clear). Stock HOME omits only office trajectory recording.
 This wiring and its offline tests do not certify real-arm recovery; see the
 [recovery limits](src/rebot_b601_rs_hw/docs/source-provenance.md).
 
+The physical launch also includes a Gemini 305 wrist-camera driver. It starts
+by default when the camera is attached and can be disabled; see the
+[hardware camera setup](src/rebot_b601_rs_hw/README.md#gemini-305-wrist-camera)
+for its 1280×800 MJPG/10 Hz contract, host udev rule and nominal-mount limits.
+
 ## Minimal simulation
 
 The simulator generates its body tree from the same expanded stock URDF.
@@ -112,7 +118,8 @@ fork defaults; their publication is a prerequisite for publishing these gitlinks
 
 The upstream description has no ROS package. The small `rebot_description`
 ament adapter installs its unmodified RS mesh directory and exact license
-from the whole submodule. It maintains no selectively copied upstream tree.
+from the whole submodule, plus the local nominal Gemini 305 frame-only Xacro.
+It maintains no selectively copied upstream tree or per-unit camera calibration.
 The modified URDF's [source and change notice](src/rebot_b601_rs_mock/description/NOTICE.md)
 and upstream licenses remain with the installed resources.
 The [generic gravity controller](src/kdl_gravity_compensation_controller/README.md)
@@ -127,9 +134,10 @@ stock model.
 Offline validation uses MoveIt Pro 10.2.0-rc10/Jazzy, ros2_control 4.45.2 and
 MuJoCo 3.6.0. Tests exercise the real configuration loader, all three expanded
 backends, MoveIt Pro's model/FCL consumers, stock asset resolution, nominal
-inertias, physical spring/effort declarations, finite simulation and native-jaw
-coupling. The six-joint KDL model plus finger payload is compared with whole-tree
-inverse dynamics across 50 arm poses and three jaw positions.
+inertias, physical spring/effort declarations, the Gemini 305 launch
+contract, finite simulation and native-jaw coupling. The six-joint KDL model
+plus finger payload is compared with whole-tree inverse dynamics across 50 arm
+poses and three jaw positions.
 
 The reusable controller's own model, loaned-interface and real ControllerManager
 fake-hardware tests are retained. SDK fault/freshness decoding has eight offline

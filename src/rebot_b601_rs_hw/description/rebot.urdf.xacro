@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<!-- Copyright 2026 PickNik Inc.
+     SPDX-License-Identifier: BSD-3-Clause -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="rebot_b601_rs">
+  <!--
+    Stock frame-only Gemini 305 attachment. These values are nominal and
+    uncalibrated; a downstream office package must override them after its
+    own hand-eye calibration.
+  -->
+  <xacro:arg name="wrist_camera_color_optical_xyz" default="-0.111 0.009 0.109" />
+  <xacro:arg name="wrist_camera_color_optical_rpy" default="-2.109 0.003 -1.579" />
+  <xacro:include filename="$(find rebot_b601_rs_mock)/description/rebot.urdf.xacro" />
+  <xacro:include filename="$(find rebot_description)/urdf/gemini305_wrist_camera.xacro" />
+  <xacro:rebot_gemini305_wrist_camera
+    color_optical_xyz="$(arg wrist_camera_color_optical_xyz)"
+    color_optical_rpy="$(arg wrist_camera_color_optical_rpy)" />
+</robot>

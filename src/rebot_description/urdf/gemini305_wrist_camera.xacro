@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<!-- Copyright 2026 PickNik Inc.
+     SPDX-License-Identifier: BSD-3-Clause -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="rebot_gemini305_wrist_camera">
+  <!--
+    This is a frame-only nominal Gemini 305 mount for the B601-RS. The direct
+    gripper_end-to-optical-frame transform is a rounded composition of the
+    upstream D405/305 mount CAD placement and the Gemini 305 nominal optical
+    convention. It is not a hand-eye calibration, has no device serial, and
+    must be overridden by a downstream office package after calibration.
+
+    The driver uses camera_name=wrist_mounted_camera, whose color CameraInfo
+    frame is wrist_mounted_camera_color_optical_frame. No body, collision or
+    inertial geometry is represented here.
+  -->
+  <xacro:macro name="rebot_gemini305_wrist_camera"
+    params="color_optical_xyz color_optical_rpy">
+    <link name="wrist_mounted_camera_color_optical_frame" />
+    <joint name="wrist_mounted_camera_color_optical_joint" type="fixed">
+      <parent link="gripper_end" />
+      <child link="wrist_mounted_camera_color_optical_frame" />
+      <origin xyz="${color_optical_xyz}" rpy="${color_optical_rpy}" />
+    </joint>
+  </xacro:macro>
+</robot>

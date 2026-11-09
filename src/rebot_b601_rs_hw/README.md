@@ -2,11 +2,11 @@
 
 This 10.x/Jazzy config inherits the same stock arm and native jaw through the
 simulation config, then selects `robstride_hardware_interface/RobstrideHardware`
-and wall time. It has no camera launch, simulated sensor or simulation-only
-controller. Hardware defaults to motion (MIT spring) mode with normal configured
-kp/kd. JTAC owns all seven position interfaces; the active standalone gravity
-controller owns the six arm effort interfaces. The jaw has no gravity effort
-command interface.
+and wall time. It has a stock Gemini 305 wrist-camera launch, no simulated
+sensor and no simulation-only controller. Hardware defaults to motion (MIT
+spring) mode with normal configured kp/kd. JTAC owns all seven position
+interfaces; the active standalone gravity controller owns the six arm effort
+interfaces. The jaw has no gravity effort command interface.
 
 ## Integration status
 
@@ -45,6 +45,66 @@ moveit_pro run --user-workspace "$PWD" --config-package rebot_b601_rs_hw --headl
 
 This command is for a commissioned physical installation. It was not executed
 as part of the simulation/repository migration.
+
+## Gemini 305 wrist camera
+
+The physical driver's `rebot_drivers.launch.py` includes the Gemini 305 launch,
+and `config/wrist_camera.yaml` sets `enable_wrist_camera: true` by default. The
+launch detects USB device `2bc5:0840` before starting
+`orbbec_camera/orbbec_camera_node`; when no camera is attached it logs a warning
+and skips the driver, leaving the arm backend available. To turn the camera off
+entirely (no USB probe, no driver), set `enable_wrist_camera: false` in
+`config/wrist_camera.yaml`, rebuild the package, then restart the physical
+backend. Mock and MuJoCo never include this launch. Leave
+`wrist_camera_serial_number` empty to let the driver select its first device,
+or set it only for a host with multiple cameras. The scan runs once during
+startup; attach or reconnect a camera, then restart the physical backend to
+start its driver.
+
+The package declares `orbbec_camera`; the Jazzy rosdep key resolves to
+`ros-jazzy-orbbec-camera`. If the selected physical deployment image lacks the
+driver, startup logs a warning and leaves the arm backend available; install the
+driver image, then restart before camera use.
+
+The launch publishes color only at **1280×800 MJPG, 10 Hz** under
+`/wrist_mounted_camera`. It leaves `color_info_url` unset so the driver derives
+`camera_info` from the active device's factory stream calibration, disables
+depth/IR/point clouds, and does not publish driver TF. The robot description
+is the sole source of `wrist_mounted_camera_color_optical_frame`.
+
+Install Orbbec's host USB rule before connecting the camera; the container's
+`/dev` mount does not replace host udev configuration:
+
+```bash
+sudo install -m 644 \
+  <OrbbecSDK_ROS2>/orbbec_camera/scripts/99-obsensor-libusb.rules \
+  /etc/udev/rules.d/99-obsensor-libusb.rules
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
+
+The stock `gripper_end` →
+`wrist_mounted_camera_color_optical_frame` transform is a nominal CAD/geometry
+estimate, not a calibrated hand-eye result. It has no serial-specific value.
+These source settings are not physical-camera acceptance; verify the selected
+driver image and stream on a commissioned host before using the camera. A
+downstream office package must override
+`wrist_camera_color_optical_xyz` and `wrist_camera_color_optical_rpy` with its
+own calibrated mount before using the frame for measured perception or motion.
+`urdf_params` merge by parameter key, so the child config needs only its two
+calibrated entries:
+
+```yaml
+hardware:
+  robot_description:
+    urdf_params:
+    - wrist_camera_color_optical_xyz: "x y z"
+    - wrist_camera_color_optical_rpy: "roll pitch yaw"
+```
+
+Build the child config and restart the backend after changing that source. The
+stock camera frame has no body, collision or inertial geometry. The mock and
+MuJoCo descriptions gain no camera frame.
 
 ## Preserved torque and fault behavior
 
