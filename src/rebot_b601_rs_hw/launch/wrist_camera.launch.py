@@ -141,6 +141,9 @@ def wrist_camera_parameters(context):
         "color_height": height,
         "color_fps": fps,
         "color_format": "MJPG",
+        # Meter color AE on the color image: with depth disabled, the default
+        # depth-based AE stopped regulating and the image washed out (2026-11-10).
+        "ae_mode": "colorbased",
         "enable_depth": False,
         "enable_left_ir": False,
         "enable_right_ir": False,
