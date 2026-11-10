@@ -19,6 +19,35 @@ recovery checks; offline closure is not a hardware safety certification.
 [Source provenance and limitations](docs/source-provenance.md) distinguish
 migrated functionality from unverified runtime behavior.
 
+## Thermal recovery
+
+The RobStride driver latches a thermal trip when any motor reaches 100°C or
+higher. It refuses new activation and torque-enable requests while latched;
+cooling alone does not clear it. Once all motors report below 75°C, a fresh
+stationary-HOME recovery attestation with all motors OFF is required to clear
+the latch. A trip received while every motor is already OFF remains OFF; the
+guard does not request HOME or enable torque in that case.
+
+For a new latch with fresh healthy feedback from all enabled motors, the guard
+first sends JTAC a nonzero-stamped stationary goal with two identical measured
+seven-joint poses. After two advancing controller-reference samples match that
+pose, it restores the configured `kd` for arm motor IDs 1–6, then their `kp`,
+one acknowledged request at a time through
+`/robstride_hardware_interface/set_data_to_robstride`. The values come from
+the initial `/robot_description` GPIO configuration; the jaw gains and gravity
+compensation are unchanged. JTAC stays active, the stationary goal remains
+observable for up to 10 s while gains are restored, and native HOME supersedes
+it.
+
+Only after that restore does the guard cancel the active Objective and request
+**Return reBot Leader Home**. It waits for success and fresh stationary HOME
+for 0.5 s, then asks the owning driver to turn torque OFF. A failed anchor,
+reference check, gain request, cancellation, HOME, or HOME verification leaves
+the latch set and never disables away from HOME. Gain requests are bounded to
+0.5 s and not retried or rolled back; their acknowledgement means the driver
+queued a write, not that the motor read back an atomic gain update. This
+requires no competing motion or gain writer and is not physical no-snap proof.
+
 ## Before starting hardware
 
 The arm has no brakes. Activation probes positions using Stop frames, which
