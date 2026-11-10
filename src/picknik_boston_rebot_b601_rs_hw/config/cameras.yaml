@@ -1,24 +1,17 @@
-# Start each supported camera if attached; missing cameras warn and are skipped.
-# Camera selection is independent of the arm's mock/real hardware selector.
+# Start the optional office scene camera if attached. The wrist Gemini 305 is
+# started by the inherited stock hardware launch; its per-unit serial and mount
+# are set in this office package's driver launch and config.yaml.
 enable_cameras: true
-enable_wrist_camera: true
 enable_scene_camera: true
 
-# Shared RGB output settings. Use a color mode supported by both cameras.
+# OAK-D RGB output. Its ISP output at an explicit 1/2 scale turns the whole
+# 1280x800 sensor into 640x400: the full 97.1 deg view and correct published
+# intrinsics. The video path at 640x480 would crop to the central 640x480, a
+# 59.1 deg view. See README.md; the scene mount remains uncalibrated.
 image_width: 640
+scene_image_height: 400
 framerate: 30
 
-# The two cameras differ in height on purpose. The D435 runs a supported 4:3
-# color mode. The OAK takes its ISP output at an explicit 1/2 scale, which turns
-# its whole 1280x800 sensor into 640x400 - the full 97.1 deg view, and correct
-# published intrinsics. The video path at 640x480 would instead crop to the
-# central 640x480, a 59.1 deg view. See README.md; the mounts are still
-# uncalibrated either way.
-wrist_image_height: 480
-scene_image_height: 400
-
-# Empty selects the attached D435; set a serial if more than one is connected.
-wrist_serial_no: ""
 # Empty selects the first attached OAK-D; no bench-specific serial is required.
 scene_serial_no: ""
 # OAK encodes MJPEG on-device before USB transfer; the driver decodes to bgr8.

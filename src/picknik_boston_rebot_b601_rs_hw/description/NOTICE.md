@@ -40,8 +40,8 @@ Modified by PickNik Inc., 2026-10-11:
 
 Modified by PickNik Inc., 2026-10-12:
 
-- Added xacro arguments for the `d435_mount_joint` origin; they default to the
-  nominal mount.
+- Added xacro arguments for the historical `d435_mount_joint` origin; they
+  defaulted to the nominal mount.
 - A wrapping description that defines the `world` placement properties before
   including this file keeps them over the placement arguments.
 
@@ -50,6 +50,13 @@ Modified by PickNik Inc., 2026-10-14:
 - Set conservative home margins of −0.02 rad for J2 and −0.01 rad for J3,
   retaining J7's zero lower bound. These are approved operating limits, not
   measured negative hard stops.
+
+Modified by PickNik Inc., 2026-11-08:
+
+- Replaced the real-hardware D435 visual assembly with the stock Gemini 305
+  frame macro, overridden by a hand-eye calibration for serial `CV2F861000FP`.
+  The fixed `gripper_end` transform is not eye-measured; no camera mesh,
+  collision or inertia is added.
 
 Original URDF export notice retained in `rebot.urdf.xacro`: SolidWorks to URDF
 Exporter, Stephen Brawner (brawner@gmail.com), commit `1.6.0-4-g7f85cfe`,
@@ -79,17 +86,18 @@ are recorded in `assets/printed/manifest.json`.
 
 The bracket's mounting-interface reference is Seeed revision
 `58f9e433deec2ba118c5c22d60c07b9897e92acc`,
-`Rebot_Arm_description/Camera/urdf/d435i.urdf` and its bracket mesh. Only the
-mounting transform was initially reused; the D435 body and nominal optical
-frame are now included as described below.
+`Rebot_Arm_description/Camera/urdf/d435i.urdf` and its bracket mesh. The
+mounting transform, D435 body and nominal optical frame were initially reused
+for the visual assembly described below.
 
 PickNik Inc. modified the visual integration on 2026-10-10: replaced matching
 trim visuals, retained internal black-plastic triangles as `pla2_internal.STL`
 and `pla3_internal.STL`, and added a visual-only bracket. Collision meshes,
-inertia and arm joint frames remain unchanged. The D435 frame-only placeholder
-is replaced by the nominal camera assembly described below.
+inertia and arm joint frames remain unchanged. The real-hardware D435
+frame-only placeholder was later replaced by the Gemini 305 frame-only
+calibration described below.
 
-## D435 body and nominal frames (2026-10-10)
+## Retained D435 mesh provenance (2026-10-10)
 
 `assets/realsense/d435.dae` is a decimated (15.8 MB to 1.7 MB, quadric edge collapse; same origin, scale and material) copy of Intel's D435 mesh from
 [realsenseai/realsense-ros](https://github.com/realsenseai/realsense-ros/tree/9215f26e8348ad5922a608b77882a9bfe05940f0/realsense2_description),
@@ -103,10 +111,10 @@ above; the body's mesh and nominal RGB optical offsets follow
 `realsense2_description/urdf/_d435.urdf.xacro` at the same RealSense revision
 (Copyright 2023 RealSense, Inc.). No driver code is copied.
 
-The wrist mount link now uses the bracket's CAD frame. Its bottom-screw frame,
-body frame and nominal color optical frame form one fixed chain. This is a
-visual assembly, not a measured hand-eye calibration; no collision or inertia
-is added for the camera. The scene camera remains frame-only.
+The real-hardware wrist visual assembly used the bracket's CAD frame. Its
+bottom-screw frame, body frame and nominal color optical frame formed one fixed
+chain. The current real-hardware wrist configuration uses the Gemini 305
+hand-eye calibration recorded above. The scene camera remains frame-only.
 
 The link3 side panels retain the integrated source transforms; mesh bytes and
 the lower cover pose are unchanged. The exact origins are in office_geometry.xacro.
@@ -116,8 +124,8 @@ the lower cover pose are unchanged. The exact origins are in office_geometry.xac
 Modified by PickNik Inc.: extracted the existing trim and camera blocks into
 `office_geometry.xacro`; reuse shared stock URDF/SRDF/controller interfaces;
 keep the six measured gravity-equivalent inertial-origin values in an office
-YAML file, restricted to real-backend model expansion. All joint frames, stock
-collision geometry and source camera/visual transforms are preserved.
-These fitted origins are not identified physical dynamic inertias and cannot
-be selected for mock/MuJoCo. The office SRDF retains the historical link2/link5
-collision exclusion. No new physical or camera calibration is claimed.
+YAML file, restricted to real-backend model expansion. All joint frames and
+stock collision geometry are preserved. These fitted origins are not identified
+physical dynamic inertias and cannot be selected for mock/MuJoCo. The office
+SRDF retains the historical link2/link5 collision exclusion. The per-unit Gemini
+305 hand-eye calibration is documented above.

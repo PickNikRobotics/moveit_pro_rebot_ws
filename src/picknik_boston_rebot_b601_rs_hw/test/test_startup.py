@@ -11,6 +11,9 @@ from moveit_studio_utils_py.system_config import load_system_config
 import pytest
 
 
+OFFICE_SERIAL = "CV2F861000FP"
+
+
 @pytest.fixture
 def startup():
     path = (
@@ -82,49 +85,57 @@ def test_absolute_calibration_and_custom_reader_settings(startup, tmp_path):
     }
 
 
-def test_driver_launch_includes_stock_guard_once_without_executing_it(tmp_path):
+def test_driver_launch_reuses_stock_wrist_camera_with_the_calibrated_unit_serial():
     from launch import LaunchContext
-    from launch.actions import IncludeLaunchDescription
-    from launch_ros.actions import Node
-    from launch.utilities import (
-        normalize_to_list_of_substitutions,
-        perform_substitutions,
-    )
+    from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 
     share = Path(get_package_share_directory("picknik_boston_rebot_b601_rs_hw"))
     path = share / "launch/rebot_drivers.launch.py"
     spec = importlib.util.spec_from_file_location("boston_drivers", path)
     drivers = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(drivers)
-    includes = drivers.generate_launch_description().entities
-    assert len(includes) == 3
+    launch = drivers.generate_launch_description()
     context = LaunchContext()
-    destinations = []
-    for entry in includes:
-        assert isinstance(entry, IncludeLaunchDescription)
-        # Loading a description expands its location, but does not execute its
-        # OpaqueFunction or Node actions (including camera USB discovery).
-        source = entry.launch_description_source
-        assert source.get_launch_description(context) is not None
-        destinations.append(Path(source.location))
-    stock = (
-        Path(get_package_share_directory("rebot_b601_rs_hw"))
-        / "launch/rebot_thermal.launch.py"
+    includes = [
+        action
+        for action in launch.entities
+        if isinstance(action, IncludeLaunchDescription)
+    ]
+    assert len(includes) == 3
+    stock_driver = next(action for action in includes if action.launch_arguments)
+    assert list(stock_driver.launch_arguments) == [
+        ("wrist_camera_serial_number", OFFICE_SERIAL)
+    ]
+    # Loading declarations does not execute the USB probe or any camera driver.
+    set_serial, stock_description = stock_driver.execute(context)
+    set_serial.execute(context)
+    stock_includes = [
+        action
+        for action in stock_description.entities
+        if isinstance(action, IncludeLaunchDescription)
+    ]
+    assert len(stock_includes) == 2  # Stock thermal guard plus wrist-camera launch.
+    wrist_launch = None
+    for action in stock_includes:
+        child = action.launch_description_source.get_launch_description(context)
+        if any(
+            isinstance(entity, DeclareLaunchArgument)
+            and entity.name == "wrist_camera_serial_number"
+            for entity in child.entities
+        ):
+            wrist_launch = child
+            break
+    assert wrist_launch is not None
+    serial = next(
+        entity
+        for entity in wrist_launch.entities
+        if isinstance(entity, DeclareLaunchArgument)
+        and entity.name == "wrist_camera_serial_number"
     )
-    assert destinations.count(stock) == 1
-    # Evaluate only the selected guard's construction function, not its Node.
-    spec = importlib.util.spec_from_file_location("stock_guard", stock)
-    guard = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(guard)
-    config = load_system_config("picknik_boston_rebot_b601_rs_hw", tmp_path)[0]
-    nodes = guard.configured_nodes(config)
-    assert len(nodes) == 1 and isinstance(nodes[0], Node)
-    assert (
-        perform_substitutions(
-            context, normalize_to_list_of_substitutions(nodes[0].node_package)
-        )
-        == "rebot_b601_rs_hw"
-    )
+    serial.execute(context)
+    assert context.launch_configurations["wrist_camera_serial_number"] == OFFICE_SERIAL
+    # The remaining two includes are Boston's scene camera and leader helpers.
+    assert sum(not action.launch_arguments for action in includes) == 2
 
 
 def test_installed_sdk_imports_in_ros_python_without_training_dependencies():

@@ -12,6 +12,7 @@
   <license file="description/assets/realsense/LICENSE">Apache-2.0</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
   <exec_depend>rebot_b601_rs_hw</exec_depend>
+  <exec_depend>rebot_description</exec_depend>
   <exec_depend>rebot_bench_behaviors</exec_depend>
   <exec_depend>motion_recovery_behaviors</exec_depend>
   <exec_depend>xacro</exec_depend>
@@ -25,7 +26,6 @@
   <exec_depend>rosbag2_py</exec_depend>
   <exec_depend>rosbag2_storage_mcap</exec_depend>
   <exec_depend>rosidl_runtime_py</exec_depend>
-  <exec_depend>realsense2_camera</exec_depend>
   <exec_depend>depthai_ros_driver</exec_depend>
   <exec_depend>depth_image_proc</exec_depend>
   <exec_depend>compressed_image_transport</exec_depend>
