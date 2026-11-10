@@ -71,6 +71,51 @@ Fitted gravity, scene/camera calibration and fixtures remain office-only.
   needs `motorbridge-smart-servo==0.0.4` from `config/leader-requirements.txt`;
   do not install a training stack or rewrite calibration as part of migration.
 
+## Mirror reBot Leader engage
+
+Mirror still requires fresh leader/follower feedback, the native collision scene,
+a healthy controller handoff and **reBot at HOME** (arm joints within 0.08 rad).
+Start it explicitly; recovered USB, a cleared fault or completed HOME does not
+re-engage it automatically. Do not move reBot by hand to match the leader.
+
+Engage now seeds its position command from the measured follower pose, clamped
+into the approved joint limits, and eases each joint toward the **live** leader
+target. In `config/config.yaml`,
+`rebot_leader_engage_speed_rad_s` defaults to **0.05 rad/s** for joint1–joint6;
+`rebot_leader_engage_jaw_speed_rad_s` defaults to **0.10 rad/s** for joint7.
+Every candidate step uses the existing per-tick native FCL path check before
+publication. Keep the leader near HOME and still while ease-in catches up.
+Once the ramped command reference is within **0.02 rad** on every arm joint and
+**0.05 rad** on the jaw of the current target, the bridge switches to the
+existing **direct, uncapped following**. Convergence does not wait on the
+measured follower, so spring-mode steady-state error cannot hold engage open.
+The engage cap is not a normal following-speed limit or a safety-rated motion
+limit.
+
+The old 0.1 rad alignment refusal is replaced by a gross arm mismatch check:
+`rebot_leader_engage_max_offset_rad` defaults to **0.6 rad** per arm joint.
+There is no jaw alignment gate; jaw targets still obey the native limits and
+collision checks. Gross refusal retains the per-joint signed offset and
+leader-only correction instructions. The engage speeds and gross bound are
+proposals for maintainer confirmation before any bench session; bench proof is
+pending. The retained unit calibration is unchanged.
+
+The **3 s start limit** applies to starting the ramp, not completing it.
+At engage, the fixed convergence deadline is the largest initial per-joint
+`abs(leader - follower) / engage_speed` plus **5 s**, including the jaw at its
+own speed. A moving leader does not extend that deadline. Timeout, stale data,
+lost Objective heartbeat, collision and Stop/clutch use the existing stopped
+command / planned HOME recovery path. HOME-before-disable behavior is unchanged.
+If HOME fails, do not disable torque away from HOME; use the supported recovery
+procedure with the operator. Wait for HOME recovery and explicitly start Mirror
+again. There is no auto-HOME before engage, calibration re-zero or reader respawn.
+
+Offline coverage includes the +0.110 rad shoulder-pan rest offset, arm/jaw step
+bounds, live-target reversals, all-joint convergence, gross refusal, jaw startup,
+timeout-to-HOME and preserved deadman/start checks. Fake-SDK startup exercises
+the actual configured bridge and reader without USB or CAN access. Offline or
+MuJoCo proof does not authorize or certify real-arm motion.
+
 ## Objectives and recordings
 
 Stock Start/Stop Gravity Comp, native jaw and conference Teleoperate Objectives

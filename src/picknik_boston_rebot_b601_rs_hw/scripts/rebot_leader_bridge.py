@@ -35,7 +35,15 @@ class LeaderBridge:
     def __init__(self, node, stream):
         self.node = node
         self.stream = stream
-        self.state = LeaderState()
+        self.state = LeaderState(
+            engage_speed_rad_s=node.declare_parameter("engage_speed_rad_s", 0.05).value,
+            engage_jaw_speed_rad_s=node.declare_parameter(
+                "engage_jaw_speed_rad_s", 0.10
+            ).value,
+            engage_max_offset_rad=node.declare_parameter(
+                "engage_max_offset_rad", 0.6
+            ).value,
+        )
         self.real_hardware = False
         self.thermal_tripped = False
         self.hardware_state = None
@@ -359,6 +367,7 @@ class LeaderBridge:
                 and self.scene_ready
                 and not self.state.fault
                 and self.prepared_at is not None
+                and now - self.prepared_at < 3.0
                 and self.state.fresh(now)
                 and now - self.warmup_heartbeat < 0.5
             )
@@ -370,7 +379,9 @@ class LeaderBridge:
                 self.start_checked = self.state.engage(now)
                 if self.start_checked:
                     self.prepared_at = None
-                    self.node.get_logger().info("POSITION FOLLOWING STARTED")
+                    self.node.get_logger().info(
+                        "POSITION FOLLOWING STARTED: bounded engage ease-in"
+                    )
             elif self.prepared_at is not None and (
                 self.state.fault or now - self.prepared_at >= 3.0
             ):
@@ -384,23 +395,32 @@ class LeaderBridge:
         if was_active and not self.state.active:
             self.hold()
         if self.state.active:
+            engaging = self.state.engaging
+            command = self.state.next_command(now)
             if self.real_hardware and not self.hardware_healthy(now):
                 reason = "Robstride status stale, faulted or not all motors enabled"
             else:
                 try:
-                    reason = self.collider.check_path(
-                        self.state.measured, self.state.target
-                    )
+                    reason = self.collider.check_path(self.state.measured, command)
                 except (ValueError, RuntimeError) as exc:
                     reason = f"Collision check unavailable: {exc}"
             if reason:
                 self.state.stop(reason)
                 self.hold()
-            elif self.state.fresh(time.monotonic()):
-                self.publish(self.state.target)
             else:
-                self.state.stop("Samples expired during collision check")
-                self.hold()
+                checked_at = time.monotonic()
+                if not self.state.fresh(checked_at):
+                    self.state.stop("Samples expired during collision check")
+                    self.hold()
+                elif not self.state.check_deadman(checked_at):
+                    self.hold()
+                else:
+                    self.publish(command)
+                    self.state.command_sent(command, time.monotonic())
+                    if engaging and not self.state.engaging:
+                        self.node.get_logger().info(
+                            "POSITION FOLLOWING CONVERGED: direct uncapped following"
+                        )
         elif not self.start_checked:
             self.hold(fixed=True)
         if self.state.recover:

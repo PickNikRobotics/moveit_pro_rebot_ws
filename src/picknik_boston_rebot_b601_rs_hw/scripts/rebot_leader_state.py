@@ -1,6 +1,6 @@
 # Copyright 2026 PickNik Inc.
 # SPDX-License-Identifier: BSD-3-Clause
-"""Leader deadman and fresh-sample contract, independent of ROS and the SDK."""
+"""Leader engage, deadman and fresh-sample contract, independent of ROS and the SDK."""
 import math
 
 from rebot_leader import DIRECTIONS, JOINT_NAMES, LEADER_NAMES, LIMITS_DEG
@@ -15,33 +15,33 @@ def joint_label(index):
     return f"{LEADER_NAMES[index].replace('_', ' ')} ({JOINT_NAMES[index]})"
 
 
-def alignment_fault(target, measured, tolerance=0.1, gripper_tolerance=0.3):
-    """Explain mismatches and the signed correction in the Star Arm's calibrated frame."""
+ENGAGE_TOLERANCES = (0.02,) * 6 + (0.05,)
+
+
+def alignment_fault(target, measured, tolerance=0.6):
+    """Explain gross arm mismatches in the Star Arm's calibrated frame; no jaw gate."""
     offsets = []
     corrections = []
     for index, (leader, follower, direction) in enumerate(
-        zip(target, measured, DIRECTIONS)
+        zip(target[:6], measured[:6], DIRECTIONS[:6])
     ):
         delta = leader - follower
-        joint_tolerance = gripper_tolerance if index == 6 else tolerance
-        if abs(delta) <= joint_tolerance:
+        if abs(delta) <= tolerance:
             continue
         offsets.append(
             f"{joint_label(index)}: {math.degrees(delta):+.1f} deg ({delta:+.3f} rad)"
         )
         correction = -delta / direction
-        angle_label = "calibrated trigger angle" if index == 6 else "calibrated angle"
         corrections.append(
-            f"{joint_label(index)} toward a {'higher' if correction > 0 else 'lower'} {angle_label} "
+            f"{joint_label(index)} toward a {'higher' if correction > 0 else 'lower'} calibrated angle "
             f"by {abs(math.degrees(correction)):.1f} deg ({abs(correction):.3f} rad)"
         )
     if not offsets:
         return ""
     return (
-        "Following refused to avoid a jump: the Star Arm's pose does not match reBot. "
+        "Following refused: gross pose mismatch; the Star Arm's pose does not match reBot. "
         f"Leader minus reBot offset: {'; '.join(offsets)}. "
-        f"Arm joints joint1-joint6 must be within {math.degrees(tolerance):.1f} deg ({tolerance:g} rad); "
-        f"gripper (joint7) within {math.degrees(gripper_tolerance):.1f} deg ({gripper_tolerance:g} rad). "
+        f"Arm joints joint1-joint6 must be within {math.degrees(tolerance):.1f} deg ({tolerance:g} rad). "
         f"Move only the Star Arm: {'; '.join(corrections)}, toward reBot's matching pose. "
         "Then run Mirror reBot Leader again."
     )
@@ -70,6 +70,12 @@ def operator_fault(reason):
             + UNPLUGGED
             + "Then match the Star Arm to reBot and run Mirror reBot Leader again."
         )
+    if "convergence timed out" in reason.lower():
+        return (
+            "Following stopped: engage convergence timed out. reBot is returning HOME; "
+            "wait for recovery to finish. Keep the Star Arm near reBot's HOME pose and still during ease-in. "
+            "Then explicitly run Mirror reBot Leader again; it does not re-engage automatically."
+        )
     if any(word in reason.lower() for word in ("sample", "usb", "stream")):
         return (
             "Following stopped: fresh Star Arm or reBot joint data is missing or invalid. "
@@ -87,7 +93,32 @@ def operator_fault(reason):
 class LeaderState:
     """A fault requires explicit reset at home; recovered USB never re-engages."""
 
-    def __init__(self, sample_timeout=0.1, heartbeat_timeout=0.5):
+    def __init__(
+        self,
+        sample_timeout=0.1,
+        heartbeat_timeout=0.5,
+        engage_speed_rad_s=0.05,
+        engage_jaw_speed_rad_s=0.10,
+        engage_max_offset_rad=0.6,
+    ):
+        for name, value in (
+            ("engage_speed_rad_s", engage_speed_rad_s),
+            ("engage_jaw_speed_rad_s", engage_jaw_speed_rad_s),
+            ("engage_max_offset_rad", engage_max_offset_rad),
+        ):
+            if (
+                type(value) not in (int, float)
+                or not math.isfinite(value)
+                or value <= 0
+            ):
+                raise ValueError(f"{name} must be finite and positive")
+        self.engage_speeds = (engage_speed_rad_s,) * 6 + (engage_jaw_speed_rad_s,)
+        self.engage_max_offset_rad = engage_max_offset_rad
+        self.engaging = False
+        self.engage_deadline = -math.inf
+        self.command = None
+        self.command_time = -math.inf
+        self.seed_pending = False
         self.sample_timeout = sample_timeout
         self.heartbeat_timeout = heartbeat_timeout
         self.target = None
@@ -143,18 +174,69 @@ class LeaderState:
         if self.fault or self.recover or not self.fresh(now):
             return False
         if not self.active:
-            self.fault = alignment_fault(self.target, self.measured)
+            self.fault = alignment_fault(
+                self.target, self.measured, self.engage_max_offset_rad
+            )
             if self.fault:
                 return False
+            self.command = [
+                max(math.radians(lower), min(math.radians(upper), position))
+                for position, (lower, upper) in zip(self.measured, LIMITS_DEG)
+            ]
+            self.command_time = now
+            self.seed_pending = True
+            self.engaging = True
+            self.engage_deadline = (
+                now
+                + max(
+                    abs(target - measured) / speed
+                    for target, measured, speed in zip(
+                        self.target, self.measured, self.engage_speeds
+                    )
+                )
+                + 5.0
+            )
         self.active = True
         self.heartbeat = now
         return True
+
+    def next_command(self, now):
+        """Propose a live-target step; only a collision-checked publication advances it."""
+        if not self.active:
+            return None
+        if not self.engaging:
+            return list(self.target)
+        if self.seed_pending:
+            return list(self.command)
+        if all(
+            abs(target - reference) <= tolerance
+            for target, reference, tolerance in zip(
+                self.target, self.command, ENGAGE_TOLERANCES
+            )
+        ):
+            self.engaging = False
+            return list(self.target)
+        elapsed = max(0.0, now - self.command_time)
+        return [
+            reference + max(-speed * elapsed, min(speed * elapsed, target - reference))
+            for reference, target, speed in zip(
+                self.command, self.target, self.engage_speeds
+            )
+        ]
+
+    def command_sent(self, positions, now):
+        """Record the checked reference and actual send time, not collision-check start."""
+        self.command = list(positions)
+        self.command_time = now
+        self.seed_pending = False
 
     def stop(self, reason):
         if self.active:
             self.recover = True
             self.fault = reason
         self.active = False
+        self.engaging = False
+        self.seed_pending = False
 
     def reset(self):
         if (
@@ -171,4 +253,6 @@ class LeaderState:
             not self.fresh(now) or now - self.heartbeat >= self.heartbeat_timeout
         ):
             self.stop("Leader/follower sample or Objective heartbeat expired")
+        elif self.active and self.engaging and now >= self.engage_deadline:
+            self.stop("Leader engage convergence timed out; returning HOME")
         return self.active
