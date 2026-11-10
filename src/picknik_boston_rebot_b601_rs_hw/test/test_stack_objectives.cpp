@@ -984,7 +984,22 @@ TEST_F(StackObjectives, LeaderHomeReturnLeavesSaggedHomeInPlaceAndPlansFromBeyon
   calls.clear();
   measured_arm = { 0.0, -0.01, -0.008, 0.09, 0.0, 0.0 };
   ASSERT_EQ(run(leader_home), BT::NodeStatus::SUCCESS);
-  EXPECT_EQ(motions(), (std::vector<std::string>{ kHome }));
+  EXPECT_EQ(motions(), (std::vector<std::string>{ kHome, kClose }));
+}
+
+TEST_F(StackObjectives, LeaderHomeAtHomeSettlesVerifiesThenClosesJaw)
+{
+  ASSERT_EQ(run(R"(<SubTree ID="Return reBot Leader Home" />)"), BT::NodeStatus::SUCCESS);
+  EXPECT_EQ(motions(), (std::vector<std::string>{ kClose }));
+  EXPECT_EQ(labelsStartingWith(calls, { "WaitForDuration", "CallTriggerService", kClose }),
+            (std::vector<std::string>{ "WaitForDuration", "CallTriggerService", kClose }));
+}
+
+TEST_F(StackObjectives, LeaderHomeKeepsSuccessWhenCloseFails)
+{
+  failing = kClose;
+  EXPECT_EQ(run(R"(<SubTree ID="Return reBot Leader Home" />)"), BT::NodeStatus::SUCCESS);
+  EXPECT_EQ(motions(), (std::vector<std::string>{ kClose }));
 }
 
 TEST_F(StackObjectives, SettingsReachEveryLegOfTheirKindIncludingHome)

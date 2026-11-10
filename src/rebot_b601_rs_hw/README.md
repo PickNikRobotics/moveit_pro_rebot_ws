@@ -120,6 +120,14 @@ An enabled motor watchdog could otherwise release torque after the bus closes.
 A fault reset alone does not rejoin the lost motor or resume motion.
 The driver requires fresh measured positions before activation.
 
+Return reBot Leader Home retains torque and the normal trajectory controller.
+It holds the jaw during the arm legs, waits 0.5 s at HOME, optionally verifies
+HOME with the leader bridge, then attempts Close Gripper at nominal zero.
+The verification call and close are best-effort, so a successful HOME result
+alone does not prove that the jaw closed. The bridge clears a failed-HOME
+latch only with fresh, stationary arm feedback at HOME and healthy enabled
+motors, while Mirror is inactive and no thermal trip is latched.
+
 Return to a supported home pose under power before normal shutdown. The arm
 can remain rigid after the process stops until motor power is cut. A restart
 with torque disabled is itself a commissioning operation, with the arm

@@ -398,6 +398,27 @@ protected:
                                  { BT::InputPort<std::vector<std::string>>("joint_names"),
                                    BT::InputPort<std::vector<double>>("positions"),
                                    BT::OutputPort<RobotState>("joint_state_msg") });
+    factory.registerSimpleAction("WaitForDuration", [](BT::TreeNode&) { return BT::NodeStatus::SUCCESS; },
+                                 { BT::InputPort<double>("delay_duration") });
+    factory.registerSimpleAction("CallTriggerService", [](BT::TreeNode&) { return BT::NodeStatus::SUCCESS; },
+                                 { BT::InputPort<std::string>("service_name"),
+                                   BT::InputPort<double>("wait_for_server_available_timeout"),
+                                   BT::InputPort<double>("response_timeout") });
+    factory.registerSimpleAction("CloseJaw",
+                                 [this](BT::TreeNode& node) {
+                                   EXPECT_EQ(node.getInput<std::string>("waypoint_name").value(), "Gripper Closed");
+                                   EXPECT_EQ(node.getInput<std::string>("joint_group_name").value(), "gripper");
+                                   for (const auto& joint : kArm)
+                                     EXPECT_LE(std::abs(measured.at(joint)), 0.08);
+                                   measured["joint7"] = 0.0;
+                                   return BT::NodeStatus::SUCCESS;
+                                 },
+                                 { BT::InputPort<std::string>("waypoint_name"),
+                                   BT::InputPort<std::string>("joint_group_name") });
+    factory.registerBehaviorTreeFromText(R"(<root BTCPP_format="4">
+      <BehaviorTree ID="Move to Named Waypoint"><Action ID="CloseJaw"
+        waypoint_name="{waypoint_name}" joint_group_name="{joint_group_name}"/></BehaviorTree></root>)");
+    factory.registerBehaviorTreeFromFile(STOCK_SHARE "/objectives/close_gripper.xml");
     for (const auto* objective :
          { "move_rebot_gripper.xml", "rebot_open_jaw.xml", "rebot_move_to_arm_waypoint.xml", "rebot_move_to_pose.xml" })
       factory.registerBehaviorTreeFromFile(std::string(PACKAGE_DIR "/objectives/") + objective);
@@ -532,8 +553,8 @@ TEST_F(JawLegs, LeaderHomeReturnPlansBothLegsFromTheBoundedArmWhenAJointSagsPast
   // WHEN returning home, planning with the native planner
   EXPECT_EQ(run(R"(<SubTree ID="Return reBot Leader Home" />)", {}), BT::NodeStatus::SUCCESS);
 
-  // THEN both legs start from joint3 at its bound, yaw centres with the wrist still raised, the arm ends home and
-  // the jaw is held where it measures
+  // THEN both arm legs hold the jaw and start from joint3 at its bound, yaw centres with the wrist still raised,
+  // and the jaw closes only after the arm ends HOME
   ASSERT_EQ(executed.size(), 2U);
   EXPECT_DOUBLE_EQ(column(executed[0], "joint3").front(), -0.01);
   EXPECT_DOUBLE_EQ(column(executed[1], "joint3").front(), -0.01);
@@ -545,7 +566,7 @@ TEST_F(JawLegs, LeaderHomeReturnPlansBothLegsFromTheBoundedArmWhenAJointSagsPast
       EXPECT_DOUBLE_EQ(position, 2.0);
   for (const auto& [joint, position] : kWaypoints.at("Zeroed Rest"))
     EXPECT_NEAR(measured.at(joint), position, 1e-6) << joint;
-  EXPECT_DOUBLE_EQ(measured.at("joint7"), 2.0);
+  EXPECT_DOUBLE_EQ(measured.at("joint7"), 0.0);
 }
 
 TEST_F(JawLegs, OpenJawRetryReopensFromTheMeasuredJawAfterACanceledOpening)

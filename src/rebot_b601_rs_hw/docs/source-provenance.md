@@ -30,12 +30,17 @@ Boston retains its recorder and consumes the same three helpers from
 `motion_recovery_behaviors`, whose README records the temporary common-package
 location and original tests. No generic framework or office plugin is loaded by stock.
 
-The source algorithm remains: activate/retain JTAC, skip motion in the inclusive
+The arm algorithm remains: activate/retain JTAC, skip arm motion in the inclusive
 0.08-rad HOME box, center joint5 first if needed, then return to Zeroed Rest at
 0.0833333333 velocity/acceleration scales (0.05 rad/s nominal maximum). Both
 plans use bounded measured starts; anchoring holds the jaw and retains the
 0.10-rad stale-command fallback. Only the rest leg has the existing collision-
-checked point-to-point fallback. Failure does not disable torque. These are
+checked point-to-point fallback. After the arm legs, wait 0.5 s, optionally ask
+`/rebot_leader_bridge/home_verified` to clear a failed-HOME latch, then attempt
+Close Gripper at nominal zero. Verification and close run under ForceSuccess:
+a missing bridge or failed close does not fail an otherwise successful arm
+HOME. The bridge independently checks fresh, stationary HOME and healthy
+motors; it never moves the arm. Failure does not disable torque. These are
 source semantics, not a claim that a physical recovery from every sag succeeds.
 The source Xacro thermal cutoff/clear parameters are explicitly 100°C/75°C;
 leaving cutoff unset would disable the driver latch and is not equivalent.
@@ -62,7 +67,8 @@ ControllerManager/JTAC with memory-only hardware, observing all36gain-service
 requests after the measured command anchor while nominal gravity remains active.
 The HOME regression executes the actual source trees and real bounding/anchoring
 helpers with deterministic planner/trajectory seams: yaw-first order, inclusive
-HOME box, source speed scales, bounded starts, jaw holding, rest-only fallback,
+HOME box, source speed scales, bounded starts, jaw holding during arm motion,
+post-HOME zero close, optional verification/close failures, rest-only fallback,
 validation and failure-before-endpoint-commit. Three preserved native-planner
 cases explicitly skip without a MoveIt Pro license. Launch tests evaluate actions
 without executing the returned Node. These checks do not exercise a real hardware
