@@ -43,6 +43,15 @@ def startup_settings(config):
             )
         settings["bridge"] = {
             "publish_rate": float(params.get("rebot_leader_publish_rate", 100.0)),
+            "engage_speed_rad_s": float(
+                params.get("rebot_leader_engage_speed_rad_s", 0.05)
+            ),
+            "engage_jaw_speed_rad_s": float(
+                params.get("rebot_leader_engage_jaw_speed_rad_s", 0.10)
+            ),
+            "engage_max_offset_rad": float(
+                params.get("rebot_leader_engage_max_offset_rad", 0.6)
+            ),
             "arguments": [
                 "--port",
                 str(params["rebot_leader_port"]),
@@ -67,7 +76,17 @@ def configured_nodes(config):
                 output="screen",
                 # Leave enough time for the existing native HOME recovery.
                 sigterm_timeout="130",
-                parameters=[{"publish_rate": bridge["publish_rate"]}],
+                parameters=[
+                    {
+                        name: bridge[name]
+                        for name in (
+                            "publish_rate",
+                            "engage_speed_rad_s",
+                            "engage_jaw_speed_rad_s",
+                            "engage_max_offset_rad",
+                        )
+                    }
+                ],
                 arguments=bridge["arguments"],
             )
         )

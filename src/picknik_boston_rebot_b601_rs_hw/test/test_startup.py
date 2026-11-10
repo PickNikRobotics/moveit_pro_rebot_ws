@@ -47,6 +47,12 @@ def test_merged_yaml_selects_one_reader_without_duplicating_stock_guard(
         bridge = settings["bridge"]
         params = config.ros_global_params
         assert bridge["publish_rate"] == params["rebot_leader_publish_rate"]
+        for name in (
+            "engage_speed_rad_s",
+            "engage_jaw_speed_rad_s",
+            "engage_max_offset_rad",
+        ):
+            assert bridge[name] == params[f"rebot_leader_{name}"]
         assert bridge["arguments"] == [
             "--port",
             params["rebot_leader_port"],
@@ -73,9 +79,15 @@ def test_absolute_calibration_and_custom_reader_settings(startup, tmp_path):
         rebot_leader_port="/dev/leader",
         rebot_leader_calibration_file=calibration,
         rebot_leader_publish_rate=20.0,
+        rebot_leader_engage_speed_rad_s=0.03,
+        rebot_leader_engage_jaw_speed_rad_s=0.07,
+        rebot_leader_engage_max_offset_rad=0.4,
     )
     assert startup.startup_settings(config)["bridge"] == {
         "publish_rate": 20.0,
+        "engage_speed_rad_s": 0.03,
+        "engage_jaw_speed_rad_s": 0.07,
+        "engage_max_offset_rad": 0.4,
         "arguments": [
             "--port",
             "/dev/leader",
@@ -83,6 +95,23 @@ def test_absolute_calibration_and_custom_reader_settings(startup, tmp_path):
             calibration,
         ],
     }
+
+
+def test_integer_engage_settings_reach_the_bridge_as_doubles(startup, tmp_path):
+    config = load_system_config("picknik_boston_rebot_b601_rs_hw", tmp_path)[0]
+    config.ros_global_params.update(
+        rebot_leader_enabled=True,
+        rebot_leader_engage_speed_rad_s=1,
+        rebot_leader_engage_jaw_speed_rad_s=1,
+        rebot_leader_engage_max_offset_rad=1,
+    )
+    bridge = startup.startup_settings(config)["bridge"]
+    for name in (
+        "engage_speed_rad_s",
+        "engage_jaw_speed_rad_s",
+        "engage_max_offset_rad",
+    ):
+        assert type(bridge[name]) is float and bridge[name] == 1.0
 
 
 def test_driver_launch_reuses_stock_wrist_camera_with_the_calibrated_unit_serial():

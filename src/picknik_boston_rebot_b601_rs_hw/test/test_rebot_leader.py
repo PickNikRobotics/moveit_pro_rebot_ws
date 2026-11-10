@@ -20,8 +20,8 @@ from rebot_leader_bridge import LeaderBridge  # noqa: E402
 from rebot_leader_state import LeaderState  # noqa: E402
 
 
-def state_at_home(now=10.0):
-    state = LeaderState()
+def state_at_home(now=10.0, **settings):
+    state = LeaderState(**settings)
     state.observe(JOINT_NAMES, [0.0] * 7, now)
     assert state.accept({"positions": [0.0] * 7, "sample_time": now}, now)
     return state
@@ -105,49 +105,82 @@ def test_objective_heartbeat_expiry_stops_even_with_fresh_samples():
     assert state.recover
 
 
-def test_full_range_positions_are_forwarded_without_a_speed_reference():
+def refresh_session(state, now, target=None, measured=None):
+    if target is None:
+        target = state.target
+    if measured is None:
+        measured = state.measured
+    state.observe(JOINT_NAMES, measured, now)
+    assert state.accept({"positions": target, "sample_time": now}, now)
+    assert state.engage(now)  # Objective heartbeat must not restart ease-in.
+
+
+def test_rest_offset_point_one_one_engages_from_measured_pose():
+    state = state_at_home()
+    measured = [0.01, 0.02, 0.03, -0.01, 0.02, -0.01, 0.4]
+    target = [measured[0] + 0.110] + measured[1:]
+    state.observe(JOINT_NAMES, measured, 10.01)
+    assert state.accept({"positions": target, "sample_time": 10.01}, 10.01)
+    assert state.engage(10.01)
+    assert state.engaging and not state.fault
+    seed = state.next_command(10.01)
+    assert seed == measured
+    state.command_sent(seed, 10.01)
+    command = state.next_command(10.02)
+    assert command[0] == pytest.approx(measured[0] + 0.0005)
+    assert command[1:] == measured[1:]
+
+
+def test_full_range_positions_are_forwarded_uncapped_after_convergence():
     state = state_at_home()
     assert state.engage(10.0)
+    state.command_sent(state.next_command(10.0), 10.0)
+    refresh_session(state, 10.01)
+    assert state.next_command(10.01) == [0.0] * 7
+    assert not state.engaging
     target = [0.6, 1.0, 1.0, 1.0, -1.0, -1.0, 5.0]
-    assert state.accept({"positions": target, "sample_time": 10.01}, 10.01)
-    assert state.engage(10.01) and state.check_deadman(10.01)
-    assert state.target == target
+    refresh_session(state, 10.02, target=target)
+    assert state.check_deadman(10.02)
+    assert state.next_command(10.02) == target
+    assert not state.engaging
 
 
-def test_alignment_fault_names_each_joint_beyond_tolerance():
+def test_alignment_fault_names_only_arm_joints_beyond_gross_bound():
     from rebot_leader_state import alignment_fault
 
-    follower = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5]
-    assert alignment_fault([0.1, -0.1, 0.0, 0.0, 0.0, 0.0, 0.6], follower) == ""
-    reason = alignment_fault([0.0, 0.25, 0.0, 0.0, 0.0, 0.0, 0.15], follower)
-    assert "shoulder lift (joint2): +14.3 deg (+0.250 rad)" in reason
-    assert "gripper (joint7): -20.1 deg (-0.350 rad)" in reason
-    assert "joint1-joint6 must be within 5.7 deg (0.1 rad)" in reason
-    assert "gripper (joint7) within 17.2 deg (0.3 rad)" in reason
-    assert "refused to avoid a jump" in reason
+    follower = [0.0] * 6 + [0.5]
+    assert alignment_fault([0.6, -0.6, 0.0, 0.0, 0.0, 0.0, 5.4], follower) == ""
+    reason = alignment_fault([0.0, 0.75, 0.0, 0.0, 0.0, 0.0, 0.15], follower)
+    assert "shoulder lift (joint2): +43.0 deg (+0.750 rad)" in reason
+    assert "gripper" not in reason and "joint7" not in reason
+    assert "joint1-joint6 must be within 34.4 deg (0.6 rad)" in reason
+    assert "gross pose mismatch" in reason
     assert (
-        "shoulder lift (joint2) toward a lower calibrated angle by 14.3 deg (0.250 rad)"
-        in reason
-    )
-    assert (
-        "gripper (joint7) toward a higher calibrated trigger angle by 3.3 deg (0.058 rad)"
+        "shoulder lift (joint2) toward a lower calibrated angle by 43.0 deg (0.750 rad)"
         in reason
     )
     assert "run Mirror reBot Leader again" in reason
 
 
-@pytest.mark.parametrize("offset, expected", [(0.25, True), (0.3, True), (0.35, False)])
-def test_gripper_engage_uses_its_own_follower_frame_tolerance(offset, expected):
+@pytest.mark.parametrize("offset", [0.25, 0.35, 5.4])
+def test_jaw_has_no_engage_alignment_gate(offset):
     state = state_at_home()
     assert state.accept(
         {"positions": [0.0] * 6 + [offset], "sample_time": 10.01}, 10.01
     )
-    assert state.engage(10.01) is expected
+    assert state.engage(10.01) and state.engaging
+    seed = state.next_command(10.01)
+    assert seed == [0.0] * 7
+    state.command_sent(seed, 10.01)
+    assert state.next_command(10.02)[6] == pytest.approx(0.001)
+    assert state.engage_deadline == pytest.approx(10.01 + offset / 0.10 + 5.0)
 
 
 @pytest.mark.parametrize("joint", range(6))
-@pytest.mark.parametrize("offset, expected", [(0.1, True), (0.101, False)])
-def test_arm_engage_tolerance_remains_point_one(joint, offset, expected):
+@pytest.mark.parametrize(
+    "offset, expected", [(0.110, True), (0.6, True), (0.600001, False)]
+)
+def test_arm_engage_refuses_only_gross_mismatch(joint, offset, expected):
     state = state_at_home()
     target = [0.0] * 7
     target[joint] = -offset if joint >= 4 else offset
@@ -155,18 +188,143 @@ def test_arm_engage_tolerance_remains_point_one(joint, offset, expected):
     assert state.engage(10.01) is expected
 
 
-def test_misaligned_leader_refuses_to_engage_until_reset():
+def test_gross_mismatch_refusal_latches_until_explicit_home_reset():
     state = state_at_home()
-    assert state.accept(
-        {"positions": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.35], "sample_time": 10.01}, 10.01
-    )
+    assert state.accept({"positions": [0.65] + [0.0] * 6, "sample_time": 10.01}, 10.01)
     assert not state.engage(10.01)
     assert (
-        not state.active and "gripper (joint7): +20.1 deg (+0.350 rad)" in state.fault
+        not state.active
+        and "shoulder pan (joint1): +37.2 deg (+0.650 rad)" in state.fault
     )
     assert state.accept({"positions": [0.0] * 7, "sample_time": 10.02}, 10.02)
     assert not state.engage(10.02)
     assert state.reset() and state.engage(10.02)
+
+
+@pytest.mark.parametrize("arm_speed,jaw_speed", [(0.05, 0.10), (0.08, 0.30)])
+def test_engage_steps_obey_each_joint_speed_and_never_overshoot(arm_speed, jaw_speed):
+    state = state_at_home(
+        engage_speed_rad_s=arm_speed, engage_jaw_speed_rad_s=jaw_speed
+    )
+    measured = [0.1, 0.1, 0.1, 0.1, -0.1, -0.1, 0.5]
+    target = [0.3, 0.3, 0.3, -0.1, 0.1, 0.1, 1.5]
+    state.observe(JOINT_NAMES, measured, 10.01)
+    assert state.accept({"positions": target, "sample_time": 10.01}, 10.01)
+    assert state.engage(10.01)
+    state.command_sent(state.next_command(10.01), 10.01)
+    previous = measured
+    now = 10.01
+    for interval in [0.01, 0.02, 0.05, 0.01] * 10:
+        now += interval
+        refresh_session(state, now, measured=previous)
+        assert state.check_deadman(now)
+        command = state.next_command(now)
+        assert state.engaging
+        for before, after, goal, speed in zip(
+            previous, command, target, [arm_speed] * 6 + [jaw_speed]
+        ):
+            assert abs(after - before) <= speed * interval + 1e-12
+            assert min(before, goal) <= after <= max(before, goal)
+        state.command_sent(command, now)
+        previous = command
+
+
+def test_engage_chases_live_target_in_both_directions_without_reseeding():
+    state = state_at_home()
+    state.target[0] = 0.3
+    assert state.engage(10.0)
+    state.command_sent(state.next_command(10.0), 10.0)
+    deadline = state.engage_deadline
+    for now, target, expected in [
+        (10.02, 0.4, 0.001),
+        (10.04, -0.2, 0.0),
+        (10.06, -0.3, -0.001),
+    ]:
+        refresh_session(state, now, target=[target] + [0.0] * 6)
+        command = state.next_command(now)
+        assert command[0] == pytest.approx(expected)
+        assert state.engaging and state.engage_deadline == deadline
+        state.command_sent(command, now)
+
+
+@pytest.mark.parametrize("joint,tolerance", [(i, 0.02) for i in range(6)] + [(6, 0.05)])
+@pytest.mark.parametrize("extra", [0.0, 0.000001])
+def test_every_joint_must_reach_its_convergence_band(joint, tolerance, extra):
+    state = state_at_home()
+    state.target[joint] = tolerance + extra
+    assert state.engage(10.0)
+    assert state.next_command(10.0) == [0.0] * 7  # Always send the measured seed first.
+    state.command_sent([0.0] * 7, 10.0)
+    command = state.next_command(10.01)
+    assert state.engaging is bool(extra)
+    if extra:
+        assert command[joint] == pytest.approx((0.10 if joint == 6 else 0.05) * 0.01)
+    else:
+        assert command == state.target
+
+
+def test_convergence_uses_the_command_reference_not_the_measured_follower():
+    state = state_at_home()
+    state.target[0] = 0.110
+    assert state.engage(10.0)
+    state.command_sent(state.next_command(10.0), 10.0)
+    # Measured state at target must not bypass a command reference still far behind.
+    refresh_session(state, 10.01, measured=state.target)
+    assert state.next_command(10.01)[0] == pytest.approx(0.0005)
+    assert state.engaging
+    # A reference at target converges even if spring-mode error leaves the follower behind.
+    state.command_sent(state.target, 10.01)
+    refresh_session(state, 10.02, measured=[0.0] * 7)
+    assert state.next_command(10.02) == state.target and not state.engaging
+
+
+def test_only_published_commands_advance_the_ramp_reference_and_clock():
+    state = state_at_home()
+    state.target[0] = 0.110
+    assert state.engage(10.0)
+    seed = state.next_command(10.01)
+    assert state.next_command(10.02) == seed == [0.0] * 7
+    state.command_sent(seed, 10.02)
+    first = state.next_command(10.03)
+    assert state.next_command(10.03) == first
+    # Collision-check time is not credited to the next command step.
+    state.command_sent(first, 10.04)
+    assert state.next_command(10.05)[0] - first[0] == pytest.approx(0.0005)
+
+
+def test_convergence_timeout_uses_largest_offset_over_its_speed_and_stays_fixed():
+    state = state_at_home()
+    state.target = [0.110] + [0.0] * 5 + [0.8]
+    assert state.engage(10.0)
+    assert state.engage_deadline == pytest.approx(23.0)  # Jaw: 0.8/0.10 + 5 s.
+    state.command_sent(state.next_command(10.0), 10.0)
+    refresh_session(state, 22.99)
+    assert state.engage_deadline == pytest.approx(23.0)
+    assert state.check_deadman(22.99)
+    refresh_session(state, 23.0)
+    assert not state.check_deadman(23.0)
+    assert not state.active and state.recover and not state.engaging
+    assert "convergence timed out" in state.fault
+    assert not state.engage(23.0) and state.next_command(23.0) is None
+
+
+def test_gross_offset_bound_is_configurable_without_gating_the_jaw():
+    state = state_at_home(engage_max_offset_rad=0.2)
+    state.target = [0.2] + [0.0] * 5 + [5.4]
+    assert state.engage(10.0)
+    state = state_at_home(engage_max_offset_rad=0.2)
+    state.target[0] = 0.200001
+    assert not state.engage(10.0)
+    assert "(0.2 rad)" in state.fault
+
+
+@pytest.mark.parametrize(
+    "setting", ["engage_speed_rad_s", "engage_jaw_speed_rad_s", "engage_max_offset_rad"]
+)
+@pytest.mark.parametrize("bad", [0.0, -0.1, math.nan, math.inf, True, "0.05"])
+def test_engage_settings_must_be_finite_positive_numbers(setting, bad):
+    with pytest.raises(ValueError, match=f"{setting} must be finite and positive"):
+        LeaderState(**{setting: bad})
 
 
 def test_hold_cannot_command_negative_home_side_position(monkeypatch):
@@ -310,6 +468,16 @@ def test_leader_range_endpoints_pass_robot_joint_bounds(collision_checker, end):
     )
 
 
+def test_engage_seed_below_a_lower_bound_passes_robot_joint_bounds(collision_checker):
+    state = state_at_home()
+    measured = [0.0, -0.03, -0.02, 0.0, 0.0, 0.0, -0.0001]
+    state.observe(JOINT_NAMES, measured, 10.0)
+    assert state.engage(10.0)
+    seed = state.next_command(10.0)
+    assert seed == [0.0] * 7
+    assert collision_checker.check_path(measured, seed) == ""
+
+
 def test_native_full_jaw_sweep_is_checked_in_fewer_than_a_thousand_poses(
     collision_checker, monkeypatch
 ):
@@ -397,6 +565,8 @@ def unprepared_ticking_bridge(home_bridge):
     home_bridge.buffer = b""
     home_bridge.collider = SimpleNamespace(check_path=lambda measured, target: "")
     home_bridge.recovery_started = None
+    home_bridge.recovery_future = None
+    home_bridge.recovery_result = None
     home_bridge.start_checked = False
     home_bridge.prepared_at = None
     home_bridge.warmup_heartbeat = -math.inf
@@ -433,16 +603,151 @@ def test_prepared_session_follows_once_mirror_starts(ticking_bridge):
     assert ticking_bridge.prepared_at is None
 
 
-def test_misaligned_leader_never_follows_and_reports_the_joint(ticking_bridge):
+def test_bridge_rest_offset_starts_collision_checked_bounded_ramp(
+    ticking_bridge, monkeypatch
+):
     bridge = ticking_bridge
-    bridge.state.target[1] = 0.3
+    bridge.state.target[0] = 0.110
+    published, checks = [], []
+    bridge.publish = lambda positions: published.append(list(positions))
+    bridge.collider.check_path = (
+        lambda measured, command: checks.append((list(measured), list(command))) or ""
+    )
+    assert bridge.mirror(None, SimpleNamespace()).success
+    bridge.tick()
+    assert bridge.state.active and bridge.state.engaging and bridge.start_checked
+    assert published[-1] == [0.0] * 7
+    assert checks == [([0.0] * 7, [0.0] * 7)]
+    monkeypatch.setattr("rebot_leader_bridge.time.monotonic", lambda: 10.03)
+    refresh_session(bridge.state, 10.03)
+    bridge.tick()
+    assert published[-1][0] == pytest.approx(0.001)
+    assert checks[-1][1] == published[-1]
+    assert bridge.state.target[0] == 0.110
+
+
+def test_ramp_starts_with_latest_measured_pose_not_the_warmup_reference(ticking_bridge):
+    bridge = ticking_bridge
+    bridge.state.measured[0] = 0.01
+    bridge.state.target[0] = 0.12
+    published = []
+    bridge.publish = lambda command: published.append(list(command))
+    assert bridge.warmup_reference == [0.0] * 7
+    assert bridge.mirror(None, SimpleNamespace()).success
+    bridge.tick()
+    assert published[-1] == [0.01] + [0.0] * 6
+    assert bridge.state.engaging
+
+
+@pytest.mark.parametrize("failure", ["collision", "expired", "heartbeat"])
+def test_ramp_never_publishes_an_unchecked_or_expired_step(
+    ticking_bridge, monkeypatch, failure
+):
+    bridge = ticking_bridge
+    bridge.state.target[0] = 0.110
+    assert bridge.mirror(None, SimpleNamespace()).success
+    bridge.tick()
+    assert bridge.state.engaging
+    monkeypatch.setattr("rebot_leader_bridge.time.monotonic", lambda: 10.03)
+    refresh_session(bridge.state, 10.03)
+    published, checks = [], []
+    bridge.publish = lambda command: published.append(list(command))
+
+    def check(measured, command):
+        checks.append(list(command))
+        if failure == "expired":
+            bridge.state.sample_time = 9.0
+        elif failure == "heartbeat":
+            bridge.state.heartbeat = 9.0
+        return "Collision: link1 / wall" if failure == "collision" else ""
+
+    bridge.collider.check_path = check
+    bridge.tick()
+    assert checks[0][0] == pytest.approx(0.001)
+    assert not bridge.state.active and bridge.state.recover
+    assert published == [[0.0] * 7]  # Existing measured hold, never the ramp target.
+    assert bridge.recovery_started is not None
+
+
+def test_ramp_convergence_timeout_requests_the_existing_native_home(
+    ticking_bridge, monkeypatch
+):
+    bridge = ticking_bridge
+    bridge.real_hardware = False
+    bridge.state.target[0] = 0.110
+    assert bridge.mirror(None, SimpleNamespace()).success
+    bridge.tick()
+    deadline = bridge.state.engage_deadline
+    assert deadline == pytest.approx(17.21)
+    monkeypatch.setattr("rebot_leader_bridge.time.monotonic", lambda: deadline)
+    refresh_session(bridge.state, deadline, target=[0.4] + [0.0] * 6)
+    published, goals = [], []
+    bridge.publish = lambda command: published.append(list(command))
+    bridge.tick()
+    assert not bridge.state.active and bridge.state.recover
+    assert bridge.recovery_started == deadline
+    assert "convergence timed out" in bridge.state.fault
+    response = bridge.mirror(None, SimpleNamespace())
+    assert not response.success and "reBot is returning HOME" in response.message
+    assert "explicitly run Mirror reBot Leader again" in response.message
+    bridge.home_client = SimpleNamespace(
+        server_is_ready=lambda: True,
+        send_goal_async=lambda goal: goals.append(goal)
+        or SimpleNamespace(done=lambda: False),
+    )
+    monkeypatch.setattr("rebot_leader_bridge.time.monotonic", lambda: deadline + 0.51)
+    bridge.tick()
+    assert [goal.objective_name for goal in goals] == ["Return reBot Leader Home"]
+    assert all(command == [0.0] * 7 for command in published)
+    assert not bridge.state.engaging
+
+
+def test_ramp_may_continue_beyond_three_seconds_once_started(
+    ticking_bridge, monkeypatch
+):
+    bridge = ticking_bridge
+    bridge.state.target[0] = 0.3
+    assert bridge.mirror(None, SimpleNamespace()).success
+    bridge.tick()
+    bridge.real_hardware = False
+    now = 10.01
+    command = bridge.state.command
+    for _ in range(160):
+        now += 0.02
+        monkeypatch.setattr("rebot_leader_bridge.time.monotonic", lambda: now)
+        refresh_session(bridge.state, now, measured=command)
+        bridge.tick()
+        command = bridge.state.command
+    assert bridge.state.active and bridge.state.engaging and not bridge.state.recover
+    assert command[0] == pytest.approx(0.16)
+    assert bridge.prepared_at is None
+
+
+def test_fresh_readiness_after_start_deadline_still_returns_home(
+    ticking_bridge, monkeypatch
+):
+    bridge = ticking_bridge
+    monkeypatch.setattr("rebot_leader_bridge.time.monotonic", lambda: 13.02)
+    bridge.state.observe(JOINT_NAMES, [0.0] * 7, 13.02)
+    assert bridge.state.accept(
+        {"positions": [0.110] + [0.0] * 6, "sample_time": 13.02}, 13.02
+    )
+    assert bridge.mirror(None, SimpleNamespace()).success
+    bridge.tick()
+    assert not bridge.state.active and bridge.state.recover
+    assert "did not start" in bridge.state.fault
+
+
+def test_grossly_misaligned_leader_never_follows_and_reports_the_joint(ticking_bridge):
+    bridge = ticking_bridge
+    bridge.state.target[1] = 0.65
     assert bridge.mirror(None, SimpleNamespace()).success
     bridge.tick()
     assert not bridge.state.active
     response = bridge.mirror(None, SimpleNamespace())
     assert (
         not response.success
-        and "shoulder lift (joint2): +17.2 deg (+0.300 rad)" in response.message
+        and "shoulder lift (joint2): +37.2 deg (+0.650 rad)" in response.message
     )
     bridge.tick()
     assert bridge.state.recover and not bridge.state.active
@@ -455,7 +760,9 @@ def test_bridge_refuses_publish_rate_outside_20_to_100_hz(monkeypatch, rate):
 
     monkeypatch.setattr(rebot_leader_bridge, "ActionClient", Mock())
     node = Mock()
-    node.declare_parameter.return_value = SimpleNamespace(value=rate)
+    node.declare_parameter.side_effect = lambda name, default: SimpleNamespace(
+        value=rate if name == "publish_rate" else default
+    )
     read, write = os.pipe()
     try:
         with pytest.raises(ValueError, match="between 20 and 100"):
@@ -463,6 +770,23 @@ def test_bridge_refuses_publish_rate_outside_20_to_100_hz(monkeypatch, rate):
     finally:
         os.close(read)
         os.close(write)
+    node.create_timer.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "setting", ["engage_speed_rad_s", "engage_jaw_speed_rad_s", "engage_max_offset_rad"]
+)
+def test_bridge_rejects_invalid_engage_setting_before_starting_timer(
+    monkeypatch, setting
+):
+    from unittest.mock import Mock
+
+    node = Mock()
+    node.declare_parameter.side_effect = lambda name, default: SimpleNamespace(
+        value=math.nan if name == setting else default
+    )
+    with pytest.raises(ValueError, match=f"{setting} must be finite and positive"):
+        LeaderBridge(node, None)
     node.create_timer.assert_not_called()
 
 
@@ -549,6 +873,8 @@ def following_bridge(ticking_bridge):
     assert bridge.mirror(None, SimpleNamespace()).success
     bridge.tick()
     assert bridge.state.active
+    bridge.tick()  # Converge at HOME before checking today's uncapped follow path.
+    assert not bridge.state.engaging
     published = []
     bridge.publish = published.append
     target = [0.1] * 6 + [1.0]
@@ -1035,7 +1361,7 @@ def test_bridge_initialization_failure_reaps_its_reader(monkeypatch):
 
 @pytest.mark.parametrize(
     "index,delta,direction",
-    [(5, -0.12, "higher"), (5, 0.12, "lower"), (2, 0.2, "higher"), (2, -0.2, "lower")],
+    [(5, -0.65, "higher"), (5, 0.65, "lower"), (2, 0.7, "higher"), (2, -0.7, "lower")],
 )
 def test_alignment_instructions_account_for_leader_mapping_sign(
     index, delta, direction
