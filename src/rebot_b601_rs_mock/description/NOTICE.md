@@ -13,8 +13,10 @@ selection and arm-only optional effort interfaces. Nominal joint origins, axes,
 inertias and stock collision geometry are retained; no measured gravity fit is
 applied. The two native-finger masses remain in this URDF and are represented
 through the gravity controller's separate payload interface only because that
-controller selects a serial chain that excludes those finger branches. Stock visuals reference the whole upstream submodule through the
-rebot_description ament adapter. No office cameras or trim are installed.
+controller selects a serial chain that excludes those finger branches. Stock
+visuals reference the whole upstream submodule through the rebot_description
+ament adapter. No office cameras, calibrated mounts or trim are installed; the
+physical child adds only its documented nominal stock Gemini 305 optical frame.
 The configuration/control contract is ported from
 `PickNikRobotics/moveit_pro_example_ws@c7422c8853e495f0e481daa639c2919be24d73f9`,
 with reusable tuning from integrated source
@@ -22,9 +24,10 @@ with reusable tuning from integrated source
 -0.02/-0.01 rad, shared path tolerance 0.20 rad and J2 feedforward cap 18 Nm.
 These are software defaults, not per-unit calibration or a new physical acceptance.
 The supplied jaw's current kp=12/kd=0.5 and nominal masses are retained; office
-camera installations, modified trim, calibrated placements and leader calibration
-are not installed. Stock/default numeric boundaries are described in the
-configuration rather than asserted as physically commissioned limits.
+camera installations, calibrated mounts, modified trim, calibrated placements
+and leader calibration are not installed. Stock/default numeric boundaries are
+described in the configuration rather than asserted as physically commissioned
+limits.
 The public source of this modified model is `PickNikRobotics/moveit_pro_rebot_ws`;
 editable upstream hardware sources are retained in the whole submodule.
 Independent configuration, Objectives and scripts use BSD-3-Clause.

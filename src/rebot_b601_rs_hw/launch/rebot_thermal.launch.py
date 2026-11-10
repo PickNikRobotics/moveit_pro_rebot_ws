@@ -3,7 +3,7 @@
 """Persistent thermal recovery for the selected physical backend only.
 
 Extracted from the current example workspace's rebot_leader.launch.py;
-leader/camera startup remains the office application's responsibility.
+leader startup and calibrated camera mounts remain office-specific.
 """
 import os
 from pathlib import Path

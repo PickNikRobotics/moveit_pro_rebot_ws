@@ -6,13 +6,14 @@ B601-RS arm and supplied native jaw. The backend chain is:
 | Config | Parent | Backend |
 | --- | --- | --- |
 | `rebot_b601_rs_mock` | — | ros2_control mock hardware |
-| `rebot_b601_rs_sim` | `rebot_b601_rs_mock` | Minimal MuJoCo free-space arm |
+| `rebot_b601_rs_sim` | `rebot_b601_rs_mock` | MuJoCo arm with isolated jaw-contact smoke fixture |
 | `rebot_b601_rs_hw` | `rebot_b601_rs_sim` | RobStride SocketCAN hardware |
 
 `main` contains the product configuration, with identity `world` → `base_link`
-placement. The separate public `picknik_boston_rebot_b601_rs` branch is reserved for
-the complete office application and its cameras, fixtures and calibration.
-On this office branch, select
+placement and a stock Orbbec Gemini 305 wrist camera. The separate public
+`picknik_boston_rebot_b601_rs` branch is reserved for the complete office
+application, its cameras, fixtures and per-unit calibration. On this office
+branch, select
 [`picknik_boston_rebot_b601_rs_hw`](src/picknik_boston_rebot_b601_rs_hw/README.md),
 [`picknik_boston_rebot_b601_rs_sim`](src/picknik_boston_rebot_b601_rs_sim/README.md),
 or the [frozen peg twin](src/picknik_boston_rebot_b601_rs_peg_sim/README.md).
@@ -83,19 +84,27 @@ sequence (75°C clear). Stock HOME omits only office trajectory recording.
 This wiring and its offline tests do not certify real-arm recovery; see the
 [recovery limits](src/rebot_b601_rs_hw/docs/source-provenance.md).
 
+The physical launch also includes a Gemini 305 wrist-camera driver. It starts
+by default when the camera is attached and can be disabled; see the
+[hardware camera setup](src/rebot_b601_rs_hw/README.md#gemini-305-wrist-camera)
+for its 1280×800 MJPG/10 Hz contract, host udev rule and nominal-mount limits.
+
 ## Minimal simulation
 
 The simulator generates its body tree from the same expanded stock URDF.
 It has nine generalized coordinates (seven motors and two dependent jaws),
-seven named position actuators and a matching `default` reset keyframe.
+seven named position actuators and `default` / `contact_smoke` reset keyframes.
 Stock visuals use `package://rebot_description/...` assets.
 
-This is a gravity-compensated **free-space control model**. Visual geoms have
-contact disabled; it contains no bench, cameras, grasp proxy or contact task.
-It does not validate self-contact, grasping, payload response or insertion.
-Application simulations own their contact geometry and validation. Hardware
-uses the physical plugin and wall time; it starts no simulated sensors or
-simulation-specific controllers.
+Normal operation remains gravity-compensated free-space control. Only the two
+native PLA pads and a fixed 50 mm box collide; the box is parked at default and
+placed between the raised open jaws by `contact_smoke`. The contact smoke checks
+measured motor/jaw state and controller rejection of a blocked close, not grasp
+fidelity. It contains no bench, cameras or grasp proxy and does not validate
+self-contact, lifting, payload response or insertion. See the
+[simulation runbook](src/rebot_b601_rs_sim/README.md) for reset, timing and the
+reproducible headless MoveIt Pro smoke run. Hardware uses the physical plugin
+and wall time; its resolved config excludes simulation reset and sensors.
 
 ## Immutable source dependencies
 
@@ -114,7 +123,8 @@ fork defaults; their publication is a prerequisite for publishing these gitlinks
 
 The upstream description has no ROS package. The small `rebot_description`
 ament adapter installs its unmodified RS mesh directory and exact license
-from the whole submodule. It maintains no selectively copied upstream tree.
+from the whole submodule, plus the local nominal Gemini 305 frame-only Xacro.
+It maintains no selectively copied upstream tree or per-unit camera calibration.
 The modified URDF's [source and change notice](src/rebot_b601_rs_mock/description/NOTICE.md)
 and upstream licenses remain with the installed resources.
 The [generic gravity controller](src/kdl_gravity_compensation_controller/README.md)
@@ -129,15 +139,21 @@ stock model.
 Offline validation uses MoveIt Pro 10.2.0-rc10/Jazzy, ros2_control 4.45.2 and
 MuJoCo 3.6.0. Tests exercise the real configuration loader, all three expanded
 backends, MoveIt Pro's model/FCL consumers, stock asset resolution, nominal
-inertias, physical spring/effort declarations, finite simulation and native-jaw
-coupling. The six-joint KDL model plus finger payload is compared with whole-tree
-inverse dynamics across 50 arm poses and three jaw positions.
+inertias, physical spring/effort declarations, the Gemini 305 launch
+contract, finite simulation and native-jaw coupling. The six-joint KDL model
+plus finger payload is compared with whole-tree inverse dynamics across 50 arm
+poses and three jaw positions.
 
 The reusable controller's own model, loaned-interface and real ControllerManager
 fake-hardware tests are retained. SDK fault/freshness decoding has eight offline
 tests. Driver virtual-CAN lifecycle tests skip without an isolated virtual
-interface; a skip is not torque-lifecycle evidence. No physical-arm, live
-teleoperation, or end-to-end deployment acceptance is claimed.
+interface; a skip is not torque-lifecycle evidence. Live mock teleoperation is
+covered by the
+[smoke sequence](src/rebot_b601_rs_mock/README.md#teleoperation-on-the-mock).
+Simulation has a separate recorded headless Runtime smoke covering
+plan/execute, Joint Jog, Pose Jog, open/close, blocked-jaw contact and reset
+([simulation README](src/rebot_b601_rs_sim/README.md)). No physical-arm,
+Desktop/IMarker or end-to-end deployment acceptance is claimed.
 
 The workspace retains the empty-workspace Docker targets, `base` / `runtime` /
 `drivers` services, CI, LFS and formatting setup. See
