@@ -39,7 +39,7 @@ joint_trajectory_admittance_controller:
     # No ft_sensor_names: there is no force/torque sensor, so this runs as a plain trajectory
     # controller without admittance.
     # One per joint in group order (joint1-joint7): the measured teleop limits, the braking
-    # proven on the bench. The arm's planning limits in config/moveit/joint_limits.yaml are twice these.
+    # proven on the bench. The inherited stock planning limits are twice these.
     stop_accelerations: [0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 6.0]
     # Integrated spring-mode tuning: shared 0.20 rad arm/jaw path tolerance.
     # Fitted gravity remains active independently; this value does not certify

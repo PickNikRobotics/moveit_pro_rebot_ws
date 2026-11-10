@@ -63,6 +63,39 @@ group is `manipulator` (base_link → gripper_end). `gripper` commands J7 and
 includes the two passive native-jaw sliders, coupled at **0.008 m/rad**.
 `manipulator_and_gripper` combines the seven motor coordinates.
 
+### Jaw feedback allowance
+
+J7's motor-coordinate range is **-0.15 to 6.10 rad**; the nominal Open
+Gripper target remains 5.410520681182422 rad (310°), while gains and
+dynamic/effort limits are unchanged. Measured on a bench unit, a closed jaw at
+rest reads about **-0.0105 rad**. While Mirror follows a fast trigger close,
+feedback briefly measured **-0.042 to -0.120 rad** for 40–100 ms; a fast open
+reached **5.72 rad**. The -0.15/6.10 bounds leave margin around those
+transients and keep the driver's one-turn wrap window unambiguous: it is
+centered at 2.975 rad with edges near -0.167 and 6.117 rad. Both passive
+fingers inherit the same allowance at 0.008 m/rad: **-0.0012 to 0.0488 m** each. This models contact compliance, not additional
+useful jaw travel.
+
+J3's upper bound is **4.181336912266 rad**, a 0.01-rad feedback allowance for
+measured bench overshoot. All other arm-joint limits are unchanged.
+
+`gripper_closed`, `Gripper Closed` / `Close Gripper`, mock initial state and
+the simulator's default keyframe still target **zero**; `gripper_open` and
+`Gripper Open` still target the nominal **5.410520681182422 rad**. Do not
+command the feedback allowances to increase squeeze or opening. URDF, MoveIt
+and generated MuJoCo joint/actuator limits agree; raw driver feedback is
+neither clamped nor re-zeroed. The pinned driver still refuses
+activation/torque enable more than one Type-2 feedback quantum beyond each
+joint's own URDF bound.
+
+Historical larger negative closed readings occurred across calibration and
+power-cycle changes; later explicit jaw re-zeroing returned contact readings
+to near zero. A reading below **-0.15 rad** or above **6.10 rad** remains out
+of bounds: verify that installation's zero and mechanics rather than widening
+this stock allowance. This software change does not calibrate or certify a
+real arm; physical verification requires a separately authorized commissioning
+check.
+
 The trajectory controller owns all seven position interfaces and accepts partial
 arm/jaw goals. Arm and jaw velocity controllers and the Cartesian controller
 start inactive and are switched by MoveIt Pro. The 100 Hz update rate and arm

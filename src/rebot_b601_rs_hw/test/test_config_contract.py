@@ -124,6 +124,30 @@ def test_backend_isolation(mode, plugin, sim_time):
     )
 
 
+@pytest.mark.parametrize("mode", ["mock", "sim", "hw"])
+def test_jaw_feedback_allowance_is_shared(mode):
+    config = resolved(mode)
+    robot = expanded(config)
+    selection = config.moveit_params.joint_limits
+    limits = yaml.safe_load(
+        (
+            Path(get_package_share_directory(selection.package)) / selection.path
+        ).read_text()
+    )["joint_limits"]
+    jaw = robot.find("joint[@name='joint7']/limit")
+    assert float(jaw.get("lower")) == limits["joint7"]["min_position"] == -0.15
+    assert float(jaw.get("upper")) == limits["joint7"]["max_position"] == 6.10
+    for name in ("gripper_joint1", "gripper_joint2"):
+        finger = robot.find(f"joint[@name='{name}']")
+        mimic = finger.find("mimic")
+        factor = float(mimic.get("multiplier"))
+        offset = float(mimic.get("offset"))
+        lower = float(finger.find("limit").get("lower"))
+        upper = float(finger.find("limit").get("upper"))
+        assert lower == pytest.approx(factor * -0.15 + offset)
+        assert upper == pytest.approx(factor * 6.10 + offset)
+
+
 def test_nominal_wrist_camera_mount_is_overridable_for_an_office_calibration():
     config = resolved("hw")
     override = {
@@ -225,9 +249,15 @@ def test_physical_spring_and_nominal_gravity_startup():
     limits = yaml.safe_load((path / "config/moveit/joint_limits.yaml").read_text())[
         "joint_limits"
     ]
-    for joint, lower in [("joint2", -0.02), ("joint3", -0.01)]:
+    for joint, lower, upper in [
+        ("joint2", -0.02, 3.543018381548),
+        ("joint3", -0.01, 4.181336912266),
+    ]:
+        limit = robot.find(f"joint[@name='{joint}']/limit")
         assert limits[joint]["min_position"] == lower
-        assert float(robot.find(f"joint[@name='{joint}']/limit").get("lower")) == lower
+        assert limits[joint]["max_position"] == upper
+        assert float(limit.get("lower")) == lower
+        assert float(limit.get("upper")) == upper
     # Stop's source values must track the configured spring gains. The execution
     # regression separately proves the ordering and actual service requests.
     stop = ET.parse(

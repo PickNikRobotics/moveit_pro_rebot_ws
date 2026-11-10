@@ -102,7 +102,7 @@ TEST_F(StockGravity, SerialChainPlusPayloadMatchesWholeTreeGravity)
       q(joint_indices.at(names[joint])) = arm_q(joint);
     }
     ASSERT_TRUE(chain.Compute(arm_q, arm_torque));
-    for (const double jaw : { 0.0, 2.705260340591211, 5.410520681182422 })
+    for (const double jaw : { 0.0, 2.705260340591211, 6.10 })
     {
       q(joint_indices.at("joint7")) = jaw;
       q(joint_indices.at("gripper_joint1")) = 0.008 * jaw;
@@ -110,9 +110,9 @@ TEST_F(StockGravity, SerialChainPlusPayloadMatchesWholeTreeGravity)
       ASSERT_EQ(whole_tree.CartToJnt(q, zero, zero, external, torque), 0);
       for (unsigned int joint = 0; joint < 6; ++joint)
       {
-        // Rounded nominal mounting rotations cause <0.16 um CoM drift over
-        // the full jaw travel: <=0.1504*9.81*0.16e-6 = 2.37e-7 Nm.
-        const double tolerance = jaw == 0.0 ? 1e-11 : 2.4e-7;
+        // Rounded nominal mounting rotations cause <0.18 um CoM drift over
+        // the widened full jaw travel: <=0.1504*9.81*0.18e-6 = 2.66e-7 Nm.
+        const double tolerance = jaw == 0.0 ? 1e-11 : 2.7e-7;
         EXPECT_NEAR(arm_torque(joint), torque(joint_indices.at(names[joint])), tolerance)
             << "sample=" << sample << " jaw=" << jaw << " joint=" << names[joint];
       }

@@ -110,7 +110,7 @@
           name="joint3"
           class="rs06"
           axis="0 0 -1"
-          range="-0.01 4.171336912266"
+          range="-0.01 4.181336912266"
         />
         <geom class="visual" mesh="cnc3" material="rs_anodized_silver" />
         <geom class="visual" mesh="motor_4" material="rs_motor_black" />
@@ -263,7 +263,7 @@
                     name="joint7"
                     class="gripper_motor"
                     axis="0 0 1"
-                    range="0 5.410520681182422"
+                    range="-0.15 6.10"
                   />
                 </body>
 

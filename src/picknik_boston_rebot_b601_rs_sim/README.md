@@ -196,10 +196,10 @@ which shadows the base **reBot Stack Motion** (when two Objective libraries hold
 the same file name, the later one wins, and this package's library is listed
 last) and loads [`objectives/rebot_stack_motion.yaml`](objectives/rebot_stack_motion.yaml)
 from this package instead: 1.0 velocity and acceleration for the joint,
-Cartesian and gripper legs, the full limits in the base config's
-`config/moveit/joint_limits.yaml`, whatever the arm's values. To run the twin
-at another speed, edit that file and rebuild `picknik_boston_rebot_b601_rs_sim`; the arm's
-values are unaffected. `test/test_config_inheritance.py` checks that the
+Cartesian and gripper legs, the full inherited stock planning limits, whatever
+the arm's values. To run the twin at another speed, edit that file and rebuild
+`picknik_boston_rebot_b601_rs_sim`; the arm's values are unaffected.
+`test/test_config_inheritance.py` checks that the
 override wins. Hardware-only Start/Stop Gravity Comp and gravity collection are
 non-runnable refusal overrides here: they cannot be used to tune simulation or
 collect motor-identification data.

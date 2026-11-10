@@ -227,8 +227,8 @@ protected:
     auto srdf = std::make_shared<srdf::Model>();
     ASSERT_TRUE(srdf->initString(*urdf, readFile(PACKAGE_DIR "/config/moveit/rebot.srdf")));
     context->robot_model = std::make_shared<moveit_pro::base::RobotModel>(urdf, srdf);
-    // The planning limits the runtime applies over the URDF.
-    for (const auto& entry : YAML::LoadFile(PACKAGE_DIR "/config/moveit/joint_limits.yaml")["joint_limits"])
+    // The stock planning limits the inherited runtime applies over the URDF.
+    for (const auto& entry : YAML::LoadFile(STOCK_SHARE "/config/moveit/joint_limits.yaml")["joint_limits"])
     {
       const auto name = entry.first.as<std::string>();
       auto* joint = context->robot_model->getJointModel(name);

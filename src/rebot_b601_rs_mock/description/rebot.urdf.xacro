@@ -14,6 +14,10 @@
   <xacro:arg name="arm_effort_command" default="false" />
   <xacro:arg name="jaw_kp" default="12.0" />
   <xacro:arg name="jaw_kd" default="0.5" />
+  <!-- Fast Mirror closes reached -0.120 rad and opens reached 5.72 rad on a bench unit.
+       These feedback allowances retain the zero Close Gripper and nominal 310-degree Open Gripper targets. -->
+  <xacro:property name="jaw_lower_limit" value="-0.15" />
+  <xacro:property name="jaw_upper_limit" value="6.10" />
   <xacro:arg name="world_to_base_xyz" default="0 0 0" />
   <xacro:arg name="world_to_base_rpy" default="0 0 0" />
   <xacro:property name="world_to_base_xyz" default="$(arg world_to_base_xyz)" />
@@ -203,7 +207,7 @@
     <parent link="link2" />
     <child link="link3" />
     <axis xyz="0 0 -1" />
-    <limit lower="-0.010000000000" upper="4.171336912266" effort="36" velocity="0.6" />
+    <limit lower="-0.010000000000" upper="4.181336912266" effort="36" velocity="0.6" />
   </joint>
   <link name="link4">
     <inertial>
@@ -385,7 +389,7 @@
     <parent link="gripper_end" />
     <child link="gripper_left" />
     <axis xyz="0 0 1" />
-    <limit lower="0" upper="0.04328416544945937" effort="500" velocity="0.024" />
+    <limit lower="${0.008 * jaw_lower_limit}" upper="${0.008 * jaw_upper_limit}" effort="500" velocity="0.024" />
     <mimic joint="joint7" multiplier="0.008" offset="0" />
   </joint>
   <link name="gripper_right">
@@ -420,7 +424,7 @@
     <parent link="gripper_end" />
     <child link="gripper_right" />
     <axis xyz="0 0 1" />
-    <limit lower="0" upper="0.04328416544945937" effort="500" velocity="0.024" />
+    <limit lower="${0.008 * jaw_lower_limit}" upper="${0.008 * jaw_upper_limit}" effort="500" velocity="0.024" />
     <mimic joint="joint7" multiplier="0.008" offset="0" />
   </joint>
   <link name="gripper_motor_frame" />
@@ -428,7 +432,7 @@
     <parent link="gripper_end" />
     <child link="gripper_motor_frame" />
     <axis xyz="0 0 1" />
-    <limit lower="0" upper="5.410520681182422" velocity="3.0" effort="14" />
+    <limit lower="${jaw_lower_limit}" upper="${jaw_upper_limit}" velocity="3.0" effort="14" />
   </joint>
   <link name="world" />
   <joint name="world_to_base" type="fixed">
