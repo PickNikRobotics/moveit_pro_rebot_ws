@@ -108,7 +108,7 @@ The gitlink, rather than a floating branch name, fixes each revision.
 
 | Repository | Commit | Purpose |
 | --- | --- | --- |
-| [PickNikRobotics/robstride_hardware_interface](https://github.com/PickNikRobotics/robstride_hardware_interface) | `a0533258a10783dca4293b5d195adf7728c8ff5f` | Torque retention, thermal handoff and bounded feedforward |
+| [PickNikRobotics/robstride_hardware_interface](https://github.com/PickNikRobotics/robstride_hardware_interface) | `d46eecd608632e832e39a53c930de4026c2d1cfc` | Torque retention, thermal handoff and bounded feedforward |
 | [PickNikRobotics/RobstrideSDK](https://github.com/PickNikRobotics/RobstrideSDK) | `9d070193758b4d88d065f1b8add815c0f540cebc` | Fault-frame routing, decoding and temperature freshness |
 | [kmj060703/robstride_interfaces](https://github.com/kmj060703/robstride_interfaces) | `8278bb1bf3d8f1fb07803459e1de4e14e10b8fc0` | Driver messages/services |
 | [Seeed-Projects/reBot-DevArm](https://github.com/Seeed-Projects/reBot-DevArm) | `58f9e433deec2ba118c5c22d60c07b9897e92acc` | Stock description and editable mechanical sources |
