@@ -42,6 +42,9 @@
   <test_depend>joint_velocity_controller</test_depend>
   <test_depend>velocity_force_controller</test_depend>
   <test_depend>robstride_hardware_interface</test_depend>
+  <test_depend>hardware_interface</test_depend>
+  <test_depend>moveit_pro_base</test_depend>
+  <test_depend>robstride_sdk</test_depend>
   <test_depend>kdl_gravity_compensation_controller</test_depend>
   <test_depend>kdl_parser</test_depend>
   <test_depend>orocos_kdl</test_depend>

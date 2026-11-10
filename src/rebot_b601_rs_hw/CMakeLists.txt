@@ -48,6 +48,16 @@ if(BUILD_TESTING)
   find_package(joint_velocity_controller REQUIRED)
   find_package(velocity_force_controller REQUIRED)
   find_package(robstride_hardware_interface REQUIRED)
+  find_package(hardware_interface REQUIRED)
+  find_package(moveit_pro_base REQUIRED)
+  ament_add_gtest(test_joint_limits test/test_joint_limits.cpp)
+  add_dependencies(test_joint_limits stock_gravity_model)
+  target_compile_features(test_joint_limits PRIVATE cxx_std_20)
+  target_compile_definitions(test_joint_limits PRIVATE
+    TEST_URDF="${TEST_URDF}" TEST_SRDF="${MOCK_SHARE}/config/moveit/rebot.srdf")
+  target_link_libraries(test_joint_limits robstride_hardware_interface::robstride_hardware_interface
+    hardware_interface::hardware_interface moveit_pro_base::moveit_pro_base_robot_model
+    moveit_pro_base::moveit_pro_base_robot_state)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
   set(TEST_MODE_URDF ${CMAKE_CURRENT_BINARY_DIR}/mode_memory.urdf)
   add_custom_command(OUTPUT ${TEST_MODE_URDF}

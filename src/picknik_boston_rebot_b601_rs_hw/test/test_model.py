@@ -36,19 +36,29 @@ def test_measured_motor_limits(model):
     assert np.allclose(
         low, [radians(-145), -0.02, -0.01, radians(-106), radians(-101), radians(-175)]
     )
-    assert np.allclose(high, np.radians([145, 203, 239, 86, 108, 175]))
+    assert np.allclose(
+        high,
+        [
+            radians(145),
+            radians(203),
+            4.181336912266,
+            radians(86),
+            radians(108),
+            radians(175),
+        ],
+    )
     # The gripper group has two dependent sliders and one commanded motor coordinate.
     state = robot_state.RobotState(model)
     state.set_to_default_values()
-    state.joint_positions = {"joint7": radians(310)}
+    state.joint_positions = {"joint7": 6.10}
     state.update()
     for joint in ["gripper_joint1", "gripper_joint2"]:
-        assert state.joint_positions[joint] == pytest.approx(0.008 * radians(310))
+        assert state.joint_positions[joint] == pytest.approx(0.008 * 6.10)
     low, high = model.get_group_position_bounds("gripper")
-    assert high[-1] == pytest.approx(radians(310))
-    # The planner rejects even sub-picoradian waypoint overshoots.
-    assert high[-1] >= radians(310)
-    assert low[-1] == 0
+    assert high[-1] == pytest.approx(6.10)
+    # The nominal open waypoint remains inside the wider feedback bound.
+    assert high[-1] > radians(310)
+    assert low[-1] == pytest.approx(-0.15)
     assert model.get_link_model("wrist_mounted_camera_color_optical_frame") is not None
     assert model.get_link_model("scene_camera_color_optical_frame") is not None
 

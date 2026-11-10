@@ -4,6 +4,7 @@
     ID="Close Gripper"
     _description="Plan and execute a reBot native gripper move."
   >
+    <!-- Gripper Closed targets zero; never target the negative feedback allowance. -->
     <Control ID="Sequence" name="root">
       <SubTree
         ID="Move to Named Waypoint"

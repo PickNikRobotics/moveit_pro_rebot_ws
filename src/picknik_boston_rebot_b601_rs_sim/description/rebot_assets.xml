@@ -229,7 +229,7 @@
         <joint
           type="slide"
           axis="0 0 1"
-          range="0 0.04328416544945937"
+          range="-0.0012 0.0488"
           damping="0.5"
         />
       </default>
@@ -259,7 +259,7 @@
       class="rs06"
       kp="150"
       kv="10"
-      ctrlrange="-0.01 4.171336912266"
+      ctrlrange="-0.01 4.181336912266"
     />
     <position
       name="joint4"
@@ -296,7 +296,7 @@
       class="gripper_motor"
       kp="12"
       kv="0.05"
-      ctrlrange="0 5.410520681182422"
+      ctrlrange="-0.15 6.10"
     />
   </actuator>
 

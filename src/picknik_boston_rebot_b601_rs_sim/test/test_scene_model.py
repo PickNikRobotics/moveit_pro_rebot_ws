@@ -45,6 +45,7 @@ from ament_index_python.packages import (
 
 SHARE = Path(get_package_share_directory("picknik_boston_rebot_b601_rs_sim"))
 BASE_SHARE = Path(get_package_share_directory("picknik_boston_rebot_b601_rs_hw"))
+STOCK_SHARE = Path(get_package_share_directory("rebot_b601_rs_mock"))
 LAYOUT = yaml.safe_load((SHARE / "description/bench_layout.yaml").read_text())
 
 
@@ -136,15 +137,16 @@ def rotation_about(axis, angle):
 ARM = [f"joint{i}" for i in range(1, 7)]
 CONFIGURATIONS = [
     [0.0] * 6 + [0.0],
-    [0.0, 0.65, 0.85, 0.3, 0.0, 0.0, 5.41],  # Raised, gripper open
+    [0.0, 0.65, 0.85, 0.3, 0.0, 0.0, 5.41],  # Raised, nominal gripper open
     [0.7, 1.4, 2.0, -0.8, 1.1, -2.0, 2.0],
+    [0.0, 0.65, 4.181336912266, 0.3, 0.0, 0.0, 6.10],
 ]
 
 
 def test_compiled_joint_limits_match_expanded_urdf_and_planning(model):
     robot = sim_urdf()
     limits = yaml.safe_load(
-        (BASE_SHARE / "config/moveit/joint_limits.yaml").read_text()
+        (STOCK_SHARE / "config/moveit/joint_limits.yaml").read_text()
     )["joint_limits"]
     for name in ARM + ["joint7", "gripper_joint1", "gripper_joint2"]:
         joint = robot.find(f"joint[@name='{name}']")
@@ -513,18 +515,17 @@ def test_released_stack_does_not_drift_over_five_minutes(model, data):
 
 
 def test_jaw_closes_from_open_inside_the_path_tolerance_below_real_time(model, data):
-    """Track Close Gripper's planned profile from a fully open jaw on a slow twin.
+    """Track Close Gripper's planned profile from the upper jaw bound on a slow twin.
 
     The trajectory controller samples its reference on the wall clock while MuJoCo
     advances sim time, so at a real-time factor of 0.7 (a loaded host) the jaw has
     to follow the planned profile 1/0.7 times faster.
     """
-    base = BASE_SHARE
-    jaw = yaml.safe_load((base / "config/moveit/joint_limits.yaml").read_text())[
+    jaw = yaml.safe_load((STOCK_SHARE / "config/moveit/joint_limits.yaml").read_text())[
         "joint_limits"
     ]["joint7"]
     tolerance = yaml.safe_load(
-        (base / "config/control/rebot.ros2_control.yaml").read_text()
+        (BASE_SHARE / "config/control/rebot.ros2_control.yaml").read_text()
     )["joint_trajectory_admittance_controller"]["ros__parameters"][
         "default_path_tolerance"
     ]

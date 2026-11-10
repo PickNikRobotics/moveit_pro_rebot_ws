@@ -46,17 +46,35 @@ def test_motor_limits_and_native_mimics(model):
             radians(-175),
         ],
     )
-    np.testing.assert_allclose(high, np.radians([145, 203, 239, 86, 108, 175]))
+    np.testing.assert_allclose(
+        high,
+        [
+            radians(145),
+            radians(203),
+            limits["joint3"]["max_position"],
+            radians(86),
+            radians(108),
+            radians(175),
+        ],
+    )
     state = robot_state.RobotState(model)
     state.set_to_default_values()
-    state.joint_positions = {"joint7": radians(310)}
+    state.joint_positions = {"joint7": 6.10}
     state.update()
     for joint in ["gripper_joint1", "gripper_joint2"]:
-        assert state.joint_positions[joint] == pytest.approx(0.008 * radians(310))
+        assert state.joint_positions[joint] == pytest.approx(0.008 * 6.10)
     low, high = model.get_group_position_bounds("gripper")
-    assert high[-1] == pytest.approx(radians(310))
-    assert high[-1] >= radians(310)
-    assert low[-1] == 0
+    assert high[-1] == pytest.approx(6.10)
+    assert high[-1] > radians(310)
+    assert low[-1] == pytest.approx(-0.15)
+
+
+def test_closed_named_state_and_close_waypoint_do_not_command_extra_squeeze(model):
+    state = robot_state.RobotState(model)
+    state.set_to_default_values("gripper", "gripper_closed")
+    assert state.joint_positions["joint7"] == 0
+    assert waypoints()["Gripper Closed"]["joint7"] == 0
+    assert waypoints()["Gripper Open"]["joint7"] == pytest.approx(radians(310))
 
 
 def waypoints():

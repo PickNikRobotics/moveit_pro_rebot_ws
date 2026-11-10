@@ -35,8 +35,9 @@ if(BUILD_TESTING)
     $<TARGET_PROPERTY:rebot_bench_behaviors::rebot_bench_behaviors,INTERFACE_INCLUDE_DIRECTORIES>)
   target_link_libraries(test_stack_objectives tinyxml2::tinyxml2 yaml-cpp::yaml-cpp)
   find_package(rebot_b601_rs_mock REQUIRED)
+  set(STOCK_SHARE ${rebot_b601_rs_mock_DIR}/..)
   target_compile_definitions(test_stack_objectives PRIVATE PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
-    STOCK_OBJECTIVES_DIR="${rebot_b601_rs_mock_DIR}/../objectives"
+    STOCK_OBJECTIVES_DIR="${STOCK_SHARE}/objectives"
     STOCK_HW_SHARE="${rebot_b601_rs_hw_DIR}/..")
   set(TEST_URDF ${CMAKE_CURRENT_BINARY_DIR}/test_rebot.urdf)
   add_custom_command(
@@ -51,7 +52,8 @@ if(BUILD_TESTING)
   ament_target_dependencies(test_joint_limits moveit_pro_base urdf srdfdom)
   target_link_libraries(test_joint_limits yaml-cpp::yaml-cpp)
   target_compile_definitions(test_joint_limits PRIVATE
-    TEST_URDF="${TEST_URDF}" PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    TEST_URDF="${TEST_URDF}" PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    STOCK_SHARE="${STOCK_SHARE}")
   # The jaw, waypoint and leader HOME legs with the real reBot Behaviors and robot model.
   ament_add_gtest(test_jaw_legs test/test_jaw_legs.cpp)
   add_dependencies(test_jaw_legs test_rebot_urdf)
@@ -61,7 +63,7 @@ if(BUILD_TESTING)
     motion_recovery_behaviors::motion_recovery_behaviors)
   target_compile_definitions(test_jaw_legs PRIVATE
     TEST_URDF="${TEST_URDF}" PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
-    STOCK_HW_SHARE="${rebot_b601_rs_hw_DIR}/..")
+    STOCK_SHARE="${STOCK_SHARE}" STOCK_HW_SHARE="${rebot_b601_rs_hw_DIR}/..")
   find_package(moveit_studio_agent REQUIRED)
   find_package(moveit_pro_test_utils REQUIRED)
   ament_add_gtest(test_objective_library test/test_objective_library.cpp TIMEOUT 60)
