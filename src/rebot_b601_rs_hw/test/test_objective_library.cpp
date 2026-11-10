@@ -12,6 +12,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -30,11 +31,10 @@ std::string readFile(const fs::path& path)
   return text.str();
 }
 
-// These configs inherit dicts by key. The integration test uses the real config
-// loader separately; here only the package-local plugin/library additions are
-// collected in parent-first order for the actual ObjectiveServer consumer.
-void collectLibraries(const std::string& package, std::vector<std::string>& loaders,
-                      std::vector<std::string>& directories)
+// Match keyed library/group overrides (including an empty plugin list), not
+// append-only inheritance. The Python contract test uses the real loader.
+void collectLibraries(const std::string& package, std::map<std::string, std::vector<std::string>>& loaders,
+                      std::vector<std::pair<std::string, std::string>>& directories)
 {
   const auto share = fs::path(ament_index_cpp::get_package_share_directory(package));
   const auto config = YAML::LoadFile((share / "config/config.yaml").string());
@@ -42,13 +42,19 @@ void collectLibraries(const std::string& package, std::vector<std::string>& load
     collectLibraries(config["based_on_package"].as<std::string>(), loaders, directories);
   const auto objectives = config["objectives"];
   for (const auto& group : objectives["behavior_loader_plugins"])
+  {
+    auto& group_loaders = loaders[group.first.as<std::string>()];
+    group_loaders.clear();
     for (const auto& loader : group.second)
-      loaders.push_back(loader.as<std::string>());
+      group_loaders.push_back(loader.as<std::string>());
+  }
   for (const auto& library : objectives["objective_library_paths"])
   {
+    const auto id = library.first.as<std::string>();
+    std::erase_if(directories, [&](const auto& entry) { return entry.first == id; });
     const auto entry = library.second;
     const auto library_share = ament_index_cpp::get_package_share_directory(entry["package_name"].as<std::string>());
-    directories.push_back((fs::path(library_share) / entry["relative_path"].as<std::string>()).string());
+    directories.emplace_back(id, (fs::path(library_share) / entry["relative_path"].as<std::string>()).string());
   }
 }
 
@@ -67,8 +73,14 @@ TEST_P(ObjectiveLibraryTest, NativeServerLoadsAndInstantiatesStockObjectivesWith
   auto context = std::make_shared<moveit_pro::behaviors::BehaviorContext>(node, false);
   context->robot_model = std::make_shared<moveit_pro::base::RobotModel>(urdf, srdf);
   moveit_studio::objective_server::ObjectiveServer server(context);
+  std::map<std::string, std::vector<std::string>> loader_groups;
+  std::vector<std::pair<std::string, std::string>> library_specs;
+  collectLibraries(GetParam(), loader_groups, library_specs);
   std::vector<std::string> loaders, directories;
-  collectLibraries(GetParam(), loaders, directories);
+  for (const auto& [group, names] : loader_groups)
+    loaders.insert(loaders.end(), names.begin(), names.end());
+  for (const auto& [id, directory] : library_specs)
+    directories.push_back(directory);
   const auto loaded = server.registerBehaviorLoaderPlugins(loaders);
   ASSERT_TRUE(loaded.has_value()) << loaded.error().what;
   const auto registered = server.registerObjectives(directories);
@@ -80,8 +92,10 @@ TEST_P(ObjectiveLibraryTest, NativeServerLoadsAndInstantiatesStockObjectivesWith
   // followed by real tree instantiation to check ports and inherited SubTrees.
   // Never tick: the physical config's callbacks cannot send gains or motion.
   std::vector<fs::path> owned_libraries{ mock_share / "objectives" };
-  if (GetParam() == "rebot_b601_rs_hw")
+  if (GetParam() != "rebot_b601_rs_mock")
     owned_libraries.emplace_back(fs::path(ament_index_cpp::get_package_share_directory(GetParam())) / "objectives");
+  if (GetParam() == "rebot_b601_rs_hw")
+    EXPECT_FALSE(server.createTree("Reset MuJoCo Sim").has_value());
   for (const auto& library : owned_libraries)
     for (const auto& entry : fs::directory_iterator(library))
     {

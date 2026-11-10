@@ -22,7 +22,7 @@ def model(tmp_path_factory):
     urdf.write_text(
         xacro.process_file(
             str(share / "description/rebot.urdf.xacro"),
-            mappings={"hardware_interface": "mock"},
+            mappings={"hardware_interface": "real"},
         ).toxml()
     )
     return robot_model.RobotModel(
@@ -49,7 +49,7 @@ def test_measured_motor_limits(model):
     # The planner rejects even sub-picoradian waypoint overshoots.
     assert high[-1] >= radians(310)
     assert low[-1] == 0
-    assert model.get_link_model("d435_color_optical_frame") is not None
+    assert model.get_link_model("wrist_mounted_camera_color_optical_frame") is not None
     assert model.get_link_model("scene_camera_color_optical_frame") is not None
 
 

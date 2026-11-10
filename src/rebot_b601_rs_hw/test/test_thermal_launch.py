@@ -6,9 +6,16 @@ from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchContext
-from launch.actions import OpaqueFunction
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    OpaqueFunction,
+)
 from launch_ros.actions import Node
-from launch.utilities import normalize_to_list_of_substitutions, perform_substitutions
+from launch.utilities import (
+    normalize_to_list_of_substitutions,
+    perform_substitutions,
+)
 from moveit_studio_utils_py.system_config import load_system_config
 import pytest
 
@@ -56,6 +63,57 @@ def test_invalid_backend_fails_without_launch(thermal_launch):
     config.hardware.robot_description.urdf_params = [{"hardware_interface": "invalid"}]
     with pytest.raises(ValueError, match="Unsupported reBot hardware_interface"):
         thermal_launch.configured_nodes(config)
+
+
+def test_driver_launch_includes_thermal_guard_and_wrist_camera():
+    path = Path(__file__).resolve().parents[1] / "launch/rebot_drivers.launch.py"
+    spec = importlib.util.spec_from_file_location("stock_driver_launch", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    launch = module.generate_launch_description()
+    assert len(launch.entities) == 2
+    assert all(
+        isinstance(action, IncludeLaunchDescription) for action in launch.entities
+    )
+    context = LaunchContext()
+    child_descriptions = [
+        action.launch_description_source.get_launch_description(context)
+        for action in launch.entities
+    ]
+    included_files = {
+        Path(action.launch_description_source.location).name
+        for action in launch.entities
+    }
+    assert included_files == set(module.LAUNCH_FILES)
+    wrist_description = next(
+        child
+        for child in child_descriptions
+        if any(
+            isinstance(entity, DeclareLaunchArgument)
+            and entity.name == "enable_wrist_camera"
+            for entity in child.entities
+        )
+    )
+    assert [
+        argument.name
+        for argument in wrist_description.entities
+        if isinstance(argument, DeclareLaunchArgument)
+    ] == [
+        "enable_wrist_camera",
+        "wrist_camera_serial_number",
+        "wrist_camera_color_width",
+        "wrist_camera_color_height",
+        "wrist_camera_color_fps",
+    ]
+    assert any(
+        isinstance(entity, OpaqueFunction) for entity in wrist_description.entities
+    )
+    thermal_description = next(
+        child for child in child_descriptions if child is not wrist_description
+    )
+    assert any(
+        isinstance(entity, OpaqueFunction) for entity in thermal_description.entities
+    )
 
 
 def test_launch_evaluates_selected_config_without_starting_node(

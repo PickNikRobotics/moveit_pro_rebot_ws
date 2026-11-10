@@ -15,6 +15,7 @@ ament_target_dependencies(rebot_hardware_behaviors
 install(TARGETS rebot_hardware_behaviors EXPORT rebot_hardware_behaviorsTargets
   LIBRARY DESTINATION lib ARCHIVE DESTINATION lib RUNTIME DESTINATION bin)
 install(DIRECTORY include/ DESTINATION include)
+install(DIRECTORY description DESTINATION share/${PROJECT_NAME})
 pluginlib_export_plugin_description_file(moveit_pro_behavior_interface
   rebot_hardware_behaviors_plugin_description.xml)
 ament_export_targets(rebot_hardware_behaviorsTargets HAS_LIBRARY_TARGET)
@@ -26,6 +27,7 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_config_contract test/test_config_contract.py TIMEOUT 60)
   ament_add_pytest_test(test_thermal_guard test/test_thermal_guard.py TIMEOUT 60)
   ament_add_pytest_test(test_thermal_launch test/test_thermal_launch.py TIMEOUT 60)
+  ament_add_pytest_test(test_wrist_camera_launch test/test_wrist_camera_launch.py TIMEOUT 60)
   find_package(ament_cmake_gtest REQUIRED)
   find_package(moveit_pro_test_utils REQUIRED)
   ament_add_gtest(test_set_rebot_motor_gain test/test_set_rebot_motor_gain.cpp)
@@ -43,6 +45,9 @@ if(BUILD_TESTING)
   find_package(moveit_studio_agent REQUIRED)
   find_package(controller_manager REQUIRED)
   find_package(joint_trajectory_admittance_controller REQUIRED)
+  find_package(joint_velocity_controller REQUIRED)
+  find_package(velocity_force_controller REQUIRED)
+  find_package(robstride_hardware_interface REQUIRED)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
   set(TEST_MODE_URDF ${CMAKE_CURRENT_BINARY_DIR}/mode_memory.urdf)
   add_custom_command(OUTPUT ${TEST_MODE_URDF}
@@ -82,6 +87,30 @@ if(BUILD_TESTING)
     motion_recovery_behaviors::motion_recovery_behaviors yaml-cpp::yaml-cpp)
   target_compile_definitions(test_home_recovery PRIVATE
     TEST_URDF="${TEST_URDF}" STOCK_SHARE="${MOCK_SHARE}" PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  # Keep the physical public contract; the generator overrides only CAN to
+  # vcan0. Generation occurs at test time so config inheritance is installed.
+  set(TEST_VCAN_URDF ${CMAKE_CURRENT_BINARY_DIR}/vcan.urdf)
+  ament_add_gtest_executable(test_vcan_controllers test/test_vcan_controllers.cpp
+    test/vcan_pose_jog.cpp)
+  target_compile_features(test_vcan_controllers PRIVATE cxx_std_20)
+  target_compile_definitions(test_vcan_controllers PRIVATE TEST_VCAN_URDF="${TEST_VCAN_URDF}")
+  target_include_directories(test_vcan_controllers PRIVATE
+    ${robstride_hardware_interface_DIR}/../test)
+  target_link_libraries(test_vcan_controllers
+    controller_manager::controller_manager
+    joint_trajectory_admittance_controller::joint_trajectory_admittance_controller
+    joint_velocity_controller::joint_velocity_controller
+    velocity_force_controller::velocity_force_controller
+    robstride_hardware_interface::robstride_hardware_interface yaml-cpp::yaml-cpp)
+  ament_target_dependencies(test_vcan_controllers
+    moveit_pro_behavior_interface robstride_interfaces pluginlib)
+  ament_add_test(test_vcan_controllers
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/run_vcan_controllers.py
+      ${CMAKE_CURRENT_SOURCE_DIR} ${TEST_VCAN_URDF} $<TARGET_FILE:test_vcan_controllers>
+      --gtest_output=xml:${CMAKE_CURRENT_BINARY_DIR}/test_results/${PROJECT_NAME}/test_vcan_controllers.gtest.xml
+    TIMEOUT 120
+    RESULT_FILE ${CMAKE_CURRENT_BINARY_DIR}/test_results/${PROJECT_NAME}/test_vcan_controllers.gtest.xml)
+  set_tests_properties(test_vcan_controllers PROPERTIES RESOURCE_LOCK robstride_vcan)
   ament_add_gtest(test_stock_gravity test/test_stock_gravity.cpp)
   add_dependencies(test_stock_gravity stock_gravity_model)
   target_link_libraries(test_stock_gravity

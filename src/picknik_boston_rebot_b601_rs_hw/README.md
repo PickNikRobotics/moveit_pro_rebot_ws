@@ -4,8 +4,8 @@ Office application source for **MoveIt Pro 10.x / ROS 2 Jazzy**, on the
 `picknik_boston_rebot_b601_rs` branch. Select the matching
 `picknik_boston_rebot_b601_rs_hw` config. It inherits
 `rebot_b601_rs_mock → rebot_b601_rs_sim → rebot_b601_rs_hw` and adds the Boston
-assembly, calibrated placement, OAK-D/D435, USB leader, collection/fit and cube
-application sources. Boulder and San Diego are not modeled here.
+assembly, calibrated placement, OAK-D/Gemini 305, USB leader, collection/fit
+and cube application sources. Boulder and San Diego are not modeled here.
 
 Optional source twins are
 [`picknik_boston_rebot_b601_rs_sim`](../picknik_boston_rebot_b601_rs_sim/README.md)
@@ -27,8 +27,9 @@ No new sag, float-quality, thermal-recovery or no-snap certification is claimed.
 
 The shared arm model owns joints, axes, stock collision meshes, native jaw,
 controller interfaces, limits and spring tuning. The wrapper adds the exact
-printed trim/camera assembly and Boston transforms; stock configurations in the
-same branch retain nominal geometry and zero placement. See
+printed trim, calibrated physical wrist-camera frame and Boston transforms;
+stock configurations in the same branch retain nominal geometry and zero
+placement. See
 [description provenance](description/NOTICE.md).
 
 Boston hardware sets `boston_gravity_fit: true`. This selects six **static
@@ -54,13 +55,18 @@ Fitted gravity, scene/camera calibration and fixtures remain office-only.
 
 - Fixed OAK-D:640×400,30Hz, full sensor ISP1/2 scaling, aligned depth and
   compressed color topic. Boston depth correction is0.96 before point-cloud creation.
-- Wrist D435:640×480,30Hz RGB; no depth/IMU launch and no duplicate driver TF.
-- Scene camera/base transforms follow the recorded ChArUco calibration.
-  Wrist mount is nominal/eye-measured; a provisional peg hand-eye correction is
-  not a general calibration. Camera/mount collision and dynamic inertias are
-  incomplete. Verify clearance before any separately authorized hardware use.
-- Optional camera absence warns and skips only that camera. The launch's USB
-  descriptor read is not run during offline tests; tests supply fixture descriptors.
+- Wrist Gemini 305 (serial `CV2F861000FP`):1280×800,10Hz MJPG; no depth/IR
+  launch and no duplicate driver TF. Its `gripper_end` to color-optical-frame
+  mount is hand-eye calibrated for this unit, not eye-measured. It uses the
+  closed-form 11-view SolveEyeInHandCalibration result, not the bundle-refined
+  pose. Factory `camera_info` stays in use. The inherited stock launch supplies
+  the driver.
+- Scene camera/base transforms follow the recorded ChArUco calibration. The
+  scene camera mount remains uncalibrated. Camera/mount collision and dynamic
+  inertias are incomplete. Verify clearance before any separately authorized
+  hardware use.
+- Optional scene-camera absence warns and skips only that camera. Its launch's
+  USB descriptor read is not run during offline tests; tests supply fixture descriptors.
 - The office FashionStar leader uses its retained unit calibration. The reader
   needs `motorbridge-smart-servo==0.0.4` from `config/leader-requirements.txt`;
   do not install a training stack or rewrite calibration as part of migration.

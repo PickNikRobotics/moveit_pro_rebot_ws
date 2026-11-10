@@ -1,0 +1,14 @@
+# The stock Gemini 305 wrist camera starts by default on the physical backend.
+# The launch probes USB first and skips the driver with a warning when no camera
+# is attached. Set false to never probe or start the camera.
+enable_wrist_camera: true
+
+# Empty lets the driver select its first device. Set a serial only when a host
+# has more than one camera; stock configuration never pins a unit.
+wrist_camera_serial_number: ""
+
+# Color-only MJPG stream. With no color_info_url, the Orbbec driver derives
+# camera_info from the active device's factory stream calibration.
+wrist_camera_color_width: 1280
+wrist_camera_color_height: 800
+wrist_camera_color_fps: 10

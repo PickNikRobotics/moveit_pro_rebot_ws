@@ -7,7 +7,12 @@
   <xacro:arg name="world_to_base_rpy" default="0 0 3.1380" />
   <xacro:arg name="scene_camera_xyz" default="-0.075 0.069 0.565" />
   <xacro:arg name="scene_camera_rpy" default="0.169 0.975 0.246" />
-  <!-- Nominal, eye-measured wrist mount, not a hand-eye calibration. -->
+  <!-- Per-unit Gemini 305 hand-eye calibration for serial CV2F861000FP, not
+       an eye-measured mount. The real hardware description uses the stock
+       macro and keeps the driver frame name. -->
+  <xacro:arg name="wrist_camera_color_optical_xyz" default="-0.1040 0.0095 0.1017" />
+  <xacro:arg name="wrist_camera_color_optical_rpy" default="-2.1069 -0.0041 -1.5720" />
+  <!-- Legacy non-real mount used only by the unchanged MuJoCo twin generator. -->
   <xacro:arg name="wrist_camera_mount_xyz" default="-0.1201 0.0003 0.045" />
   <xacro:arg name="wrist_camera_mount_rpy" default="1.5827 0.0024 1.5515" />
   <xacro:property name="scene_camera_xyz" default="$(arg scene_camera_xyz)" />
@@ -21,8 +26,9 @@
     </xacro:if>
     <xacro:property name="rebot_inertial_xyz" value="${xacro.load_yaml('../config/gravity/identified_first_moments.yaml')}" lazy_eval="false" />
   </xacro:if>
-  <!-- Defines optional trim macros and the office camera assembly. Stock arm
+  <!-- Defines optional trim macros and office camera frames. Stock arm
        semantics and hardware interfaces still come from the parent description. -->
+  <xacro:include filename="$(find rebot_description)/urdf/gemini305_wrist_camera.xacro" />
   <xacro:include filename="office_geometry.xacro" />
   <xacro:include filename="$(find rebot_b601_rs_mock)/description/rebot.urdf.xacro" />
 </robot>

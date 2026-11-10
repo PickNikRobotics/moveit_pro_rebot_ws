@@ -18,6 +18,10 @@ hardware:
       - world_to_base_rpy: "0 0 3.1380"
       - scene_camera_xyz: "-0.075 0.069 0.565"
       - scene_camera_rpy: "0.169 0.975 0.246"
+      # Override the stock nominal mount for Gemini 305 serial CV2F861000FP:
+      # hand-eye calibrated for this unit, not eye-measured.
+      - wrist_camera_color_optical_xyz: "-0.1040 0.0095 0.1017"
+      - wrist_camera_color_optical_rpy: "-2.1069 -0.0041 -1.5720"
 ros_global_params:
   # This calibrated USB leader is an office device, not a stock product requirement.
   rebot_leader_enabled: true

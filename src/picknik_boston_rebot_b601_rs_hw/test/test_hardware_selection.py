@@ -11,6 +11,9 @@ import xacro
 import yaml
 
 PACKAGE = "picknik_boston_rebot_b601_rs_hw"
+WRIST_FRAME = "wrist_mounted_camera_color_optical_frame"
+CALIBRATED_XYZ = "-0.1040 0.0095 0.1017"
+CALIBRATED_RPY = "-2.1069 -0.0041 -1.5720"
 
 
 def expand(package=PACKAGE, **mappings):
@@ -50,6 +53,13 @@ def test_loaded_boston_config_has_one_real_backend_and_office_save_destination(
         "joint_trajectory_admittance_controller",
         "gravity_compensation_controller",
     ]
+    selected = {
+        key: value
+        for item in config.hardware.robot_description.urdf_params
+        for key, value in item.items()
+    }
+    assert selected["wrist_camera_color_optical_xyz"] == CALIBRATED_XYZ
+    assert selected["wrist_camera_color_optical_rpy"] == CALIBRATED_RPY
 
 
 def test_arm_interfaces_modes_limits_and_torque_policy_match_vendor():
@@ -108,15 +118,25 @@ def test_fit_changes_only_documented_six_inertial_origins_and_cannot_enter_simul
     )  # Includes the observed jaw/camera/cables; never count a payload twice.
 
 
-def test_office_frames_placement_and_meshes_are_present_only_in_boston():
-    stock, office = expand("rebot_b601_rs_mock"), expand()
-    assert stock.find("link[@name='d435_link']") is None
-    for name in (
-        "d435_link",
-        "d435_color_optical_frame",
-        "scene_camera_color_optical_frame",
-    ):
-        assert office.find(f"link[@name='{name}']") is not None
+def test_office_wrist_mount_overrides_stock_nominal_frame_without_d435_links():
+    stock = expand("rebot_b601_rs_hw", hardware_interface="real")
+    office = expand(hardware_interface="real")
+    stock_joint = stock.find("joint[@name='wrist_mounted_camera_color_optical_joint']")
+    office_joint = office.find(
+        "joint[@name='wrist_mounted_camera_color_optical_joint']"
+    )
+    assert stock_joint is not None
+    assert office_joint is not None
+    assert office.find(f"link[@name='{WRIST_FRAME}']") is not None
+    assert office_joint.find("parent").get("link") == "gripper_end"
+    assert office_joint.find("child").get("link") == WRIST_FRAME
+    assert office_joint.find("origin").attrib == {
+        "xyz": CALIBRATED_XYZ,
+        "rpy": CALIBRATED_RPY,
+    }
+    assert stock_joint.find("origin").attrib != office_joint.find("origin").attrib
+    assert not any(element.get("name", "").startswith("d435_") for element in office)
+    assert office.find("link[@name='scene_camera_color_optical_frame']") is not None
     origin = office.find("joint[@name='world_to_base']/origin")
     assert origin.get("xyz") == "0.7259 0.0216 -0.003"
     assert origin.get("rpy") == "0 0 3.1380"

@@ -1,18 +1,16 @@
 # Copyright 2026 PickNik Inc.
 # SPDX-License-Identifier: BSD-3-Clause
-"""Optional camera startup never requires both devices or a particular bench."""
+"""The office launch owns only the optional OAK-D scene camera."""
 import importlib.util
 from pathlib import Path
-import sys
-import time
 from unittest.mock import Mock
 
-from launch import LaunchContext, LaunchDescription, LaunchService
-from launch.actions import ExecuteProcess
+from launch import LaunchContext
 from launch.utilities import normalize_to_list_of_substitutions, perform_substitutions
 from launch_ros.actions import Node
 import pytest
 import yaml
+
 
 PACKAGE = Path(__file__).resolve().parents[1]
 
@@ -51,64 +49,51 @@ def executables(actions, ctx):
     ]
 
 
-def test_defaults_enable_optional_cameras_without_pinning_a_unit(cameras):
+def test_defaults_enable_only_the_optional_scene_camera(cameras):
     ctx = context()
     assert ctx.launch_configurations["enable_cameras"] == "true"
-    assert ctx.launch_configurations["enable_wrist_camera"] == "true"
     assert ctx.launch_configurations["enable_scene_camera"] == "true"
-    assert ctx.launch_configurations["wrist_serial_no"] == ""
-    assert ctx.launch_configurations["scene_serial_no"] == ""
+    assert "wrist_camera_serial_number" not in ctx.launch_configurations
     assert cameras.generate_launch_description().entities
 
 
 @pytest.mark.parametrize(
-    "devices,expected,warnings",
+    "attached,expected_warnings",
     [
-        (set(), [], 2),
-        ({"wrist"}, ["realsense2_camera_node"], 1),
-        ({"scene"}, ["camera_node", "point_cloud_xyz_node"], 1),
-        (
-            {"wrist", "scene"},
-            ["realsense2_camera_node", "camera_node", "point_cloud_xyz_node"],
-            0,
-        ),
+        (False, 1),
+        (True, 0),
     ],
 )
-def test_missing_camera_skips_only_its_processes(
-    cameras, monkeypatch, devices, expected, warnings
+def test_missing_scene_camera_skips_only_its_processes(
+    cameras, monkeypatch, attached, expected_warnings
 ):
-    monkeypatch.setattr(cameras, "detected_cameras", lambda: devices)
+    monkeypatch.setattr(cameras, "scene_camera_detected", lambda: attached)
+    warnings = []
+    monkeypatch.setattr(cameras.logger, "warning", warnings.append)
     ctx = context(scene_depth_scale=1.0)
     actions = cameras.launch_cameras(ctx)
-    assert executables(actions, ctx) == expected
-    assert cameras.logger.warning.call_count == warnings
-
-
-@pytest.mark.parametrize(
-    "wrist,scene,expected",
-    [
-        (False, True, ["camera_node", "point_cloud_xyz_node"]),
-        (True, False, ["realsense2_camera_node"]),
-        (False, False, []),
-    ],
-)
-def test_camera_switches_are_independent(cameras, monkeypatch, wrist, scene, expected):
-    monkeypatch.setattr(cameras, "detected_cameras", lambda: {"wrist", "scene"})
-    ctx = context(
-        enable_wrist_camera=wrist, enable_scene_camera=scene, scene_depth_scale=1.0
+    assert executables(actions, ctx) == (
+        ["camera_node", "point_cloud_xyz_node"] if attached else []
     )
-    actions = cameras.launch_cameras(ctx)
-    assert executables(actions, ctx) == expected
-    cameras.logger.warning.assert_not_called()
+    assert len(warnings) == expected_warnings
 
 
-def test_usb_probe_recognizes_models_and_ignores_unknown_or_incomplete_devices(
+def test_scene_camera_switch_never_probes_usb(cameras, monkeypatch):
+    monkeypatch.setattr(
+        cameras,
+        "scene_camera_detected",
+        lambda: pytest.fail("disabled scene camera must not probe USB"),
+    )
+    assert cameras.launch_cameras(context(enable_scene_camera=False)) == []
+
+
+def test_usb_probe_recognizes_only_scene_models_and_ignores_unknown_or_incomplete(
     cameras, tmp_path
 ):
     for name, vendor, product in [
-        ("wrist", "8086", "0b07"),
         ("scene_unbooted", "03e7", "2485"),
         ("scene_booted", "03e7", "f63b"),
+        ("wrist", "2bc5", "0840"),
         ("unknown", "1234", "abcd"),
     ]:
         device = tmp_path / name
@@ -116,87 +101,30 @@ def test_usb_probe_recognizes_models_and_ignores_unknown_or_incomplete_devices(
         (device / "idVendor").write_text(vendor + "\n")
         (device / "idProduct").write_text(product + "\n")
     (tmp_path / "incomplete").mkdir()
-    assert cameras.detected_cameras(tmp_path) == {"wrist", "scene"}
-    assert cameras.detected_cameras(tmp_path / "missing") == set()
-
-
-def test_unknown_camera_does_not_start_a_supported_driver(
-    cameras, monkeypatch, tmp_path
-):
-    device = tmp_path / "other_camera"
-    device.mkdir()
-    (device / "idVendor").write_text("1234")
-    (device / "idProduct").write_text("abcd")
-    probe = cameras.detected_cameras
-    monkeypatch.setattr(cameras, "detected_cameras", lambda: probe(tmp_path))
-    ctx = context()
-    actions = cameras.launch_cameras(ctx)
-    assert executables(actions, ctx) == []
-    assert cameras.logger.warning.call_count == 2
-    assert all(
-        "Backend and leader remain available" in call.args[0]
-        for call in cameras.logger.warning.call_args_list
-    )
+    assert cameras.scene_camera_detected(tmp_path)
+    assert not cameras.scene_camera_detected(tmp_path / "missing")
 
 
 def test_depth_is_unscaled_unless_a_measured_factor_is_configured(cameras, monkeypatch):
-    monkeypatch.setattr(cameras, "detected_cameras", lambda: {"scene"})
-    ctx = context(scene_depth_scale=1.0)
-    assert "scale_depth.py" not in executables(cameras.launch_cameras(ctx), ctx)
-    ctx = context()
-    assert ctx.launch_configurations["scene_depth_scale"] == "0.96"
-    assert "scale_depth.py" in executables(cameras.launch_cameras(ctx), ctx)
-
-
-def test_vanished_wrist_camera_driver_is_stopped_instead_of_flooding(cameras):
-    # librealsense after an unplug: the same error forever, ignoring SIGINT/SIGTERM.
-    flood = (
-        "import signal, time\n"
-        "signal.signal(signal.SIGINT, signal.SIG_IGN)\n"
-        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
-        "end = time.monotonic() + 20\n"
-        "while time.monotonic() < end:\n"
-        "    print('xioctl(VIDIOC_QBUF) failed when requesting new frame, "
-        "error number: 19, No such device', flush=True)\n"
-        "    time.sleep(0.01)\n"
+    monkeypatch.setattr(cameras, "scene_camera_detected", lambda: True)
+    unscaled = context(scene_depth_scale=1.0)
+    assert "scale_depth.py" not in executables(
+        cameras.launch_cameras(unscaled), unscaled
     )
-    driver = ExecuteProcess(
-        cmd=[sys.executable, "-u", "-c", flood],
-        output="screen",
-        sigterm_timeout="0.2",
-        sigkill_timeout="0.2",
-    )
-    service = LaunchService()
-    service.include_launch_description(
-        LaunchDescription([cameras.stop_on_device_loss(driver), driver])
-    )
-    started = time.monotonic()
-    service.run()
-    assert time.monotonic() - started < 10
-    cameras.logger.warning.assert_called_once()
-    assert "restart the backend" in cameras.logger.warning.call_args.args[0]
+    scaled = context()
+    assert "scale_depth.py" in executables(cameras.launch_cameras(scaled), scaled)
 
 
-def test_attached_wrist_camera_driver_stops_on_its_own_device_loss(
-    cameras, monkeypatch
-):
-    from launch.actions import RegisterEventHandler
-    from launch.events.process import ProcessStderr
-
-    monkeypatch.setattr(cameras, "detected_cameras", lambda: {"wrist"})
-    ctx = context()
-    actions = cameras.launch_cameras(ctx)
-    (handler,) = [
-        a.event_handler for a in actions if isinstance(a, RegisterEventHandler)
-    ]
-    (driver,) = [a for a in actions if isinstance(a, Node)]
-
-    def output(action, text):
-        return ProcessStderr(
-            text=text, action=action, name="d", cmd=[], cwd=None, env=None, pid=1
-        )
-
-    assert handler.matches(output(driver, b"error number: 19, No such device\n"))
-    assert not handler.matches(output(driver, b"RealSense Node Is Up!\n"))
-    other = ExecuteProcess(cmd=["true"])
-    assert not handler.matches(output(other, b"No such device\n"))
+@pytest.mark.parametrize(
+    "settings,error",
+    [
+        ({"image_width": 0}, "Camera dimensions/fps must be positive"),
+        ({"scene_image_height": 480}, "DepthAI ISP output requires"),
+        ({"scene_mjpeg_quality": 101}, "Camera dimensions/fps must be positive"),
+        ({"scene_depth_scale": 1.6}, "scene_depth_scale must be between"),
+    ],
+)
+def test_invalid_scene_settings_are_rejected(cameras, monkeypatch, settings, error):
+    monkeypatch.setattr(cameras, "scene_camera_detected", lambda: True)
+    with pytest.raises(ValueError, match=error):
+        cameras.launch_cameras(context(**settings))
