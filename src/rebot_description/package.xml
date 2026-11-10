@@ -3,11 +3,14 @@
   <name>rebot_description</name>
   <version>10.3.0</version>
   <description>
-    Unmodified stock Seeed reBot B601-RS description assets.
+    Stock Seeed reBot B601-RS assets and a nominal Gemini 305 wrist-camera
+    frame.
   </description>
   <maintainer email="support@picknik.ai">MoveIt Pro Maintainer</maintainer>
   <license>CERN-OHL-W-2.0</license>
+  <license>BSD-3-Clause</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <exec_depend>xacro</exec_depend>
   <export>
     <build_type>ament_cmake</build_type>
   </export>

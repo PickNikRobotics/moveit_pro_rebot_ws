@@ -7,7 +7,7 @@ from ament_index_python.packages import get_package_share_directory
 import pytest
 import xacro
 import yaml
-from moveit_studio_utils_py.system_config import load_system_config
+from moveit_studio_utils_py.system_config import load_system_config, merge
 
 
 def resolved(mode):
@@ -66,15 +66,29 @@ def test_backend_isolation(mode, plugin, sim_time):
     driver_launch = config.hardware.additional_driver_launch_file
     if mode == "hw":
         assert driver_launch.package == "rebot_b601_rs_hw"
-        assert driver_launch.path == "launch/rebot_thermal.launch.py"
+        assert driver_launch.path == "launch/rebot_drivers.launch.py"
     else:
         assert driver_launch.path == "launch/blank.launch.py"
-    assert config.hardware.robot_description.urdf.package == "rebot_b601_rs_mock"
+    assert config.hardware.robot_description.urdf.package == (
+        "rebot_b601_rs_hw" if mode == "hw" else "rebot_b601_rs_mock"
+    )
     assert config.ros2_control["config"]["package"] == "rebot_b601_rs_mock"
     links = {link.get("name") for link in robot.findall("link")}
-    assert not any(
-        "camera" in name or "d435" in name or "bench" in name for name in links
-    )
+    wrist_frame = "wrist_mounted_camera_color_optical_frame"
+    if mode == "hw":
+        assert wrist_frame in links
+        wrist_joint = robot.find(
+            "joint[@name='wrist_mounted_camera_color_optical_joint']"
+        )
+        assert wrist_joint.find("parent").get("link") == "gripper_end"
+        assert wrist_joint.find("child").get("link") == wrist_frame
+        assert wrist_joint.find("origin").attrib == {
+            "xyz": "-0.111 0.009 0.109",
+            "rpy": "-2.109 0.003 -1.579",
+        }
+    else:
+        assert wrist_frame not in links
+    assert not any("d435" in name or "bench" in name for name in links)
     origin = robot.find("joint[@name='world_to_base']/origin")
     assert origin.get("xyz") == origin.get("rpy") == "0 0 0"
     for mesh in robot.findall(".//mesh"):
@@ -108,6 +122,28 @@ def test_backend_isolation(mode, plugin, sim_time):
         list(config.objectives.objective_library_paths.values())[-1].package_name
         == f"rebot_b601_rs_{mode}"
     )
+
+
+def test_nominal_wrist_camera_mount_is_overridable_for_an_office_calibration():
+    config = resolved("hw")
+    override = {
+        "hardware": {
+            "robot_description": {
+                "urdf_params": [
+                    {"wrist_camera_color_optical_xyz": "1 2 3"},
+                    {"wrist_camera_color_optical_rpy": "0.1 0.2 0.3"},
+                ]
+            }
+        }
+    }
+    merged = merge(config.model_dump(), override)
+    config.hardware.robot_description.urdf_params = merged["hardware"][
+        "robot_description"
+    ]["urdf_params"]
+    origin = expanded(config).find(
+        "joint[@name='wrist_mounted_camera_color_optical_joint']/origin"
+    )
+    assert origin.attrib == {"xyz": "1 2 3", "rpy": "0.1 0.2 0.3"}
 
 
 def test_physical_torque_policy_and_joint_contract():

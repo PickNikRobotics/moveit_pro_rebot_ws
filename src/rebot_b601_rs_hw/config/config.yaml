@@ -2,8 +2,11 @@ based_on_package: rebot_b601_rs_sim
 hardware:
   additional_driver_launch_file:
     package: rebot_b601_rs_hw
-    path: launch/rebot_thermal.launch.py
+    path: launch/rebot_drivers.launch.py
   robot_description:
+    urdf:
+      package: rebot_b601_rs_hw
+      path: description/rebot.urdf.xacro
     urdf_params:
     - hardware_interface: real
     - arm_control_mode: motion
