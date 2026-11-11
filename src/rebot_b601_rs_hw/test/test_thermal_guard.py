@@ -13,6 +13,7 @@ from rclpy.time import Time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from rebot_thermal_guard import ThermalGuard  # noqa: E402
+from rebot_safe_poses import load_home  # noqa: E402
 
 
 def future(result):
@@ -26,6 +27,7 @@ def guard():
         get_logger=lambda: Obj(error=Mock(), info=Mock()),
         get_clock=lambda: Obj(now=lambda: Time(nanoseconds=10_000_000_000)),
     )
+    result.home_pose = load_home()
     result.stage, result.started = "idle", None
     result.future = result.home_handle = result.home_since = None
     result.next_clear = -float("inf")
@@ -108,7 +110,7 @@ def test_cancel_home_verify_disable_confirm_are_sequential(guard):
     guard.advance(10.0)  # HOME requested
     assert (
         guard.home.send_goal_async.call_args.args[0].objective_name
-        == "Return reBot Leader Home"
+        == "Return reBot Leader Home Under Power"
     )
     guard.advance(10.0)  # goal accepted
     guard.advance(10.0)  # HOME result succeeded

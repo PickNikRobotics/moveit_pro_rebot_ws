@@ -7,6 +7,7 @@ No ROS node, action, service, CAN device, simulation or hardware execution.
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
+from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import Pose
 from moveit_msgs.msg import CollisionObject
 from moveit_pro import planning
@@ -25,11 +26,14 @@ import yaml
 PACKAGE = Path(__file__).resolve().parents[1]
 OBJECTIVES = PACKAGE / "objectives"
 JOINTS = [f"joint{i}" for i in range(1, 8)]
-HOME = np.zeros(6)
+from rebot_safe_poses import load_home
+
+HOME = np.array(load_home().positions[:6])
 
 
 def waypoints():
-    entries = yaml.safe_load((PACKAGE / "waypoints/rebot_waypoints.yaml").read_text())
+    installed = Path(get_package_share_directory("picknik_boston_rebot_b601_rs_hw"))
+    entries = yaml.safe_load((installed / "waypoints/rebot_waypoints.yaml").read_text())
     assert len({entry["name"] for entry in entries}) == len(entries)
     return {entry["name"]: entry for entry in entries}
 
@@ -75,7 +79,10 @@ def collision_model(tmp_path_factory):
     description = xacro.process_file(str(path), mappings=mappings).toxml()
     path = directory / "robot.urdf"
     path.write_text(description)
-    model = robot_model.RobotModel(str(path), str(PACKAGE / "config/moveit/rebot.srdf"))
+    installed = Path(get_package_share_directory("picknik_boston_rebot_b601_rs_hw"))
+    model = robot_model.RobotModel(
+        str(path), str(installed / "config/moveit/rebot.srdf")
+    )
     model.set_group_acceleration_bounds(
         "manipulator", -np.ones(6) * 1.2, np.ones(6) * 1.2
     )

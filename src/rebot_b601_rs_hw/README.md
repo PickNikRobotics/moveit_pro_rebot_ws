@@ -123,10 +123,14 @@ An enabled motor watchdog could otherwise release torque after the bus closes.
 A fault reset alone does not rejoin the lost motor or resume motion.
 The driver requires fresh measured positions before activation.
 
-Return reBot Leader Home retains torque and the normal trajectory controller.
-It holds the jaw during the arm legs, waits 0.5 s at HOME, optionally verifies
-HOME with the leader bridge, then attempts Close Gripper at nominal zero.
-The verification call and close are best-effort, so a successful HOME result
+Return reBot Leader Home calls the driver's `engage` Trigger service before
+any controller switch or motion, then retains torque and the normal trajectory
+controller. It holds the jaw during the arm legs, waits 0.5 s at HOME,
+runs the config-specific `reBot Notify Leader Home` subtree, then attempts the
+configured HOME jaw target (nominal zero). The stock notification is a no-op;
+Boston's override retains the optional `/rebot_leader_bridge/home_verified`
+call wrapped in `ForceSuccess`.
+The notification and close are best-effort, so a successful HOME result
 alone does not prove that the jaw closed. The bridge clears a failed-HOME
 latch only with fresh, stationary arm feedback at HOME and healthy enabled
 motors, while Mirror is inactive and no thermal trip is latched.
@@ -149,6 +153,122 @@ defaults. The arm kp/kd values, jaw kp=12/kd=0.5 and 100 Hz update rate are reta
 These defaults are not calibration or physical acceptance for a new installation.
 Motor status and fault telemetry remain available through the pinned driver's
 `~/robstride_state` topic and services.
+
+## Relax-safe poses and Relax at HOME
+
+The arm has no brakes. **Relax at HOME** returns HOME under power, waits one
+configured stillness window plus 0.1 s after the jaw move, then calls
+`/robstride_hardware_interface/relax` (`std_srvs/Trigger`). This is a
+request, not an idle timer. A failed HOME prevents the
+relax call. A rejected or unavailable relax service fails the Objective; it
+never falls back to unguarded `set_torque false`. The only automatic request is
+the Boston leader bridge's: after Mirror ends and its HOME recovery succeeds, it
+runs Relax at HOME once, with the same checks.
+
+The matching driver must admit torque-off only when **all seven measured
+joints**, including the jaw, match a named relax-safe pose within its own
+per-joint `tolerance_rad`, satisfy the configured position-span stillness test,
+have fresh fault-free communications, and satisfy the driver's measured and
+commanded stillness checks. **The caller must finish/cancel all trajectory,
+teleop and queued motion before relax.** Command stillness is not proof that
+no future goal is queued; the driver does not inspect Objective/action status.
+Success disables all seven motors and names the matched pose. It leaves the driver and telemetry running. This service is not a
+safety-rated protective stop or power isolation.
+
+`/robstride_hardware_interface/engage` is also `std_srvs/Trigger`: enable torque
+only after the driver's measured-bounds and health checks, re-seed the hold at
+the measured pose without a step, and report elapsed milliseconds and maximum
+step. Return Home, Mirror's prepare entry, and the physical Teleoperate
+Objective wait for engage success before motion. Stock mock/MuJoCo teleop
+remains independent of physical services. The Boston twin inherits the physical
+entries; validation supplies fake Trigger servers, not a second motor owner.
+Relax at HOME checks `reBot Check Leader Idle` before HOME and immediately
+before relax. Boston's override calls `/rebot_leader_bridge/idle` and refuses
+active following, prepared following, or pending HOME recovery without changing
+bridge state. An absent bridge fails closed. The stock definition succeeds
+because the stock config has no leader. A leader-equipped child must provide
+its own idle override. A Boston-derived deployment without a leader must select
+the stock definitions of **both** `reBot Check Leader Idle` and
+`reBot Notify Leader Home` in its last Objective library, following the same
+filename/ID override pattern. Setting `rebot_leader_enabled: false` suppresses
+the device launch only; it does not change inherited Objective definitions.
+Neither no-leader leaf grants permission to relax or replaces powered HOME.
+Other custom motion entry points must engage explicitly after relaxation;
+relaxation does not authorize them to issue motion directly.
+
+The one source is [`config/relax_safe_poses.yaml`](config/relax_safe_poses.yaml):
+`version: 1` and `relax_safe_poses` match the pinned driver schema. The latter
+is a list of `{name, joints, stillness}` maps with HOME first. `joints` contains
+exactly `joint1`–`joint7`, each `{position_rad, tolerance_rad}` in radians;
+`stillness` contains positive `window_s` (at most 10 s), `max_span_rad`, and the
+optional positive `max_abs_velocity_rad_s` (default 0.01 rad/s).
+HOME currently targets nominal zero on all seven, with 0.08 rad per-joint
+allowance and a 0.3 s / 0.005 rad position-span window, plus 0.01 rad/s
+absolute-velocity bound. Those tolerances are
+admission bounds, not permission to command the feedback allowances.
+
+The build derives both stock and Boston `Zeroed Rest` waypoints, SRDF
+`zeroed_rest` named states and HOME XML
+(targets, per-joint skip checks, jaw target and post-jaw wait) from that entry.
+The leader reset/verification, HOME-only tuning and thermal pose gate read the
+same installed file. No new Behavior plugin is needed: the service calls use
+MoveIt Pro 10.2 rc10's stock `CallTriggerService` ports `service_name`,
+`wait_for_server_available_timeout` and `response_timeout`; the existing
+bounded-start/anchoring recovery helpers remain unchanged.
+
+The ros2_control Xacro passes the absolute installed path as hardware parameter
+`relax_safe_poses_file`. The optional Xacro argument of the same name is for
+relocating **the same configuration snapshot**, not silently changing HOME
+only in the driver. A changed HOME must be rebuilt into all consumers. Even
+with symlink-install, the admission file and generated resources are installed
+build snapshots; rebuild stock mock, stock hardware and Boston hardware
+(together with any affected twin) after editing it, then restart the selected
+mock/twin Runtime. MoveIt Pro preserves an existing user `waypoints.yaml`:
+review and update its `Zeroed Rest` entry to the rebuilt value, or archive the
+user waypoint file and let the next start populate the rebuilt defaults. Do
+not redefine HOME in the waypoint editor or edit generated XML independently.
+
+### Generated Objective library
+
+`return_rebot_leader_home.xml` and `relax_at_home.xml` are built from their
+`.xml.in` templates and installed only into the read-only Objective library
+`rebot_b601_rs_hw_generated_objectives` (`share/rebot_b601_rs_hw_generated_objectives/objectives`),
+which this config lists in `objective_library_paths`. That library has no
+source package, so each Runtime start links the built XML into
+`~/.config/moveit_pro/$MOVEIT_CONFIG_PACKAGE/objectives/`. Libraries of
+workspace packages are read from source, where only the templates exist, so
+the built files cannot live there. Rebuild and restart after changing a
+template or the relax-safe poses file; no manual materialization step is
+needed. Do not edit, clone over or save the generated XML in the UI.
+
+### Add a relax-safe pose
+
+1. Before adding an entry, obtain separate authorization for a **measured
+   torque-off settle test of that exact pose** on the supported installation.
+   Plan/collision-check it in the twin first. A waypoint, CAD geometry, or
+   simulated success alone is not evidence that an unbraked arm supports itself.
+2. Record all seven motor-frame joint values, load/tool/cable conditions,
+   measured movement throughout torque-off and settling, faults/communications,
+   and supported recovery/engage results. Keep personnel clear and verify the
+   independent stop/support procedure. Do not reuse HOME's settle result for
+   another pose. Reject a pose that drops, drifts, or cannot re-engage safely.
+3. Add a unique name **after HOME**, all seven measured `joints` entries with
+   `position_rad` and justified positive `tolerance_rad`, and positive
+   `stillness.window_s` and `stillness.max_span_rad` (plus a justified velocity
+   bound if different from 0.01 rad/s). Keep its measured evidence with the
+   installation's commissioning records. Do not widen limits or weaken checks to admit it.
+4. Rebuild the affected packages, run the strict config/generation tests and
+   mock/twin Objectives, then use the separately approved commissioning
+   procedure before physical use. Do not add an untested pose as a placeholder.
+
+HOME's folded torque-off settling has existing bench evidence; it is not
+certification of another installation, payload, zero or added pose. This
+change's validation is hardware-free: fake services plus the MuJoCo twin.
+No physical torque-off/engage, CAN/USB access, or real-arm run is authorized.
+Thermal recovery uses the internal, non-runnable **Return reBot Leader Home
+Under Power** tree after its existing all-enabled health preflight; it must
+not call engage while the thermal latch is set. It retains the original
+cancel → HOME → verified OFF → cooling path.
 
 ## Stock gravity model
 

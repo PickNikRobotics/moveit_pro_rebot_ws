@@ -18,14 +18,8 @@
     - joint5
     - joint6
     - joint7
-    position:
-    - 0
-    - 0
-    - 0
-    - 0
-    - 0
-    - 0
-    - 0
+    # Build-time reference to the one HOME entry, never a second pose definition.
+    position: HOME
     velocity: []
   multi_dof_joint_state:
     header:

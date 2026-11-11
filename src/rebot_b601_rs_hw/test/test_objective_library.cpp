@@ -95,6 +95,9 @@ TEST_P(ObjectiveLibraryTest, NativeServerLoadsAndInstantiatesStockObjectivesWith
   if (GetParam() != "rebot_b601_rs_mock")
     owned_libraries.emplace_back(fs::path(ament_index_cpp::get_package_share_directory(GetParam())) / "objectives");
   if (GetParam() == "rebot_b601_rs_hw")
+    owned_libraries.emplace_back(
+        fs::path(ament_index_cpp::get_package_share_directory("rebot_b601_rs_hw_generated_objectives")) / "objectives");
+  if (GetParam() == "rebot_b601_rs_hw")
     EXPECT_FALSE(server.createTree("Reset MuJoCo Sim").has_value());
   for (const auto& library : owned_libraries)
     for (const auto& entry : fs::directory_iterator(library))

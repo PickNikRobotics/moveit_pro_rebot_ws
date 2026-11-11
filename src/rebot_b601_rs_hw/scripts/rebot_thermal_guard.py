@@ -28,6 +28,7 @@ from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool, String, UInt64
 from std_srvs.srv import SetBool
 from trajectory_msgs.msg import JointTrajectoryPoint
+from rebot_safe_poses import load_home
 
 # Hardware joint order is independent of any optional teleoperation device.
 JOINT_NAMES = tuple(f"joint{i}" for i in range(1, 8))
@@ -49,6 +50,7 @@ STAGE_LIMITS = {
 class ThermalGuard:
     def __init__(self, node):
         self.node = node
+        self.home_pose = load_home()
         self.stage = "idle"
         self.started = None
         self.future = None
@@ -275,7 +277,7 @@ class ThermalGuard:
         return (
             self.measured is not None
             and 0 <= now - self.measured_time < 0.1
-            and all(abs(q) <= 0.08 for q, v in self.measured[:6])
+            and self.home_pose.matches([q for q, v in self.measured], arm_only=True)
             and all(abs(v) <= 0.01 for q, v in self.measured)
         )
 
@@ -364,7 +366,9 @@ class ThermalGuard:
             if self.future is None:
                 if self.home.server_is_ready():
                     goal = DoObjectiveSequence.Goal()
-                    goal.objective_name = "Return reBot Leader Home"
+                    # Thermal recovery is already powered and must never call
+                    # engage: that service correctly refuses a thermal latch.
+                    goal.objective_name = "Return reBot Leader Home Under Power"
                     goal.caller.type = goal.caller.SCRIPT
                     goal.caller.name = "rebot_thermal_guard"
                     self.future = self.home.send_goal_async(goal)

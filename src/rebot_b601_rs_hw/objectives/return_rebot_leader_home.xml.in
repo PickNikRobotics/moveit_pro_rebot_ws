@@ -1,10 +1,26 @@
 <?xml version="1.0" encoding="UTF-8" ?>
+<!-- Generated at build time from config/relax_safe_poses.yaml. HOME numeric
+     targets and per-joint skip tolerances must not be duplicated here. -->
 <root BTCPP_format="4" main_tree_to_execute="Return reBot Leader Home">
   <BehaviorTree
     ID="Return reBot Leader Home"
-    _description="Return the arm HOME at 0.05 rad/s maximum and then close the jaw, planning both legs with PlanToJointGoalFromBoundedStart from the measured arm clamped into its joint bounds, the rest leg falling back to a collision-checked point-to-point move from that clamped command and the yaw leg without a fallback; an arm within 0.08 rad of HOME on every joint, as Mirror reBot Leader requires, is already HOME and does not move. Restore the normal trajectory controller and retain motor torque for subsequent Objectives, including on recovery failure."
+    _description="Engage torque with a measured-pose hold before returning HOME. Return retains torque; use Relax at HOME for guarded torque-off."
   >
-    <Sequence>
+    <Sequence name="EngageThenHome">
+      <Action
+        ID="CallTriggerService"
+        service_name="/robstride_hardware_interface/engage"
+        wait_for_server_available_timeout="3.0"
+        response_timeout="3.0"
+      />
+      <SubTree ID="Return reBot Leader Home Under Power" _collapsed="true" />
+    </Sequence>
+  </BehaviorTree>
+  <BehaviorTree
+    ID="Return reBot Leader Home Under Power"
+    _description="Internal powered recovery: yaw then HOME from the bounded measured arm at 0.05 rad/s maximum; the HOME box and yaw target come from the relax-safe HOME entry. Retain torque on failure. The thermal guard owns the under-power preflight and must not enable a thermally latched motor."
+  >
+    <Sequence name="PoweredHomeRecovery">
       <Action
         ID="SwitchController"
         activate_controllers="joint_trajectory_admittance_controller"
@@ -66,9 +82,7 @@
         index="5"
         element="{home_joint6}"
       />
-      <Sequence
-        _skipIf="home_joint1 &gt;= -0.08 &amp;&amp; home_joint1 &lt;= 0.08 &amp;&amp; home_joint2 &gt;= -0.08 &amp;&amp; home_joint2 &lt;= 0.08 &amp;&amp; home_joint3 &gt;= -0.08 &amp;&amp; home_joint3 &lt;= 0.08 &amp;&amp; home_joint4 &gt;= -0.08 &amp;&amp; home_joint4 &lt;= 0.08 &amp;&amp; home_joint5 &gt;= -0.08 &amp;&amp; home_joint5 &lt;= 0.08 &amp;&amp; home_joint6 &gt;= -0.08 &amp;&amp; home_joint6 &lt;= 0.08"
-      >
+      <Sequence name="MoveArmUnlessHome" _skipIf="@HOME_ARM_SKIP@">
         <!-- Plan both legs from the measured arm clamped into its bounds: a
            joint can sag past a limit, and a plan from there starts past it,
            or is refused once the sag reaches self-collision. Each leg is
@@ -79,13 +93,11 @@
           bounded_state="{commanded_state}"
         />
         <!-- Centre yaw while preserving the raised wrist, then lower the arm. -->
-        <Sequence
-          _skipIf="yaw_position &gt; -0.005 &amp;&amp; yaw_position &lt; 0.005"
-        >
+        <Sequence name="CentreYaw" _skipIf="@HOME_YAW_SKIP@">
           <Action
             ID="CreateRobotState"
             joint_names="joint5"
-            positions="0.0"
+            positions="@HOME_YAW@"
             joint_state_msg="{yaw_goal}"
           />
           <Action
@@ -129,23 +141,37 @@
           commanded_state="{commanded_state}"
         />
       </Sequence>
-      <!-- Close Gripper targets nominal zero, never the negative feedback allowance.
-           Let the arm settle, then let the Mirror bridge clear a failed-HOME latch if
-           it verifies a stationary, healthy HOME. Optional: configs without the
-           leader bridge skip it (ForceSuccess), and it never moves anything. -->
+      <!-- The jaw HOME target comes from the same entry as the arm, never the
+           negative feedback allowance. Let the arm settle, then notify the
+           leader only in a config with that optional device. The stock leaf
+           does nothing; the Boston notification is best-effort and never moves
+           anything or grants permission to relax. -->
       <Action ID="WaitForDuration" delay_duration="0.5" />
+      <SubTree ID="reBot Notify Leader Home" _collapsed="true" />
+      <!-- A failed jaw move must not turn a successful arm HOME into a recovery
+           failure (the Mirror bridge latches home_failed on that). Relax still
+           requires the driver's measured all-seven-joint pose check afterward. -->
       <Decorator ID="ForceSuccess">
-        <Action
-          ID="CallTriggerService"
-          service_name="/rebot_leader_bridge/home_verified"
-          wait_for_server_available_timeout="1.0"
-          response_timeout="1.0"
-        />
-      </Decorator>
-      <!-- A failed close must not turn a successful HOME into a recovery failure
-           (the Mirror bridge latches home_failed on that). -->
-      <Decorator ID="ForceSuccess">
-        <SubTree ID="Close Gripper" />
+        <Sequence name="JawHome">
+          <Action
+            ID="CreateRobotState"
+            joint_names="joint7"
+            positions="@HOME_JAW@"
+            joint_state_msg="{jaw_home}"
+          />
+          <SubTree
+            ID="Move to Joint State"
+            _collapsed="true"
+            target_joint_state="{jaw_home}"
+            joint_group_name="gripper"
+            velocity_scale_factor="1.0"
+            acceleration_scale_factor="1.0"
+            controller_names="joint_trajectory_admittance_controller"
+            controller_action_server="/joint_trajectory_admittance_controller/follow_joint_trajectory"
+            collision_check_params="[{override_scene_link_padding: true, link_padding: 0.0}]"
+            execution_pipeline="jtac"
+          />
+        </Sequence>
       </Decorator>
     </Sequence>
   </BehaviorTree>
@@ -153,6 +179,12 @@
     <SubTree ID="Return reBot Leader Home">
       <MetadataFields>
         <Metadata runnable="true" />
+        <Metadata subcategory="reBot" />
+      </MetadataFields>
+    </SubTree>
+    <SubTree ID="Return reBot Leader Home Under Power">
+      <MetadataFields>
+        <Metadata runnable="false" />
         <Metadata subcategory="reBot" />
       </MetadataFields>
     </SubTree>

@@ -106,7 +106,7 @@ protected:
     std::deque<tinyxml2::XMLDocument> documents;
     std::set<std::string> local_trees;
     std::vector<std::filesystem::path> paths{ STOCK_OBJECTIVES_DIR "/close_gripper.xml",
-                                              STOCK_HW_SHARE "/objectives/return_rebot_leader_home.xml" };
+                                              STOCK_GENERATED_OBJECTIVES "/return_rebot_leader_home.xml" };
     for (const auto& entry : std::filesystem::directory_iterator(PACKAGE_DIR "/objectives"))
       if (entry.path().extension() == ".xml")
         paths.push_back(entry.path());
@@ -253,8 +253,9 @@ protected:
     std::vector<std::string> result;
     for (const auto& call : calls)
       if (call.label.starts_with("RetrieveWaypoint") || call.label.starts_with("Move to Named Waypoint") ||
-          call.label == "HoldGripperInTrajectory holding measured jaw" || call.label.starts_with("jaw ") ||
-          call.label == "DetachObject" || call.label == "PlanCartesianPath" || call.label == "ReportUnreachableCube")
+          call.label == "Move to Joint State" || call.label == "HoldGripperInTrajectory holding measured jaw" ||
+          call.label.starts_with("jaw ") || call.label == "DetachObject" || call.label == "PlanCartesianPath" ||
+          call.label == "ReportUnreachableCube")
         result.push_back(call.label);
     return result;
   }
@@ -984,22 +985,23 @@ TEST_F(StackObjectives, LeaderHomeReturnLeavesSaggedHomeInPlaceAndPlansFromBeyon
   calls.clear();
   measured_arm = { 0.0, -0.01, -0.008, 0.09, 0.0, 0.0 };
   ASSERT_EQ(run(leader_home), BT::NodeStatus::SUCCESS);
-  EXPECT_EQ(motions(), (std::vector<std::string>{ kHome, kClose }));
+  EXPECT_EQ(motions(), (std::vector<std::string>{ kHome, "Move to Joint State" }));
 }
 
 TEST_F(StackObjectives, LeaderHomeAtHomeSettlesVerifiesThenClosesJaw)
 {
   ASSERT_EQ(run(R"(<SubTree ID="Return reBot Leader Home" />)"), BT::NodeStatus::SUCCESS);
-  EXPECT_EQ(motions(), (std::vector<std::string>{ kClose }));
-  EXPECT_EQ(labelsStartingWith(calls, { "WaitForDuration", "CallTriggerService", kClose }),
-            (std::vector<std::string>{ "WaitForDuration", "CallTriggerService", kClose }));
+  EXPECT_EQ(motions(), (std::vector<std::string>{ "Move to Joint State" }));
+  EXPECT_EQ(labelsStartingWith(calls, { "WaitForDuration", "CallTriggerService", "Move to Joint State" }),
+            (std::vector<std::string>{ "CallTriggerService", "WaitForDuration", "CallTriggerService",
+                                       "Move to Joint State" }));
 }
 
 TEST_F(StackObjectives, LeaderHomeKeepsSuccessWhenCloseFails)
 {
-  failing = kClose;
+  failing = "Move to Joint State";
   EXPECT_EQ(run(R"(<SubTree ID="Return reBot Leader Home" />)"), BT::NodeStatus::SUCCESS);
-  EXPECT_EQ(motions(), (std::vector<std::string>{ kClose }));
+  EXPECT_EQ(motions(), (std::vector<std::string>{ "Move to Joint State" }));
 }
 
 TEST_F(StackObjectives, SettingsReachEveryLegOfTheirKindIncludingHome)

@@ -18,14 +18,8 @@
     - joint5
     - joint6
     - joint7
-    position:
-    - 0
-    - 0
-    - 0
-    - 0
-    - 0
-    - 0
-    - 0
+    # Generated from the stock relax-safe HOME entry, not office calibration.
+    position: HOME
     velocity: []
   multi_dof_joint_state:
     header:

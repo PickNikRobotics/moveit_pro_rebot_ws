@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <robot name="rebot_b601_rs">
   <group name="manipulator">
     <chain base_link="base_link" tip_link="gripper_end" />
@@ -13,14 +13,20 @@
     <group name="manipulator" />
     <group name="gripper" />
   </group>
-  <end_effector name="rebot_gripper" parent_link="gripper_end" parent_group="manipulator" group="gripper" />
+  <end_effector
+    name="rebot_gripper"
+    parent_link="gripper_end"
+    parent_group="manipulator"
+    group="gripper"
+  />
+  <!-- Build-time HOME from the stock relax-safe entry. -->
   <group_state name="zeroed_rest" group="manipulator">
-    <joint name="joint1" value="0" />
-    <joint name="joint2" value="0" />
-    <joint name="joint3" value="0" />
-    <joint name="joint4" value="0" />
-    <joint name="joint5" value="0" />
-    <joint name="joint6" value="0" />
+    <joint name="joint1" value="@HOME_JOINT1@" />
+    <joint name="joint2" value="@HOME_JOINT2@" />
+    <joint name="joint3" value="@HOME_JOINT3@" />
+    <joint name="joint4" value="@HOME_JOINT4@" />
+    <joint name="joint5" value="@HOME_JOINT5@" />
+    <joint name="joint6" value="@HOME_JOINT6@" />
   </group_state>
   <group_state name="raised" group="manipulator">
     <joint name="joint1" value="0" />
@@ -47,9 +53,25 @@
   <!-- gripper_end is fixed to link6: adjacent across J6. Meshes have a
        rotation-invariant 9.0 mm axial gap, smaller than default 10 mm padding. -->
   <disable_collisions link1="link5" link2="gripper_end" reason="Adjacent" />
-  <disable_collisions link1="gripper_end" link2="gripper_left" reason="Adjacent" />
-  <disable_collisions link1="gripper_end" link2="gripper_right" reason="Adjacent" />
-  <disable_collisions link1="gripper_end" link2="gripper_motor_frame" reason="Adjacent" />
+  <disable_collisions
+    link1="gripper_end"
+    link2="gripper_left"
+    reason="Adjacent"
+  />
+  <disable_collisions
+    link1="gripper_end"
+    link2="gripper_right"
+    reason="Adjacent"
+  />
+  <disable_collisions
+    link1="gripper_end"
+    link2="gripper_motor_frame"
+    reason="Adjacent"
+  />
   <!-- Opposing, mechanically coupled jaws meet at closure and separate on opening. -->
-  <disable_collisions link1="gripper_left" link2="gripper_right" reason="Default" />
+  <disable_collisions
+    link1="gripper_left"
+    link2="gripper_right"
+    reason="Default"
+  />
 </robot>
