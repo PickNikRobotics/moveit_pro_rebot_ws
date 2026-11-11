@@ -69,8 +69,11 @@ driver image, then restart before camera use.
 The launch publishes color only at **1280×800 MJPG, 10 Hz** under
 `/wrist_mounted_camera`. It leaves `color_info_url` unset so the driver derives
 `camera_info` from the active device's factory stream calibration, disables
-depth/IR/point clouds, and does not publish driver TF. The robot description
-is the sole source of `wrist_mounted_camera_color_optical_frame`.
+depth/IR/point clouds, and does not publish driver TF. `ae_mode: colorbased`
+meters auto-exposure from the color stream rather than the disabled depth
+stream. No exposure value, gain or AE region of interest is overridden.
+The robot description is the sole source of
+`wrist_mounted_camera_color_optical_frame`.
 
 Install Orbbec's host USB rule before connecting the camera; the container's
 `/dev` mount does not replace host udev configuration:
