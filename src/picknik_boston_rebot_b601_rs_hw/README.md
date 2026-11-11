@@ -81,14 +81,23 @@ re-engage it automatically. Do not move reBot by hand to match the leader.
 Engage now seeds its position command from the measured follower pose, clamped
 into the approved joint limits, and eases each joint toward the **live** leader
 target. In `config/config.yaml`,
-`rebot_leader_engage_speed_rad_s` defaults to **0.05 rad/s** for joint1–joint6;
-`rebot_leader_engage_jaw_speed_rad_s` defaults to **0.10 rad/s** for joint7.
+`rebot_leader_engage_speed_rad_s` defaults to **0.2 rad/s** for joint1–joint6;
+`rebot_leader_engage_jaw_speed_rad_s` defaults to **1.0 rad/s** for joint7.
 Every candidate step uses the existing per-tick native FCL path check before
 publication. Keep the leader near HOME and still while ease-in catches up.
-Once the ramped command reference is within **0.02 rad** on every arm joint and
-**0.05 rad** on the jaw of the current target, the bridge switches to the
-existing **direct, uncapped following**. Convergence does not wait on the
-measured follower, so spring-mode steady-state error cannot hold engage open.
+Once the published ramp command is within **0.02 rad** on every arm joint and
+**0.05 rad** on the jaw of the current target, the bridge does not jump to the
+leader. The ramp stops there and the bridge records the per-joint handoff
+offset `offset0 = command - leader`. For a fixed **0.5 s** it publishes
+`leader + (1 - a) * offset0`, clamped to the same approved joint limits as the
+seed, with `a` rising linearly from 0 to 1, then switches to the existing
+**direct, uncapped following**. The handoff command therefore moves with the
+live leader plus at most `|offset0| / 0.5 s` (at most 0.04 rad/s on the arm and
+0.10 rad/s on the jaw, within the default engage speeds), with no step at either
+end.
+The handoff always ends after 0.5 s, even with a moving or noisy leader.
+Convergence does not wait on the measured follower, so spring-mode steady-state
+error cannot hold engage open.
 The engage cap is not a normal following-speed limit or a safety-rated motion
 limit.
 
@@ -96,25 +105,39 @@ The old 0.1 rad alignment refusal is replaced by a gross arm mismatch check:
 `rebot_leader_engage_max_offset_rad` defaults to **0.6 rad** per arm joint.
 There is no jaw alignment gate; jaw targets still obey the native limits and
 collision checks. Gross refusal retains the per-joint signed offset and
-leader-only correction instructions. The engage speeds and gross bound are
-proposals for maintainer confirmation before any bench session; bench proof is
-pending. The retained unit calibration is unchanged.
+leader-only correction instructions. At the earlier 0.05/0.10 rad/s caps,
+handoff-window arm speed measured on a bench unit stayed below 0.026 rad/s in
+two completed engages, with no reported jump. The configured caps are now
+0.2 rad/s arm and 1.0 rad/s jaw; the 0.6 rad gross bound and original unit
+calibration are retained. These settings are not physical acceptance for
+another installation.
 
 The **3 s start limit** applies to starting the ramp, not completing it.
 At engage, the fixed convergence deadline is the largest initial per-joint
 `abs(leader - follower) / engage_speed` plus **5 s**, including the jaw at its
-own speed. A moving leader does not extend that deadline. Timeout, stale data,
-lost Objective heartbeat, collision and Stop/clutch use the existing stopped
-command / planned HOME recovery path. HOME-before-disable behavior is unchanged.
+own speed, and it stays armed until the handoff blend completes. A moving leader
+does not extend that deadline. Timeout, stale data, lost Objective heartbeat,
+collision and Stop/clutch use the existing stopped command / planned HOME
+recovery path. HOME-before-disable behavior is unchanged.
 If HOME fails, do not disable torque away from HOME; use the supported recovery
-procedure with the operator. Wait for HOME recovery and explicitly start Mirror
-again. There is no auto-HOME before engage, calibration re-zero or reader respawn.
+procedure with the operator. After its arm legs, Return reBot Leader Home waits
+0.5 s and calls `/rebot_leader_bridge/home_verified`. The bridge clears its
+failed-HOME latch only while inactive, with fresh arm feedback within 0.08 rad
+of HOME, less than 0.005 rad movement over at least 0.3 s, healthy enabled
+motors and no thermal trip. It never commands motion or re-engages Mirror.
+The Objective then attempts Close Gripper at nominal zero. Both the optional
+verification call and close are best-effort: neither failure turns a successful
+arm HOME into a recovery failure. Check the jaw before relying on it being
+closed. Explicitly start Mirror again after successful HOME verification.
+There is no auto-HOME before engage, calibration re-zero or reader respawn.
 
 Offline coverage includes the +0.110 rad shoulder-pan rest offset, arm/jaw step
-bounds, live-target reversals, all-joint convergence, gross refusal, jaw startup,
-timeout-to-HOME and preserved deadman/start checks. Fake-SDK startup exercises
-the actual configured bridge and reader without USB or CAN access. Offline or
-MuJoCo proof does not authorize or certify real-arm motion.
+bounds and the 0.5 s handoff bound with stationary, moving, faster-than-engage
+and one-count flickering leaders, live-target reversals, all-joint convergence,
+gross refusal, jaw startup, timeout-to-HOME and preserved deadman/start checks.
+Fake-SDK startup exercises the actual configured bridge and reader without USB
+or CAN access. Offline or MuJoCo proof does not authorize or certify real-arm
+motion.
 
 ## Objectives and recordings
 
@@ -122,8 +145,9 @@ Stock Start/Stop Gravity Comp, native jaw and conference Teleoperate Objectives
 are inherited, not duplicated. Office cube/expert/recorder sources remain under
 `objectives/` and use the office-only `rebot_bench_behaviors` loader. The three
 bounded-start/anchoring helpers come from the stock `motion_recovery_behaviors`
-loader, registered only once. The unchanged Return reBot Leader Home is inherited;
-the office arm-waypoint override retains the recorder leaf. The integrated
+loader, registered only once. Return reBot Leader Home, including its optional
+bridge verification and best-effort jaw close, is inherited; the office
+arm-waypoint override retains the recorder leaf. The integrated
 reach/lift settings are source snapshots, not a validated merge stack.
 
 **Collect reBot Gravity Data** is the later48named-waypoint/single-approach route

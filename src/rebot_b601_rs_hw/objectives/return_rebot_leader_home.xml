@@ -2,7 +2,7 @@
 <root BTCPP_format="4" main_tree_to_execute="Return reBot Leader Home">
   <BehaviorTree
     ID="Return reBot Leader Home"
-    _description="Return the arm HOME at 0.05 rad/s maximum while preserving the jaw position, planning both legs with PlanToJointGoalFromBoundedStart from the measured arm clamped into its joint bounds, the rest leg falling back to a collision-checked point-to-point move from that clamped command and the yaw leg without a fallback; an arm within 0.08 rad of HOME on every joint, as Mirror reBot Leader requires, is already HOME and does not move. Restore the normal trajectory controller and retain motor torque for subsequent Objectives, including on recovery failure."
+    _description="Return the arm HOME at 0.05 rad/s maximum and then close the jaw, planning both legs with PlanToJointGoalFromBoundedStart from the measured arm clamped into its joint bounds, the rest leg falling back to a collision-checked point-to-point move from that clamped command and the yaw leg without a fallback; an arm within 0.08 rad of HOME on every joint, as Mirror reBot Leader requires, is already HOME and does not move. Restore the normal trajectory controller and retain motor torque for subsequent Objectives, including on recovery failure."
   >
     <Sequence>
       <Action
@@ -129,6 +129,24 @@
           commanded_state="{commanded_state}"
         />
       </Sequence>
+      <!-- Close Gripper targets nominal zero, never the negative feedback allowance.
+           Let the arm settle, then let the Mirror bridge clear a failed-HOME latch if
+           it verifies a stationary, healthy HOME. Optional: configs without the
+           leader bridge skip it (ForceSuccess), and it never moves anything. -->
+      <Action ID="WaitForDuration" delay_duration="0.5" />
+      <Decorator ID="ForceSuccess">
+        <Action
+          ID="CallTriggerService"
+          service_name="/rebot_leader_bridge/home_verified"
+          wait_for_server_available_timeout="1.0"
+          response_timeout="1.0"
+        />
+      </Decorator>
+      <!-- A failed close must not turn a successful HOME into a recovery failure
+           (the Mirror bridge latches home_failed on that). -->
+      <Decorator ID="ForceSuccess">
+        <SubTree ID="Close Gripper" />
+      </Decorator>
     </Sequence>
   </BehaviorTree>
   <TreeNodesModel>

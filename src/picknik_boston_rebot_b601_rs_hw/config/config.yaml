@@ -29,8 +29,8 @@ ros_global_params:
   rebot_leader_calibration_file: "config/leader_calibration/rebot_arm_102_leader.json"
   rebot_leader_publish_rate: 100.0
   # Bounded engage only; direct following remains uncapped after convergence.
-  rebot_leader_engage_speed_rad_s: 0.05
-  rebot_leader_engage_jaw_speed_rad_s: 0.10
+  rebot_leader_engage_speed_rad_s: 0.2
+  rebot_leader_engage_jaw_speed_rad_s: 1.0
   # Gross mismatch gate applies to joint1-joint6 only, never the jaw.
   rebot_leader_engage_max_offset_rad: 0.6
 ros2_control:

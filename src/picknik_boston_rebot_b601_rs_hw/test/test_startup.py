@@ -71,6 +71,15 @@ def test_invalid_yaml_enable_fails_without_starting_anything(startup, value):
         startup.startup_settings(config)
 
 
+def test_shipped_engage_caps_reach_the_bridge(startup, tmp_path):
+    config = load_system_config("picknik_boston_rebot_b601_rs_hw", tmp_path)[0]
+    config.ros_global_params["rebot_leader_enabled"] = True
+    bridge = startup.startup_settings(config)["bridge"]
+    assert bridge["engage_speed_rad_s"] == 0.2
+    assert bridge["engage_jaw_speed_rad_s"] == 1.0
+    assert bridge["engage_max_offset_rad"] == 0.6
+
+
 def test_absolute_calibration_and_custom_reader_settings(startup, tmp_path):
     config = load_system_config("picknik_boston_rebot_b601_rs_hw", tmp_path)[0]
     calibration = str(tmp_path / "calibration.json")

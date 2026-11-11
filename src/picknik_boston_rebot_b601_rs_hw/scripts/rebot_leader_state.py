@@ -16,6 +16,7 @@ def joint_label(index):
 
 
 ENGAGE_TOLERANCES = (0.02,) * 6 + (0.05,)
+HANDOFF_BLEND_S = 0.5
 
 
 def alignment_fault(target, measured, tolerance=0.6):
@@ -119,6 +120,10 @@ class LeaderState:
         self.command = None
         self.command_time = -math.inf
         self.seed_pending = False
+        self.proposal = None
+        self.blend_start = None
+        self.blend = 0.0
+        self.handoff_offset = None
         self.sample_timeout = sample_timeout
         self.heartbeat_timeout = heartbeat_timeout
         self.target = None
@@ -185,6 +190,10 @@ class LeaderState:
             ]
             self.command_time = now
             self.seed_pending = True
+            self.proposal = list(self.command)
+            self.blend_start = None
+            self.blend = 0.0
+            self.handoff_offset = None
             self.engaging = True
             self.engage_deadline = (
                 now
@@ -208,26 +217,48 @@ class LeaderState:
             return list(self.target)
         if self.seed_pending:
             return list(self.command)
-        if all(
-            abs(target - reference) <= tolerance
-            for target, reference, tolerance in zip(
-                self.target, self.command, ENGAGE_TOLERANCES
-            )
-        ):
-            self.engaging = False
-            return list(self.target)
+        if self.blend_start is not None:
+            self.blend = min(1.0, max(0.0, now - self.blend_start) / HANDOFF_BLEND_S)
+            return [
+                max(
+                    math.radians(lower),
+                    min(math.radians(upper), target + (1.0 - self.blend) * offset),
+                )
+                for target, offset, (lower, upper) in zip(
+                    self.target, self.handoff_offset, LIMITS_DEG
+                )
+            ]
         elapsed = max(0.0, now - self.command_time)
-        return [
+        self.proposal = [
             reference + max(-speed * elapsed, min(speed * elapsed, target - reference))
             for reference, target, speed in zip(
                 self.command, self.target, self.engage_speeds
             )
         ]
+        return list(self.proposal)
 
-    def command_sent(self, positions, now):
-        """Record the checked reference and actual send time, not collision-check start."""
-        self.command = list(positions)
+    def command_sent(self, now):
+        """Commit the published proposal at its actual send time, not collision-check start."""
+        if self.blend_start is not None:
+            if self.blend >= 1.0:
+                self.engaging = False
+            return
+        self.command = list(self.proposal)
         self.command_time = now
+        if (
+            self.engaging
+            and not self.seed_pending
+            and all(
+                abs(target - command) <= tolerance
+                for target, command, tolerance in zip(
+                    self.target, self.command, ENGAGE_TOLERANCES
+                )
+            )
+        ):
+            self.blend_start = now
+            self.handoff_offset = [
+                command - target for command, target in zip(self.command, self.target)
+            ]
         self.seed_pending = False
 
     def stop(self, reason):

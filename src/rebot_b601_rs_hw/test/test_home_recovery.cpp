@@ -352,6 +352,45 @@ protected:
                                  { BT::InputPort<std::vector<std::string>>("joint_names"),
                                    BT::InputPort<std::vector<double>>("positions"),
                                    BT::OutputPort<RobotState>("joint_state_msg") });
+    factory.registerSimpleAction("WaitForDuration",
+                                 [this](BT::TreeNode& node) {
+                                   EXPECT_DOUBLE_EQ(node.getInput<double>("delay_duration").value(), 0.5);
+                                   home_tail.push_back("settle");
+                                   return BT::NodeStatus::SUCCESS;
+                                 },
+                                 { BT::InputPort<double>("delay_duration") });
+    factory.registerSimpleAction(
+        "CallTriggerService",
+        [this](BT::TreeNode& node) {
+          EXPECT_EQ(node.getInput<std::string>("service_name").value(), "/rebot_leader_bridge/home_verified");
+          EXPECT_DOUBLE_EQ(node.getInput<double>("wait_for_server_available_timeout").value(), 1.0);
+          EXPECT_DOUBLE_EQ(node.getInput<double>("response_timeout").value(), 1.0);
+          for (const auto& joint : kArm)
+            EXPECT_LE(std::abs(measured.at(joint)), 0.08);
+          home_tail.push_back("verify");
+          return verification_refuses ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
+        },
+        { BT::InputPort<std::string>("service_name"), BT::InputPort<double>("wait_for_server_available_timeout"),
+          BT::InputPort<double>("response_timeout") });
+    factory.registerSimpleAction("CloseJaw",
+                                 [this](BT::TreeNode& node) {
+                                   EXPECT_EQ(node.getInput<std::string>("waypoint_name").value(), "Gripper Closed");
+                                   EXPECT_EQ(node.getInput<std::string>("joint_group_name").value(), "gripper");
+                                   for (const auto& joint : kArm)
+                                     EXPECT_LE(std::abs(measured.at(joint)), 0.08);
+                                   home_tail.push_back("close");
+                                   if (close_refuses)
+                                     return BT::NodeStatus::FAILURE;
+                                   measured["joint7"] = 0.0;
+                                   return BT::NodeStatus::SUCCESS;
+                                 },
+                                 { BT::InputPort<std::string>("waypoint_name"),
+                                   BT::InputPort<std::string>("joint_group_name") });
+    // Keep the shipped Close Gripper tree; only its external motion leaf is a seam.
+    factory.registerBehaviorTreeFromText(R"(<root BTCPP_format="4">
+      <BehaviorTree ID="Move to Named Waypoint"><Action ID="CloseJaw"
+        waypoint_name="{waypoint_name}" joint_group_name="{joint_group_name}"/></BehaviorTree></root>)");
+    factory.registerBehaviorTreeFromFile(STOCK_SHARE "/objectives/close_gripper.xml");
     for (const auto* objective : { "rebot_move_to_arm_waypoint.xml", "return_rebot_leader_home.xml" })
       factory.registerBehaviorTreeFromFile(std::string(PACKAGE_DIR "/objectives/") + objective);
   }
@@ -416,6 +455,8 @@ protected:
   std::vector<JointTrajectory> executed;
   int validations = 0, refused_validation = -1, plans = 0, fallbacks = 0, switches = 0;
   bool planner_refuses_start = false, execution_refuses = false;
+  bool verification_refuses = false, close_refuses = false;
+  std::vector<std::string> home_tail;
 };
 
 const std::string kHome =
@@ -471,7 +512,8 @@ TEST_F(HomeRecovery, LeaderHomeReturnPlansBothLegsFromTheBoundedArmWhenAJointSag
       EXPECT_DOUBLE_EQ(position, 2.0);
   for (const auto& [joint, position] : kHomePose)
     EXPECT_NEAR(measured.at(joint), position, 1e-6) << joint;
-  EXPECT_DOUBLE_EQ(measured.at("joint7"), 2.0);
+  EXPECT_DOUBLE_EQ(measured.at("joint7"), 0.0);
+  EXPECT_EQ(home_tail, (std::vector<std::string>{ "settle", "verify", "close" }));
 }
 
 TEST_F(HomeRecovery, HomeLegHoldsAStaleJawWhereItMeasures)
@@ -494,7 +536,7 @@ TEST_F(HomeRecovery, HomeLegKeepsTheGraspSqueeze)
   EXPECT_DOUBLE_EQ(committed().at("joint7"), 2.8125);
 }
 
-TEST_F(HomeRecovery, EntireInclusiveHomeBoxSkipsMotion)
+TEST_F(HomeRecovery, EntireInclusiveHomeBoxSkipsArmMotionAndClosesJaw)
 {
   for (const auto& joint : kArm)
     for (const double edge : { -0.08, 0.08 })
@@ -507,6 +549,35 @@ TEST_F(HomeRecovery, EntireInclusiveHomeBoxSkipsMotion)
       EXPECT_EQ(fallbacks, 0);
     }
   EXPECT_EQ(switches, 12);
+  EXPECT_EQ(std::ranges::count(home_tail, "close"), 12);
+  EXPECT_DOUBLE_EQ(measured.at("joint7"), 0.0);
+}
+
+TEST_F(HomeRecovery, AtHomeSettlesVerifiesThenClosesAtNominalZero)
+{
+  measured = withJaw(kHomePose, 2.0);
+  ASSERT_EQ(run(kReturn), BT::NodeStatus::SUCCESS);
+  EXPECT_TRUE(executed.empty());
+  EXPECT_EQ(home_tail, (std::vector<std::string>{ "settle", "verify", "close" }));
+  EXPECT_DOUBLE_EQ(measured.at("joint7"), 0.0);
+}
+
+TEST_F(HomeRecovery, MissingOrRejectedVerificationStillClosesAfterHome)
+{
+  measured = withJaw(kHomePose, 2.0);
+  verification_refuses = true;
+  EXPECT_EQ(run(kReturn), BT::NodeStatus::SUCCESS);
+  EXPECT_EQ(home_tail, (std::vector<std::string>{ "settle", "verify", "close" }));
+  EXPECT_DOUBLE_EQ(measured.at("joint7"), 0.0);
+}
+
+TEST_F(HomeRecovery, FailedCloseDoesNotTurnSuccessfulArmHomeIntoFailure)
+{
+  measured = withJaw(kHomePose, 2.0);
+  close_refuses = true;
+  EXPECT_EQ(run(kReturn), BT::NodeStatus::SUCCESS);
+  EXPECT_EQ(home_tail, (std::vector<std::string>{ "settle", "verify", "close" }));
+  EXPECT_DOUBLE_EQ(measured.at("joint7"), 2.0);
 }
 
 TEST_F(HomeRecovery, YawFirstThenRestFromBoundedStartAtSourceSpeedWhileHoldingJaw)
@@ -533,7 +604,8 @@ TEST_F(HomeRecovery, YawFirstThenRestFromBoundedStartAtSourceSpeedWhileHoldingJa
     for (const auto& position : column(trajectory, "joint7"))
       EXPECT_DOUBLE_EQ(position, 2.0);
   }
-  EXPECT_EQ(measured, withJaw(kHomePose, 2.0));
+  EXPECT_EQ(measured, withJaw(kHomePose, 0.0));
+  EXPECT_EQ(home_tail, (std::vector<std::string>{ "settle", "verify", "close" }));
   EXPECT_EQ(fallbacks, 0);
   EXPECT_EQ(switches, 1);
 }
@@ -544,6 +616,7 @@ TEST_F(HomeRecovery, RestHasCollisionCheckedFallbackButYawDoesNot)
   planner_refuses_start = true;
   EXPECT_EQ(run(kReturn), BT::NodeStatus::FAILURE);
   EXPECT_TRUE(executed.empty());
+  EXPECT_TRUE(home_tail.empty());
   EXPECT_EQ(fallbacks, 0);
   measured["joint5"] = 0.0;
   ASSERT_EQ(run(kReturn), BT::NodeStatus::SUCCESS);
@@ -551,7 +624,8 @@ TEST_F(HomeRecovery, RestHasCollisionCheckedFallbackButYawDoesNot)
   EXPECT_EQ(validations, 2);
   ASSERT_EQ(executed.size(), 1U);
   EXPECT_DOUBLE_EQ(column(executed[0], "joint3").front(), -0.01);
-  EXPECT_EQ(measured, withJaw(kHomePose, 2.0));
+  EXPECT_EQ(measured, withJaw(kHomePose, 0.0));
+  EXPECT_EQ(home_tail, (std::vector<std::string>{ "settle", "verify", "close" }));
 }
 
 TEST_F(HomeRecovery, RefusedAnchoredFallbackDoesNotExecuteOrCommit)

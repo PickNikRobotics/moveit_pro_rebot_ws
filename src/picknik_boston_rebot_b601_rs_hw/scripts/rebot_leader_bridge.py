@@ -96,6 +96,7 @@ class LeaderBridge:
         node.create_service(Trigger, "~/prepare", self.prepare)
         node.create_service(Trigger, "~/mirror", self.mirror)
         node.create_service(Trigger, "~/clutch", self.clutch)
+        node.create_service(Trigger, "~/home_verified", self.home_verified)
         os.set_blocking(stream.fileno(), False)
         publish_rate = float(node.declare_parameter("publish_rate", 100.0).value)
         if not math.isfinite(publish_rate) or not 20.0 <= publish_rate <= 100.0:
@@ -222,7 +223,51 @@ class LeaderBridge:
         )
 
     def observe(self, message):
-        self.state.observe(message.name, message.position, time.monotonic())
+        now = time.monotonic()
+        self.state.observe(message.name, message.position, now)
+        if self.state.measured_time == now:
+            window = getattr(self, "home_window", [])
+            window.append((now, list(self.state.measured)))
+            self.home_window = [(t, q) for t, q in window if now - t <= 0.6]
+
+    def verified_home(self, now):
+        """Fresh, healthy, stationary arm within 0.08 rad of HOME on joint1-joint6."""
+        window = [(t, q) for t, q in getattr(self, "home_window", []) if now - t <= 0.6]
+        if (
+            self.state.measured is None
+            or not 0 <= now - self.state.measured_time < self.state.sample_timeout
+            or any(abs(q) > 0.08 for q in self.state.measured[:6])
+            or len(window) < 2
+            or window[-1][0] - window[0][0] < 0.3
+        ):
+            return False
+        stationary = all(
+            max(q[j] for _, q in window) - min(q[j] for _, q in window) < 0.005
+            for j in range(6)
+        )
+        healthy = not self.real_hardware or self.hardware_healthy(now)
+        return stationary and healthy and not self.thermal_tripped
+
+    def home_verified(self, request, response):
+        """Called by Return reBot Leader Home after its arm legs: clears the failed-HOME
+        latch only once the arm is verified HOME. Never moves anything."""
+        del request
+        now = time.monotonic()
+        if self.home_failed and not self.state.active and self.verified_home(now):
+            self.home_failed = False
+            self.state.recover = False
+            self.recovery_started = self.recovery_future = self.recovery_result = None
+            self.node.get_logger().info(
+                "HOME verified after Return reBot Leader Home; failed-HOME latch cleared"
+            )
+        response.success = not self.home_failed
+        response.message = (
+            "HOME verified; Mirror reBot Leader may start"
+            if response.success
+            else "Failed-HOME latch kept: the arm is not verified stationary at HOME "
+            "with healthy motors"
+        )
+        return response
 
     def scene_update(self, message):
         if self.collider is None:
@@ -395,7 +440,6 @@ class LeaderBridge:
         if was_active and not self.state.active:
             self.hold()
         if self.state.active:
-            engaging = self.state.engaging
             command = self.state.next_command(now)
             if self.real_hardware and not self.hardware_healthy(now):
                 reason = "Robstride status stale, faulted or not all motors enabled"
@@ -416,7 +460,8 @@ class LeaderBridge:
                     self.hold()
                 else:
                     self.publish(command)
-                    self.state.command_sent(command, time.monotonic())
+                    engaging = self.state.engaging
+                    self.state.command_sent(time.monotonic())
                     if engaging and not self.state.engaging:
                         self.node.get_logger().info(
                             "POSITION FOLLOWING CONVERGED: direct uncapped following"
