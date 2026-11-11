@@ -58,6 +58,32 @@ group is `manipulator` (base_link → gripper_end). `gripper` commands J7 and
 includes the two passive native-jaw sliders, coupled at **0.008 m/rad**.
 `manipulator_and_gripper` combines the seven motor coordinates.
 
+### Closed-jaw feedback allowance
+
+J7's motor-coordinate range is **-0.15 to 5.410520681182422 rad**; the open
+bound (310°), gains and dynamic/effort limits are unchanged. Closed feedback
+measured on a bench unit was about **-0.01055 rad** at rest and reached
+**-0.120 rad** during fast Mirror closes with brief contact effort. This is
+not a constant zero offset. The -0.15 lower bound adds **0.03 rad** beyond the
+measured dynamic minimum. Both passive fingers inherit the allowance at
+0.008 m/rad: **-0.0012 m** each. This models contact compliance, not additional
+useful jaw travel.
+
+`gripper_closed`, `Gripper Closed` / `Close Gripper`, mock initial state and
+the simulator's default keyframe still target **zero**. Do not command the
+negative allowance to increase squeeze. URDF, MoveIt and generated MuJoCo
+joint/actuator limits agree; raw driver feedback is neither clamped nor
+re-zeroed. The pinned driver still refuses activation/torque enable more than
+one Type-2 feedback quantum beyond each joint's own URDF bound; no arm-joint
+limit or tolerance is relaxed.
+
+Readings below **-0.15 rad**, unexplained static offsets and full-open
+overshoot still require verification of that installation's zero and mechanics.
+The 310° upper bound is deliberately unchanged here; this allowance does not
+fix feedback wrapping at the open stop or add driver soft limits. This software
+change does not calibrate or certify a real arm; physical verification requires
+a separately authorized commissioning check.
+
 The trajectory controller owns all seven position interfaces and accepts partial
 arm/jaw goals. Arm and jaw velocity controllers and the Cartesian controller
 start inactive and are switched by MoveIt Pro. The 100 Hz update rate and arm

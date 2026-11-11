@@ -7,6 +7,7 @@ import xml.etree.ElementTree as ET
 from ament_index_python.packages import get_package_prefix
 import mujoco
 import numpy as np
+import pytest
 
 
 def model():
@@ -57,6 +58,28 @@ def test_joint_and_actuator_contract():
         assert contact.dataid[0] == m.mesh(f"gripper_{side}_visual_0").id
     np.testing.assert_allclose(m.key("default").qpos, 0)
     np.testing.assert_allclose(m.key("default").ctrl, 0)
+
+
+@pytest.mark.parametrize(
+    "jaw", [-0.001, -0.0032596, -0.010545730590820312, -0.042, -0.120]
+)
+def test_measured_closed_feedback_is_inside_compiled_jaw_limits(jaw):
+    m = model()
+    data = mujoco.MjData(m)
+    mujoco.mj_resetDataKeyframe(m, data, m.key("default").id)
+    data.joint("joint7").qpos = jaw
+    data.ctrl[m.actuator("joint7").id] = jaw
+    for name in ("gripper_joint1", "gripper_joint2"):
+        data.joint(name).qpos = 0.008 * jaw
+    mujoco.mj_forward(m, data)
+    assert data.joint("joint7").qpos[0] == jaw  # Feedback is not clipped to zero.
+    for name in ("joint7", "gripper_joint1", "gripper_joint2"):
+        value = data.joint(name).qpos[0]
+        assert m.joint(name).range[0] <= value <= m.joint(name).range[1]
+    np.testing.assert_allclose(m.joint("joint7").range, [-0.15, 5.410520681182422])
+    np.testing.assert_allclose(m.actuator("joint7").ctrlrange, m.joint("joint7").range)
+    step(m, data, 1000)
+    assert abs(data.joint("joint7").qpos[0] - jaw) < 1e-6
 
 
 def test_reset_holds_and_jaw_coupling():

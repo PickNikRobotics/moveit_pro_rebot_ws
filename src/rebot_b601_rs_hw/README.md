@@ -158,7 +158,9 @@ policy do not establish that an installation is safe to operate.
 
 Keep per-unit measurements and fitted gravity gains in the office configuration.
 Reusable tuning from the integrated source is shared by the stock configs:
-J2/J3 lower allowances -0.02/-0.01 rad, shared arm/jaw path tolerance 0.20 rad,
+J2/J3 lower allowances -0.02/-0.01 rad, J7 finger-contact allowance -0.15 rad
+([evidence and safe zero close target](../../README.md#closed-jaw-feedback-allowance)),
+shared arm/jaw path tolerance 0.20 rad,
 and J2 `max_feedforward_effort` 18 Nm. Other feedforward caps retain their driver
 defaults. The arm kp/kd values, jaw kp=12/kd=0.5 and 100 Hz update rate are retained.
 These defaults are not calibration or physical acceptance for a new installation.

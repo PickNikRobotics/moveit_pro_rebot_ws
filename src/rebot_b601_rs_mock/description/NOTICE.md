@@ -22,6 +22,12 @@ The configuration/control contract is ported from
 with reusable tuning from integrated source
 `7d7761965e8082d169be39817ab3545c924e446c`: J2/J3 lower allowances of
 -0.02/-0.01 rad, shared path tolerance 0.20 rad and J2 feedforward cap 18 Nm.
+J7's lower bound additionally allows -0.15 rad for variable closed-jaw contact
+feedback measured on a bench unit (-0.01055 rad at rest, -0.120 rad during fast
+closes); its passive finger lower bounds follow at -0.0012 m. Named closure
+remains zero and the 310-degree opening bound is unchanged. No driver clipping,
+zero correction, feedback-wrap fix or soft limits are applied. Feedback beyond
+this allowance still requires calibration and mechanical verification.
 These are software defaults, not per-unit calibration or a new physical acceptance.
 The supplied jaw's current kp=12/kd=0.5 and nominal masses are retained; office
 camera installations, calibrated mounts, modified trim, calibrated placements

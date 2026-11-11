@@ -44,6 +44,15 @@ uses kp12/kv0.05 and a **±1 Nm** squeeze cap; the URDF's nominal ±14 Nm bound
 is unchanged. Pad/block `solimp="0.999 0.999 0.001"` limits fixture penetration.
 These numerical settings are not measured physical gains or material data.
 
+The shared J7 lower bound is -0.15 rad, propagated to the generated motor
+joint and actuator control range; the two coupled passive lower bounds are
+-0.0012 m. It covers the measured closed-jaw feedback band, not a negative
+squeeze target ([root contract](../../README.md#closed-jaw-feedback-allowance)).
+The open bound, ±1 Nm simulation squeeze cap, `default` zero close target and
+`contact_smoke` open target are unchanged. Model tests hold the reported
+-0.001, -0.0032596, -0.010545730590820312, -0.042 and -0.120 rad readings
+without clipping, with both passive jaws inside their own limits.
+
 ## Reset
 
 `Reset MuJoCo Sim` lists and deactivates active command controllers, calls
