@@ -31,6 +31,7 @@
     <joint name="joint5" value="0" />
     <joint name="joint6" value="0" />
   </group_state>
+  <!-- Nominal finger contact: do not command the negative feedback allowance. -->
   <group_state name="gripper_closed" group="gripper">
     <joint name="joint7" value="0" />
   </group_state>

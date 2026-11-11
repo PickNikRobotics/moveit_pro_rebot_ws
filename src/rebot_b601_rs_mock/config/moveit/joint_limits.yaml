@@ -1,5 +1,6 @@
 # Reusable B601-RS motor-coordinate limits from the integrated spring configuration.
-# Includes J2/J3 home allowances; verify zero/signs on each installation. See description/NOTICE.md.
+# Includes J2/J3 home and J7 finger-contact allowances; verify zero/signs on each installation.
+# J7 Close Gripper remains zero; the negative lower bound covers measured feedback. See description/NOTICE.md.
 joint_limits:
   joint1:
     has_velocity_limits: true
@@ -39,7 +40,7 @@ joint_limits:
     max_acceleration: 1.2
   joint7:
     has_position_limits: true
-    min_position: 0.0
+    min_position: -0.15
     max_position: 5.410520681182422
     has_velocity_limits: true
     max_velocity: 3.0

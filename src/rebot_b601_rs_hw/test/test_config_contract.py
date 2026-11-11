@@ -124,6 +124,32 @@ def test_backend_isolation(mode, plugin, sim_time):
     )
 
 
+@pytest.mark.parametrize("mode", ["mock", "sim", "hw"])
+def test_closed_jaw_allowance_is_shared(mode):
+    config = resolved(mode)
+    robot = expanded(config)
+    selection = config.moveit_params.joint_limits
+    limits = yaml.safe_load(
+        (
+            Path(get_package_share_directory(selection.package)) / selection.path
+        ).read_text()
+    )["joint_limits"]
+    jaw = robot.find("joint[@name='joint7']/limit")
+    assert float(jaw.get("lower")) == limits["joint7"]["min_position"] == -0.15
+    assert (
+        float(jaw.get("upper")) == limits["joint7"]["max_position"] == 5.410520681182422
+    )
+    for name in ("gripper_joint1", "gripper_joint2"):
+        finger = robot.find(f"joint[@name='{name}']")
+        mimic = finger.find("mimic")
+        factor = float(mimic.get("multiplier"))
+        offset = float(mimic.get("offset"))
+        lower = float(finger.find("limit").get("lower"))
+        upper = float(finger.find("limit").get("upper"))
+        assert lower == pytest.approx(factor * -0.15 + offset)
+        assert upper == pytest.approx(factor * 5.410520681182422 + offset)
+
+
 def test_nominal_wrist_camera_mount_is_overridable_for_an_office_calibration():
     config = resolved("hw")
     override = {
