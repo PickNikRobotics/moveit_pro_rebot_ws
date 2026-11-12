@@ -10,8 +10,8 @@ Objectives.
 On `main`, every per-unit value is an **uncalibrated nominal default**: base and
 scene-camera placement of the reference layout, the stock wrist-camera mount,
 the nominal gravity model and an unscaled scene depth. Calibrate them for your
-installation and override them in a child config (see the calibration guide
-in this package's `docs/`). The `picknik_boston_rebot_b601_rs` branch keeps the
+installation and override them in a child config; see
+[calibrating your installation](docs/calibration.md). The `picknik_boston_rebot_b601_rs` branch keeps the
 calibrated values of the office bench, its MuJoCo bench twin and its peg scene.
 
 **Not physical readiness.** The driver launch includes the stock physical-only

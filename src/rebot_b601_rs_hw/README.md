@@ -302,6 +302,9 @@ cancel → HOME → verified OFF → cooling path.
 
 ## Optional Star Arm leader
 
+Guides: [Star Arm leader-follower demo](docs/leader-follower-demo.md) and
+[behavior reference](docs/rebot-behaviors.md).
+
 **Mirror reBot Leader** lets a Seeed Star Arm 102 (FashionStar servos on one USB
 serial port) drive the arm and jaw through `leader_position_controller`. It is
 off by default: no stock config starts the bridge, lists the leader Objectives,
