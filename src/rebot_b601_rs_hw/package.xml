@@ -23,6 +23,7 @@
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>action_msgs</exec_depend>
   <exec_depend>control_msgs</exec_depend>
+  <exec_depend>controller_manager_msgs</exec_depend>
   <exec_depend>moveit_pro_controllers_msgs</exec_depend>
   <exec_depend>moveit_studio_sdk_msgs</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
