@@ -1,7 +1,10 @@
 # Boston static gravity fit
 
-The six inertial-origin vectors in `config/gravity/identified_first_moments.yaml`
-are retained from the integrated source
+On `main`, `config/gravity/identified_first_moments.yaml` holds the nominal URDF
+inertial origins and the config keeps `boston_gravity_fit: false`. This page
+records the Boston bench's fit, whose values remain on the
+`picknik_boston_rebot_b601_rs` branch, as a worked example of what a fit
+changes. Those six inertial-origin vectors were retained from the integrated source
 `7d7761965e8082d169be39817ab3545c924e446c`. They are a **gravity-equivalent model**
 for this empty-jaw, camera/cable assembly, not separately identified physical
 centers of mass, link masses or a dynamic mass matrix. In particular link4's

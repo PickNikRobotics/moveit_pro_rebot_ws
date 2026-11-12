@@ -9,9 +9,6 @@ from moveit_studio_utils_py.system_config import load_system_config
 import pytest
 
 
-OFFICE_SERIAL = "CV2F861000FP"
-
-
 @pytest.fixture
 def startup():
     path = (
@@ -90,13 +87,13 @@ def test_office_config_enables_the_stock_leader_with_its_bench_settings(
     )
 
 
-def test_driver_launch_reuses_stock_wrist_camera_with_the_calibrated_unit_serial():
+def test_driver_launch_adds_the_scene_camera_to_the_unpinned_stock_drivers():
     from launch import LaunchContext
     from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 
     share = Path(get_package_share_directory("picknik_boston_rebot_b601_rs_hw"))
     path = share / "launch/rebot_drivers.launch.py"
-    spec = importlib.util.spec_from_file_location("boston_drivers", path)
+    spec = importlib.util.spec_from_file_location("application_drivers", path)
     drivers = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(drivers)
     launch = drivers.generate_launch_description()
@@ -106,14 +103,16 @@ def test_driver_launch_reuses_stock_wrist_camera_with_the_calibrated_unit_serial
         for action in launch.entities
         if isinstance(action, IncludeLaunchDescription)
     ]
+    # The stock drivers (no pinned wrist serial) and the scene camera.
     assert len(includes) == 2
-    stock_driver = next(action for action in includes if action.launch_arguments)
-    assert list(stock_driver.launch_arguments) == [
-        ("wrist_camera_serial_number", OFFICE_SERIAL)
-    ]
+    assert not any(action.launch_arguments for action in includes)
     # Loading declarations does not execute the USB probe or any camera driver.
-    set_serial, stock_description = stock_driver.execute(context)
-    set_serial.execute(context)
+    stock_description, _ = [
+        action.launch_description_source.get_launch_description(context)
+        for action in includes
+    ]
+    locations = [Path(a.launch_description_source.location).name for a in includes]
+    assert locations == ["rebot_drivers.launch.py", "cameras.launch.py"]
     stock_includes = [
         action
         for action in stock_description.entities
@@ -121,24 +120,13 @@ def test_driver_launch_reuses_stock_wrist_camera_with_the_calibrated_unit_serial
     ]
     # Stock thermal guard, wrist-camera launch and the optional leader.
     assert len(stock_includes) == 3
-    wrist_launch = None
-    for action in stock_includes:
-        child = action.launch_description_source.get_launch_description(context)
-        if any(
-            isinstance(entity, DeclareLaunchArgument)
-            and entity.name == "wrist_camera_serial_number"
-            for entity in child.entities
-        ):
-            wrist_launch = child
-            break
-    assert wrist_launch is not None
-    serial = next(
+    serials = [
         entity
-        for entity in wrist_launch.entities
+        for action in stock_includes
+        for entity in action.launch_description_source.get_launch_description(
+            context
+        ).entities
         if isinstance(entity, DeclareLaunchArgument)
         and entity.name == "wrist_camera_serial_number"
-    )
-    serial.execute(context)
-    assert context.launch_configurations["wrist_camera_serial_number"] == OFFICE_SERIAL
-    # The remaining include is Boston's scene camera; the leader comes from stock.
-    assert sum(not action.launch_arguments for action in includes) == 1
+    ]
+    assert len(serials) == 1

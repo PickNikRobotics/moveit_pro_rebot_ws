@@ -1,4 +1,5 @@
-# Boston office source layer. Not commissioned by this migration; see README.
+# Cube-stacking application layer. Placement and camera values are uncalibrated
+# nominal defaults for the reference layout; calibrate and override your own.
 based_on_package: rebot_b601_rs_hw
 hardware:
   additional_driver_launch_file:
@@ -13,15 +14,17 @@ hardware:
       path: config/moveit/rebot.srdf
     urdf_params:
       - hardware_interface: real
-      - boston_gravity_fit: true
-      - world_to_base_xyz: "0.7259 0.0216 -0.003"
-      - world_to_base_rpy: "0 0 3.1380"
-      - scene_camera_xyz: "-0.075 0.069 0.565"
-      - scene_camera_rpy: "0.169 0.975 0.246"
-      # Override the stock nominal mount for Gemini 305 serial CV2F861000FP:
-      # hand-eye calibrated for this unit, not eye-measured.
-      - wrist_camera_color_optical_xyz: "-0.1040 0.0095 0.1017"
-      - wrist_camera_color_optical_rpy: "-2.1069 -0.0041 -1.5720"
+      # Nominal URDF inertials; set true after writing your own fit to
+      # config/gravity/identified_first_moments.yaml.
+      - boston_gravity_fit: false
+      # Nominal reference-layout placement of the base and scene camera in the
+      # mat (world) frame. Measure or calibrate your own and override here.
+      - world_to_base_xyz: "0.726 0.022 0.0"
+      - world_to_base_rpy: "0 0 3.14159"
+      - scene_camera_xyz: "-0.075 0.07 0.565"
+      - scene_camera_rpy: "0.17 0.975 0.245"
+      # The wrist camera keeps the stock nominal mount; set
+      # wrist_camera_color_optical_xyz/_rpy from your own hand-eye calibration.
 ros_global_params:
   # The office Star Arm enables the optional stock leader (see the stock README).
   # The stock driver launch starts its bridge; calibration, publish rate and

@@ -3,15 +3,17 @@
 <robot name="rebot_b601_rs" xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:arg name="hardware_interface" default="mock" />
   <xacro:arg name="boston_gravity_fit" default="false" />
-  <xacro:arg name="world_to_base_xyz" default="0.7259 0.0216 -0.003" />
-  <xacro:arg name="world_to_base_rpy" default="0 0 3.1380" />
-  <xacro:arg name="scene_camera_xyz" default="-0.075 0.069 0.565" />
-  <xacro:arg name="scene_camera_rpy" default="0.169 0.975 0.246" />
-  <!-- Per-unit Gemini 305 hand-eye calibration for serial CV2F861000FP, not
-       an eye-measured mount. The real hardware description uses the stock
-       macro and keeps the driver frame name. -->
-  <xacro:arg name="wrist_camera_color_optical_xyz" default="-0.1040 0.0095 0.1017" />
-  <xacro:arg name="wrist_camera_color_optical_rpy" default="-2.1069 -0.0041 -1.5720" />
+  <!-- Uncalibrated nominal reference-layout defaults; a calibrated
+       installation overrides them through config.yaml urdf_params. -->
+  <xacro:arg name="world_to_base_xyz" default="0.726 0.022 0.0" />
+  <xacro:arg name="world_to_base_rpy" default="0 0 3.14159" />
+  <xacro:arg name="scene_camera_xyz" default="-0.075 0.07 0.565" />
+  <xacro:arg name="scene_camera_rpy" default="0.17 0.975 0.245" />
+  <!-- The stock nominal Gemini 305 mount; replace it with your own hand-eye
+       calibration. The real hardware description uses the stock macro and
+       keeps the driver frame name. -->
+  <xacro:arg name="wrist_camera_color_optical_xyz" default="-0.111 0.009 0.109" />
+  <xacro:arg name="wrist_camera_color_optical_rpy" default="-2.109 0.003 -1.579" />
   <!-- Legacy non-real mount used only by the unchanged MuJoCo twin generator. -->
   <xacro:arg name="wrist_camera_mount_xyz" default="-0.1201 0.0003 0.045" />
   <xacro:arg name="wrist_camera_mount_rpy" default="1.5827 0.0024 1.5515" />

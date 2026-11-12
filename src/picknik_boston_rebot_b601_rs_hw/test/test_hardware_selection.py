@@ -1,6 +1,6 @@
 # Copyright 2026 PickNik Inc.
 # SPDX-License-Identifier: BSD-3-Clause
-"""Boston inherits the stock hardware semantics and isolates its measured model."""
+"""The application inherits the stock hardware semantics and isolates an optional fitted model."""
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
@@ -12,8 +12,8 @@ import yaml
 
 PACKAGE = "picknik_boston_rebot_b601_rs_hw"
 WRIST_FRAME = "wrist_mounted_camera_color_optical_frame"
-CALIBRATED_XYZ = "-0.1040 0.0095 0.1017"
-CALIBRATED_RPY = "-2.1069 -0.0041 -1.5720"
+NOMINAL_XYZ = "-0.111 0.009 0.109"
+NOMINAL_RPY = "-2.109 0.003 -1.579"
 
 
 def expand(package=PACKAGE, **mappings):
@@ -58,8 +58,10 @@ def test_loaded_boston_config_has_one_real_backend_and_office_save_destination(
         for item in config.hardware.robot_description.urdf_params
         for key, value in item.items()
     }
-    assert selected["wrist_camera_color_optical_xyz"] == CALIBRATED_XYZ
-    assert selected["wrist_camera_color_optical_rpy"] == CALIBRATED_RPY
+    # Uncalibrated defaults: no wrist mount override, nominal gravity model.
+    assert "wrist_camera_color_optical_xyz" not in selected
+    assert "wrist_camera_color_optical_rpy" not in selected
+    assert selected["boston_gravity_fit"] is False
 
 
 def test_arm_interfaces_modes_limits_and_torque_policy_match_vendor():
@@ -112,13 +114,30 @@ def test_fit_changes_only_documented_six_inertial_origins_and_cannot_enter_simul
         (share / "config/control/rebot.ros2_control.yaml").read_text()
     )
     gravity = control["gravity_compensation_controller"]["ros__parameters"]
-    assert gravity["gains"] == [0, 1, 1, 1, 0, 0]
-    assert (
-        gravity["payload_mass"] == 0
-    )  # Includes the observed jaw/camera/cables; never count a payload twice.
+    stock = yaml.safe_load(
+        (
+            Path(get_package_share_directory("rebot_b601_rs_mock"))
+            / "config/control/rebot.ros2_control.yaml"
+        ).read_text()
+    )["gravity_compensation_controller"]["ros__parameters"]
+    # Uncalibrated default: the nominal stock model, gains and jaw payload.
+    assert gravity == stock
+    assert config_flag("boston_gravity_fit") is False
 
 
-def test_office_wrist_mount_overrides_stock_nominal_frame_without_d435_links():
+def config_flag(name):
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as directory:
+        config = load_system_config(PACKAGE, Path(directory))[0]
+    return next(
+        entry[name]
+        for entry in config.hardware.robot_description.urdf_params
+        if name in entry
+    )
+
+
+def test_default_wrist_mount_is_the_stock_nominal_frame_without_d435_links():
     stock = expand("rebot_b601_rs_hw", hardware_interface="real")
     office = expand(hardware_interface="real")
     stock_joint = stock.find("joint[@name='wrist_mounted_camera_color_optical_joint']")
@@ -131,15 +150,15 @@ def test_office_wrist_mount_overrides_stock_nominal_frame_without_d435_links():
     assert office_joint.find("parent").get("link") == "gripper_end"
     assert office_joint.find("child").get("link") == WRIST_FRAME
     assert office_joint.find("origin").attrib == {
-        "xyz": CALIBRATED_XYZ,
-        "rpy": CALIBRATED_RPY,
+        "xyz": NOMINAL_XYZ,
+        "rpy": NOMINAL_RPY,
     }
-    assert stock_joint.find("origin").attrib != office_joint.find("origin").attrib
+    assert stock_joint.find("origin").attrib == office_joint.find("origin").attrib
     assert not any(element.get("name", "").startswith("d435_") for element in office)
     assert office.find("link[@name='scene_camera_color_optical_frame']") is not None
     origin = office.find("joint[@name='world_to_base']/origin")
-    assert origin.get("xyz") == "0.7259 0.0216 -0.003"
-    assert origin.get("rpy") == "0 0 3.1380"
+    assert origin.get("xyz") == "0.726 0.022 0.0"
+    assert origin.get("rpy") == "0 0 3.14159"
     for mesh in office.findall(".//mesh"):
         uri = mesh.get("filename")
         package, relative = uri.removeprefix("package://").split("/", 1)

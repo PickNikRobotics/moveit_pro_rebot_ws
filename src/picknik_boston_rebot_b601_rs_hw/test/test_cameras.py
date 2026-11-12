@@ -111,7 +111,11 @@ def test_depth_is_unscaled_unless_a_measured_factor_is_configured(cameras, monke
     assert "scale_depth.py" not in executables(
         cameras.launch_cameras(unscaled), unscaled
     )
-    scaled = context()
+    # The shipped default publishes depth unchanged; a measured factor scales it.
+    assert "scale_depth.py" not in executables(
+        cameras.launch_cameras(context()), context()
+    )
+    scaled = context(scene_depth_scale=0.96)
     assert "scale_depth.py" in executables(cameras.launch_cameras(scaled), scaled)
 
 

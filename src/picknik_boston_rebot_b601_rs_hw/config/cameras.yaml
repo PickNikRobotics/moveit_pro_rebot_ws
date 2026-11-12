@@ -1,6 +1,6 @@
 # Start the optional office scene camera if attached. The wrist Gemini 305 is
-# started by the inherited stock hardware launch; its per-unit serial and mount
-# are set in this office package's driver launch and config.yaml.
+# started by the inherited stock hardware launch; pin a calibrated unit's serial
+# in this package's driver launch and its mount in config.yaml.
 enable_cameras: true
 enable_scene_camera: true
 
@@ -26,8 +26,7 @@ scene_mjpeg_quality: 95
 scene_aligned_depth: true
 
 # Multiplies every scene depth before the point cloud is built; 1.0 publishes
-# the depth unchanged. Set a factor measured for your own OAK: the original
-# bench's unit read 4% long, and on 2026-10-13 a factor of 0.96 put its mat at
-# 0 mm (median of 11,000 points, was -24 mm) and a 100 mm blue-on-red stack's
-# top at 100 mm (was 80 mm), in the calibrated world frame.
-scene_depth_scale: 0.96
+# the depth unchanged. Set a factor measured for your own OAK: one bench unit
+# read 4% long and needed 0.96 to put its mat at 0 mm and a 100 mm stack's top
+# at 100 mm in the calibrated world frame.
+scene_depth_scale: 1.0

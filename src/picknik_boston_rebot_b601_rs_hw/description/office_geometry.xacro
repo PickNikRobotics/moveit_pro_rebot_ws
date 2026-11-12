@@ -75,10 +75,9 @@
       </visual>
     </xacro:if>
   </xacro:macro>
-  <!-- This office unit's Gemini 305 (serial CV2F861000FP) is hand-eye
-       calibrated, not eye-measured: MoveIt Pro closed-form
-       SolveEyeInHandCalibration, 11 views, 0.0124 rad / 3.5 mm residual; do
-       not use the bundle-refined pose. The real hardware description uses one
+  <!-- The Gemini 305 mount comes from the wrist_camera_color_optical_* args:
+       the stock nominal mount unless a hand-eye calibration overrides it.
+       The real hardware description uses one
        fixed gripper_end-to-color-optical-frame joint and the inherited driver's
        factory camera_info. The non-real branch preserves the existing D435
        geometry that the separate MuJoCo twin generates from; it is not a

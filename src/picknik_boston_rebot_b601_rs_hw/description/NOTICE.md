@@ -129,3 +129,13 @@ stock collision geometry are preserved. These fitted origins are not identified
 physical dynamic inertias and cannot be selected for mock/MuJoCo. The office
 SRDF retains the historical link2/link5 collision exclusion. The per-unit Gemini
 305 hand-eye calibration is documented above.
+
+## Main-branch defaults (2026-11-12)
+
+Modified by PickNik Inc.: on `main`, the per-unit values above are replaced by
+uncalibrated nominal defaults. The wrist camera uses the stock nominal Gemini
+305 mount, the base and scene-camera transforms are rounded reference-layout
+values, and `config/gravity/identified_first_moments.yaml` holds the nominal
+URDF inertial origins. Trim meshes, collision geometry and the office SRDF are
+unchanged. The calibrated values remain on the `picknik_boston_rebot_b601_rs`
+branch.

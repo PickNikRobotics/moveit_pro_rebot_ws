@@ -285,7 +285,6 @@ def test_built_objectives_are_installed_only_in_their_own_library():
     [
         "rebot_b601_rs_hw",
         "picknik_boston_rebot_b601_rs_hw",
-        "picknik_boston_rebot_b601_rs_sim",
     ],
 )
 def test_every_source_runtime_start_links_built_home_and_relax_xml(

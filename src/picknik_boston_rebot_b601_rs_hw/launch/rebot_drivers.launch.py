@@ -9,11 +9,6 @@ from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 
-# This is the only Gemini 305 whose office mount has been hand-eye calibrated,
-# rather than eye-measured. The stock launch retains factory camera_info.
-OFFICE_WRIST_CAMERA_SERIAL = "CV2F861000FP"
-
-
 def generate_launch_description():
     office_launch = (
         Path(get_package_share_directory("picknik_boston_rebot_b601_rs_hw")) / "launch"
@@ -21,14 +16,12 @@ def generate_launch_description():
     stock_launch = Path(get_package_share_directory("rebot_b601_rs_hw")) / "launch"
     return LaunchDescription(
         [
+            # The stock wrist launch selects the first attached Gemini 305; pass
+            # wrist_camera_serial_number here to pin a calibrated unit.
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
                     str(stock_launch / "rebot_drivers.launch.py")
-                ),
-                # Pass the per-unit selection to the inherited stock wrist launch.
-                launch_arguments={
-                    "wrist_camera_serial_number": OFFICE_WRIST_CAMERA_SERIAL,
-                }.items(),
+                )
             ),
         ]
         + [
