@@ -48,6 +48,7 @@ leaving cutoff unset would disable the driver latch and is not equivalent.
 The preserved sequence is: fresh measured pose and healthy enabled motors →
 nonzero-stamped stationary JTAC anchor → two advancing matching references →
 configured arm kd, then kp, through the existing driver service → cancel →
+release of the guard's own anchor goal (JTAC would stitch HOME onto it) →
 native HOME → fresh stationary HOME verification → torque OFF → cooling.
 Hot startup with all motors OFF stays OFF. It never enables torque. The source
 retains all stage deadlines, repeat-latch handling, fault checks and partial-write
@@ -57,9 +58,9 @@ by a physical no-snap guarantee.
 
 ## Offline checks
 
-The package tests exercise all 78 preserved thermal cases and all 12 gain
-Behavior cases, including a real ROS client with a fake service and actual
-plugin loading. The Objective library test uses the installed ObjectiveServer to
+The package tests exercise all 78 preserved thermal cases, 4 anchor-release
+cases and all 12 gain Behavior cases, including a real ROS client with a fake
+service and actual plugin loading. The Objective library test uses the installed ObjectiveServer to
 load plugins, perform canonical full XML validation and instantiate the stock
 Objectives for mock, simulation and hardware configurations without ticking
 any tree. A separate offline test executes Stop → Start → Stop against actual
