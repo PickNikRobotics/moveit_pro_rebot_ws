@@ -159,17 +159,16 @@ The gitlink, rather than a floating branch name, fixes each revision.
 
 | Repository | Commit | Purpose |
 | --- | --- | --- |
-| [PickNikRobotics/robstride_hardware_interface](https://github.com/PickNikRobotics/robstride_hardware_interface) | `e7e4e29b8b5b7c795d59e8e1c5d144afb96e727f` | Safe relax, measured-pose engage, soft limits and thermal handoff |
+| [PickNikRobotics/robstride_hardware_interface](https://github.com/PickNikRobotics/robstride_hardware_interface) | `f72b2d2b52bed069a68254a16b5ece2351bc3b47` | Safe relax, measured-pose engage, soft limits and thermal handoff |
 | [PickNikRobotics/RobstrideSDK](https://github.com/PickNikRobotics/RobstrideSDK) | `9d070193758b4d88d065f1b8add815c0f540cebc` | Fault-frame routing, decoding and temperature freshness |
 | [kmj060703/robstride_interfaces](https://github.com/kmj060703/robstride_interfaces) | `8278bb1bf3d8f1fb07803459e1de4e14e10b8fc0` | Driver messages/services |
 | [Seeed-Projects/reBot-DevArm](https://github.com/Seeed-Projects/reBot-DevArm) | `58f9e433deec2ba118c5c22d60c07b9897e92acc` | Stock description and editable mechanical sources |
 
-The driver and SDK revisions above are integration topic commits, not merged
-fork defaults. The driver pin is the draft
-[safe-relax change](https://github.com/PickNikRobotics/robstride_hardware_interface/pull/4),
-stacked on the [joint-coordinate/soft-limit change](https://github.com/PickNikRobotics/robstride_hardware_interface/pull/3).
-Re-pin the driver after those changes merge before deploying this workspace.
-Publication of topic revisions is a prerequisite for publishing these gitlinks.
+The driver pin is `main` with the merged
+[safe-relax change](https://github.com/PickNikRobotics/robstride_hardware_interface/pull/4)
+and [joint-coordinate/soft-limit change](https://github.com/PickNikRobotics/robstride_hardware_interface/pull/3).
+The SDK revision above is an integration topic commit, not a merged fork
+default. Publication of topic revisions is a prerequisite for publishing these gitlinks.
 
 The upstream description has no ROS package. The small `rebot_description`
 ament adapter installs its unmodified RS mesh directory and exact license
