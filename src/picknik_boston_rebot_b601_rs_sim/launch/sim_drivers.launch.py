@@ -26,7 +26,9 @@
 # CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
-"""Launch simulated cameras and the explicitly enabled cube proxy, never camera drivers."""
+"""Launch simulated cameras, torque services and the explicitly enabled cube proxy.
+
+Never launches camera or motor drivers."""
 import os
 from pathlib import Path
 
@@ -66,10 +68,18 @@ def configured_nodes(config):
             )
         )
     )
+    # The engage-first Objectives call the driver's engage service; MuJoCo has
+    # no torque state, so engage succeeds without a transition and relax refuses.
+    torque = Node(
+        package="picknik_boston_rebot_b601_rs_sim",
+        executable="sim_torque_services.py",
+        output="screen",
+    )
     if not layout.get("sim_grasp_proxy", False):
-        return [cameras, leader]
+        return [cameras, torque, leader]
     return [
         cameras,
+        torque,
         leader,
         Node(
             package="controller_manager",

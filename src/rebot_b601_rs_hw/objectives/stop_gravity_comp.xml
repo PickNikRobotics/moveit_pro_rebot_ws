@@ -2,43 +2,18 @@
 <root BTCPP_format="4" main_tree_to_execute="Stop Gravity Comp">
   <BehaviorTree
     ID="Stop Gravity Comp"
-    _description="Re-anchor the supported reBot arm at its measured pose before restoring configured spring gains, then finish. JTAC and the configured gravity compensation stay active. Retains torque; does not move HOME or disable motors."
+    _description="Make JTAC the arm position owner (ending a jog or leader controller), re-anchor the supported reBot arm at its measured pose before restoring configured spring gains, then finish. The configured gravity compensation stays active. Retains torque; does not move HOME or disable motors."
   >
     <Control ID="Sequence" name="stop_gravity_comp">
+      <!-- Teleoperation jog modes and Mirror leave another position owner
+           active. Make JTAC the owner first; its measured-pose anchor follows. -->
       <Action
-        ID="GetCurrentPlanningScene"
-        planning_scene_msg="{planning_scene}"
+        ID="SwitchController"
+        activate_controllers="joint_trajectory_admittance_controller"
+        automatic_deactivation="true"
+        strictness="2"
       />
-      <Action
-        ID="GetJointState"
-        planning_scene="{planning_scene}"
-        planning_group_name="manipulator_and_gripper"
-        joint_state="{measured_joints}"
-      />
-      <Action
-        ID="CreateStationaryTrajectory"
-        joint_state="{measured_joints}"
-        trajectory_duration="0.2"
-        joint_trajectory_msg="{hold_trajectory}"
-      />
-      <Action
-        ID="ExecuteTrajectory"
-        joint_trajectory_msg="{hold_trajectory}"
-        controller_action_name="/joint_trajectory_admittance_controller/follow_joint_trajectory"
-        execution_pipeline="jtac"
-      />
-      <Action ID="SetRebotMotorGain" motor_id="1" gain="kd" value="3.0" />
-      <Action ID="SetRebotMotorGain" motor_id="2" gain="kd" value="10.0" />
-      <Action ID="SetRebotMotorGain" motor_id="3" gain="kd" value="10.0" />
-      <Action ID="SetRebotMotorGain" motor_id="4" gain="kd" value="5.0" />
-      <Action ID="SetRebotMotorGain" motor_id="5" gain="kd" value="4.0" />
-      <Action ID="SetRebotMotorGain" motor_id="6" gain="kd" value="4.0" />
-      <Action ID="SetRebotMotorGain" motor_id="1" gain="kp" value="50.0" />
-      <Action ID="SetRebotMotorGain" motor_id="2" gain="kp" value="150.0" />
-      <Action ID="SetRebotMotorGain" motor_id="3" gain="kp" value="150.0" />
-      <Action ID="SetRebotMotorGain" motor_id="4" gain="kp" value="50.0" />
-      <Action ID="SetRebotMotorGain" motor_id="5" gain="kp" value="50.0" />
-      <Action ID="SetRebotMotorGain" motor_id="6" gain="kp" value="50.0" />
+      <SubTree ID="reBot Set Spring Gains" _collapsed="true" />
     </Control>
   </BehaviorTree>
   <TreeNodesModel>

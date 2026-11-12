@@ -221,17 +221,49 @@ def test_duplicate_yaml_key_is_rejected(tmp_path):
 
 
 def test_motion_entries_engage_before_any_motion_or_prepare():
-    hw = share("rebot_b601_rs_hw")
-    mirror = hw / "leader_objectives/mirror_rebot_leader.xml"
+    hw = share("rebot_b601_rs_hw") / "objectives"
+    mirror = share("rebot_b601_rs_hw") / "leader_objectives/mirror_rebot_leader.xml"
+    boston = share("picknik_boston_rebot_b601_rs_hw") / "objectives"
+    # One known-state entry: engage, JTAC owner, then spring gains. Engage
+    # while ON keeps runtime gains, so it ends any gravity-comp float too.
+    first, switch, spring = list(
+        ET.parse(hw / "rebot_engage_arm.xml").getroot().find("BehaviorTree/Control")
+    )
+    assert first.get("ID") == "CallTriggerService"
+    assert first.get("service_name") == "/robstride_hardware_interface/engage"
+    assert switch.get("ID") == "SwitchController"
+    assert switch.get("activate_controllers") == (
+        "joint_trajectory_admittance_controller"
+    )
+    assert spring.get("ID") == "reBot Set Spring Gains"
+    # Every top-level arm motion entry runs it before anything else.
     for path in (
         generated("return_rebot_leader_home.xml"),
-        hw / "objectives/teleoperate.xml",
+        hw / "teleoperate.xml",
+        hw / "move_to_raised.xml",
+        hw / "move_to_rest.xml",
         mirror,
+        boston / "move_rebot_to_waypoint.xml",
+        boston / "execute_rebot_joint_trajectory.xml",
+        boston / "collect_rebot_gravity_data.xml",
     ):
-        root = ET.parse(path).getroot()
-        first = list(root.find("BehaviorTree/Sequence"))[0]
-        assert first.get("ID") == "CallTriggerService"
-        assert first.get("service_name") == "/robstride_hardware_interface/engage"
+        sequence = ET.parse(path).getroot().find("BehaviorTree")[0]
+        assert sequence.tag in ("Sequence", "Control"), path
+        assert (sequence[0].tag, sequence[0].get("ID")) == (
+            "SubTree",
+            "reBot Engage Arm",
+        ), path
+    # The physical overrides keep the stock waypoint calls unchanged.
+    for name in ("move_to_raised.xml", "move_to_rest.xml"):
+        stock = ET.parse(share("rebot_b601_rs_mock") / "objectives" / name).getroot()
+        physical = ET.parse(hw / name).getroot()
+        assert physical.find("BehaviorTree").get("ID") == stock.find(
+            "BehaviorTree"
+        ).get("ID")
+        assert (
+            physical.find(".//SubTree[@ID='Move to Named Waypoint']").attrib
+            == stock.find(".//SubTree[@ID='Move to Named Waypoint']").attrib
+        )
     # Native nonhardware teleop remains usable without a fake driver server.
     assert (
         ET.parse(share("rebot_b601_rs_mock") / "objectives/teleoperate.xml").find(
@@ -328,7 +360,13 @@ def test_every_source_runtime_start_links_built_home_and_relax_xml(
 def test_relax_follows_successful_home_and_is_not_best_effort():
     sequence = ET.parse(generated("relax_at_home.xml")).find("BehaviorTree/Sequence")
     assert sequence[0].get("ID") == "reBot Check Leader Idle"
-    assert sequence[1].get("ID") == "Return reBot Leader Home"
+    # Float ends before HOME: engage, own JTAC, re-anchor and restore spring gains.
+    assert sequence[1].get("service_name") == "/robstride_hardware_interface/engage"
+    assert sequence[2].get("activate_controllers") == (
+        "joint_trajectory_admittance_controller"
+    )
+    assert sequence[3].get("ID") == "reBot Set Spring Gains"
+    assert sequence[4].get("ID") == "Return reBot Leader Home"
     assert sequence[-2].get("ID") == "reBot Check Leader Idle"
     assert sequence[-1].get("ID") == "CallTriggerService"
     assert sequence[-1].get("service_name") == "/robstride_hardware_interface/relax"

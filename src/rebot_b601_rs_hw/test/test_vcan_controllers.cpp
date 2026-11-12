@@ -497,7 +497,7 @@ TEST_F(VcanControllers, RestoringStiffnessRunsSourceObjectiveAfterMeasuredReanch
       });
   const auto start = robstride_test::SteadyNs();
   const auto share = ament_index_cpp::get_package_share_directory("rebot_b601_rs_hw");
-  auto tree = factory.createTreeFromFile(share + "/objectives/stop_gravity_comp.xml");
+  auto tree = factory.createTreeFromFile(share + "/objectives/rebot_set_spring_gains.xml");
   auto status = BT::NodeStatus::RUNNING;
   const auto deadline = std::chrono::steady_clock::now() + 12s;
   while (status == BT::NodeStatus::RUNNING && std::chrono::steady_clock::now() < deadline)

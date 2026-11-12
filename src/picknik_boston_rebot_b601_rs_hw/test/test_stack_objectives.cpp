@@ -106,7 +106,8 @@ protected:
     std::deque<tinyxml2::XMLDocument> documents;
     std::set<std::string> local_trees;
     std::vector<std::filesystem::path> paths{ STOCK_OBJECTIVES_DIR "/close_gripper.xml",
-                                              STOCK_GENERATED_OBJECTIVES "/return_rebot_leader_home.xml" };
+                                              STOCK_GENERATED_OBJECTIVES "/return_rebot_leader_home.xml",
+                                              HW_OBJECTIVES "/rebot_engage_arm.xml" };
     for (const auto& entry : std::filesystem::directory_iterator(PACKAGE_DIR "/objectives"))
       if (entry.path().extension() == ".xml")
         paths.push_back(entry.path());

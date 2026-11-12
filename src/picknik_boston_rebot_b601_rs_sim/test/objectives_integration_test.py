@@ -60,6 +60,9 @@ skip_objectives: set[str] = {
     "Mirror reBot Leader",  # Needs rebot_leader_bridge, a FashionStar leader and an operator.
     "Start Gravity Comp",  # Physical motor-gain service is deliberately absent in MuJoCo.
     "Stop Gravity Comp",
+    # The leader bridge's idle service is absent, and the twin's relax service
+    # refuses: MuJoCo cannot turn torque off.
+    "Relax at HOME",
     "Collect reBot Gravity Data",  # Hardware measurement/Trainer workflow, not a simulation fit.
     "Marker Visualization Example",  # GetTextFromUser server unavailable headless.
     "Clear Snapshot",  # No octomap: the reBot configs define no 3D sensors.

@@ -2,9 +2,10 @@
 <root BTCPP_format="4" main_tree_to_execute="Collect reBot Gravity Data">
   <BehaviorTree
     ID="Collect reBot Gravity Data"
-    _description="Record measured position and effort at 48 named gravity waypoints, including leaned-back shoulders to 2.4 rad, at normal speed. Start HOME with the empty jaw closed and cubes removed; finish HOME. Collection only; no model activation."
+    _description="Engage and restore configured spring gains, then record measured position and effort at 48 named gravity waypoints, including leaned-back shoulders to 2.4 rad, at normal speed. Start HOME with the empty jaw closed and cubes removed; finish HOME. Collection only; no model activation."
   >
     <Control ID="Sequence" name="Collect at gravity waypoints">
+      <SubTree ID="reBot Engage Arm" _collapsed="true" />
       <SubTree ID="reBot Fixed Bench Scene" />
       <Action
         ID="RecordEpisode"

@@ -89,6 +89,10 @@ A Boston-derived config with the leader disabled must put the stock
 `reBot Notify Leader Home` in its last Objective library; the YAML enable flag
 alone only controls the device launch.
 
+Move reBot to Waypoint, Execute reBot Joint Trajectory and Collect reBot
+Gravity Data start with the same `reBot Engage Arm` subtree as Mirror, so none
+moves a relaxed arm.
+
 ## Objectives and recordings
 
 Print the cubes and place the bench as in [cube-stacking layout](docs/cube-stacking-layout.md)

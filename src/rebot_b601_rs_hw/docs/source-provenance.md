@@ -51,9 +51,9 @@ deadlines, repeat-latch handling, fault checks and partial-write limitations.
 
 ## Offline checks
 
-The package tests exercise all 78 preserved thermal cases and all 12 gain
-Behavior cases, including a real ROS client with a fake service and actual
-plugin loading. The Objective library test uses the installed ObjectiveServer to
+The package tests exercise all 78 preserved thermal cases, 11 JTAC-ownership
+cases, 4 anchor-release cases and all 12 gain Behavior cases, including a real
+ROS client with a fake service and actual plugin loading. The Objective library test uses the installed ObjectiveServer to
 load plugins, perform canonical full XML validation and instantiate the stock
 Objectives for mock, simulation and hardware configurations without ticking
 any tree. A separate offline test executes Stop → Start → Stop against actual
