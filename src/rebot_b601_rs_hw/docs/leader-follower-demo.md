@@ -86,8 +86,9 @@ still for the initial handoff. Do not move reBot by hand to match the leader.
 
 1. In the Desktop App Objective sidebar, select **Mirror reBot Leader** and
    click **Run**.
-2. The driver first engages torque from the measured pose. reBot becomes rigid
-   without jumping to an old command, checks the leader/follower prerequisites,
+2. The driver first engages torque from the measured pose and the spring gains
+   are restored (ending any gravity-comp float). reBot becomes rigid without
+   jumping to an old command, checks the leader/follower prerequisites,
    then eases each joint toward the live Star Arm target.
 3. Once the bounded ease-in reaches the handoff band, the bridge blends for
    0.5 seconds and switches to direct following. Move the Star Arm to move the
@@ -110,9 +111,9 @@ Objective caller must first finish or cancel all trajectory, teleoperation, and
 queued motion. A failed HOME or rejected relax leaves torque on; it never
 disables torque away from HOME.
 
-If **Start Gravity Comp** was run earlier, first run **Stop Gravity Comp** and
-wait for it to finish before Mirror. Start Gravity Comp leaves arm `kp` at zero,
-so Mirror currently drives only the jaw until spring stiffness is restored.
+If **Start Gravity Comp** was run earlier, Mirror's engage step restores the
+spring gains before following, so the whole arm follows; there is no need to
+run **Stop Gravity Comp** first.
 
 ## Safe shutdown
 

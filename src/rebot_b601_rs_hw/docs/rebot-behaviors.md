@@ -11,10 +11,14 @@ guide. The arm has no brakes; a software stop is not power isolation.
 
 ### Relax at HOME and engage
 
-**What you see:** `Relax at HOME` returns the arm to HOME while powered, then
-the seven motors go limp while the driver and telemetry remain running. The next
-physical `Return reBot Leader Home`, `Teleoperate`, or `Mirror reBot Leader` run
-engages first and holds the measured pose before issuing motion.
+**What you see:** `Relax at HOME` first ends any gravity-comp float (engage,
+JTAC as arm owner, spring gains restored at the measured pose), returns the arm
+to HOME while powered, then the seven motors go limp while the driver and
+telemetry remain running. The next physical arm motion Objective (`Return reBot
+Leader Home`, `Teleoperate`, `Mirror reBot Leader`, `Move to Raised`, `Move to
+Rest`, `Start Gravity Comp`, and the cube-stacking application's waypoint,
+trajectory and gravity-collection entries) engages first and holds the measured
+pose before issuing motion.
 
 **Why:** a relaxed arm must not resume an old controller reference, and torque
 off is only allowed at a pose that has been qualified to support the unbraked
@@ -42,24 +46,30 @@ contract](../README.md#relax-safe-poses-and-relax-at-home).
 the gravity controller active. `Start Gravity Comp` anchors the measured pose,
 reduces arm damping, then sets arm stiffness (`kp`) to zero; the arm can be
 manually floated while gravity feedforward stays active. `Stop Gravity Comp`
-anchors again and restores spring gains. Neither Objective changes controllers,
-returns HOME, disables torque, or changes gravity-model gains.
+anchors again and restores spring gains. Both first make JTAC the arm position
+owner, so they also work after a jog or Mirror left another controller active;
+`Start Gravity Comp` also engages first, so it works after `Relax at HOME`.
+Neither Objective returns HOME, disables torque, or changes gravity-model
+gains.
 
 **Why:** the measured-pose anchor prevents the gain change from applying a stale
 position target; Start is a damped float mode and Stop restores the configured
 spring behavior.
 
-**Known current limitation:** after `Start Gravity Comp`, a later `Mirror reBot
-Leader` run drives only the jaw because arm `kp` remains zero. Run `Stop Gravity
-Comp` and let it finish before running Mirror.
+Every engage-first entry (the shared `reBot Engage Arm` subtree: engage, JTAC
+as arm owner, `reBot Set Spring Gains`) ends a float, so after `Start Gravity
+Comp` a later `Mirror reBot Leader`, `Teleoperate`, or `Return reBot Leader
+Home` runs with spring stiffness on the whole arm, and `Relax at HOME` restores
+it before HOME.
 
 **Tune:** initial arm and jaw spring gains live in
 [`rebot_b601_rs_mock/description/rebot.urdf.xacro`](../../rebot_b601_rs_mock/description/rebot.urdf.xacro).
-Start/Stop use matching gain constants in
-[`start_gravity_comp.xml`](../objectives/start_gravity_comp.xml)
+The float and spring gain constants are in
+[`rebot_set_float_gains.xml`](../objectives/rebot_set_float_gains.xml)
 and
-[`stop_gravity_comp.xml`](../objectives/stop_gravity_comp.xml).
-If spring gains change, update both Objectives as well. The stock gravity
+[`rebot_set_spring_gains.xml`](../objectives/rebot_set_spring_gains.xml),
+which Start/Stop and the engage-first entries call. If spring gains change,
+update both subtrees as well. The stock gravity
 controller gains are in
 [`rebot_b601_rs_mock/config/control/rebot.ros2_control.yaml`](../../rebot_b601_rs_mock/config/control/rebot.ros2_control.yaml);
 the office fit is selected by `boston_gravity_fit`, with its gains in
@@ -166,7 +176,7 @@ only after a per-joint limit review. J7's feedback bounds are the
 `jaw_lower_limit` and `jaw_upper_limit` values in that same model; do not widen
 them to accept a bad zero or mechanical fault. Change the host CAN queue with
 the driver’s
-[`setup_can.sh`](https://github.com/PickNikRobotics/robstride_hardware_interface/blob/f72b2d2b52bed069a68254a16b5ece2351bc3b47/scripts/setup_can.sh),
+[`setup_can.sh`](https://github.com/PickNikRobotics/robstride_hardware_interface/blob/7765ea220f62b25ece6e94e1ee3ea4e3a0ab1812/scripts/setup_can.sh),
 not from a running Objective. The full contracts are in the pinned [driver
-README](https://github.com/PickNikRobotics/robstride_hardware_interface/blob/f72b2d2b52bed069a68254a16b5ece2351bc3b47/README.md#soft-position-limits)
+README](https://github.com/PickNikRobotics/robstride_hardware_interface/blob/7765ea220f62b25ece6e94e1ee3ea4e3a0ab1812/README.md#soft-position-limits)
 and the [jaw allowance](../../../README.md#jaw-feedback-allowance).
