@@ -62,6 +62,8 @@ RUN groupadd realtime && \
 # Install additional dependencies
 # You can also add any necessary apt-get install, pip install, etc. commands at this point.
 # NOTE: The /opt/overlay_ws folder contains MoveIt Pro binary packages and the source file.
+# KDL comes from orocos_kdl_vendor (a kdl_gravity_compensation_controller dependency);
+# --skip-keys orocos_kdl only stops rosdep from resolving the bare orocos_kdl key.
 # hadolint ignore=SC1091
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -70,7 +72,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update && \
     rosdep install -q -y \
       --from-paths src \
-      --ignore-src
+      --ignore-src \
+      --skip-keys orocos_kdl
+
+# Install the optional FashionStar SDK into the same Python used by ROS.
+# No user-managed interpreter or environment is needed when enabling it in YAML.
+COPY src/rebot_b601_rs_hw/config/leader-requirements.txt /tmp/rebot-leader-requirements.txt
+RUN python3 -m pip install --break-system-packages --no-cache-dir \
+    -r /tmp/rebot-leader-requirements.txt
 
 # Set up colcon defaults for the new user
 USER ${USERNAME}

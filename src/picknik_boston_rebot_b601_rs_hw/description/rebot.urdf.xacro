@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<!-- Boston assembly derived from Seeed/RealSense and the integrated reBot source. See NOTICE.md. -->
+<robot name="rebot_b601_rs" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:arg name="hardware_interface" default="mock" />
+  <xacro:arg name="boston_gravity_fit" default="false" />
+  <!-- Uncalibrated nominal reference-layout defaults; a calibrated
+       installation overrides them through config.yaml urdf_params. -->
+  <xacro:arg name="world_to_base_xyz" default="0.726 0.022 0.0" />
+  <xacro:arg name="world_to_base_rpy" default="0 0 3.14159" />
+  <xacro:arg name="scene_camera_xyz" default="-0.075 0.07 0.565" />
+  <xacro:arg name="scene_camera_rpy" default="0.17 0.975 0.245" />
+  <!-- The stock nominal Gemini 305 mount; replace it with your own hand-eye
+       calibration. The real hardware description uses the stock macro and
+       keeps the driver frame name. -->
+  <xacro:arg name="wrist_camera_color_optical_xyz" default="-0.111 0.009 0.109" />
+  <xacro:arg name="wrist_camera_color_optical_rpy" default="-2.109 0.003 -1.579" />
+  <!-- Legacy non-real mount used only by the unchanged MuJoCo twin generator. -->
+  <xacro:arg name="wrist_camera_mount_xyz" default="-0.1201 0.0003 0.045" />
+  <xacro:arg name="wrist_camera_mount_rpy" default="1.5827 0.0024 1.5515" />
+  <xacro:property name="scene_camera_xyz" default="$(arg scene_camera_xyz)" />
+  <xacro:property name="scene_camera_rpy" default="$(arg scene_camera_rpy)" />
+  <xacro:property name="simulator_owns_optical_frames" value="${'$(arg hardware_interface)' == 'mujoco'}" />
+  <xacro:property name="rebot_custom_trim_enabled" value="true" />
+  <xacro:if value="$(arg boston_gravity_fit)">
+    <!-- This static fit must never become MuJoCo or other physical dynamic inertias. -->
+    <xacro:if value="${'$(arg hardware_interface)' != 'real'}">
+      ${xacro.fatal('Boston gravity-equivalent inertials are restricted to the real backend; use nominal inertias in mock/simulation')}
+    </xacro:if>
+    <xacro:property name="rebot_inertial_xyz" value="${xacro.load_yaml('../config/gravity/identified_first_moments.yaml')}" lazy_eval="false" />
+  </xacro:if>
+  <!-- Defines optional trim macros and office camera frames. Stock arm
+       semantics and hardware interfaces still come from the parent description. -->
+  <xacro:include filename="$(find rebot_description)/urdf/gemini305_wrist_camera.xacro" />
+  <xacro:include filename="office_geometry.xacro" />
+  <xacro:include filename="$(find rebot_b601_rs_mock)/description/rebot.urdf.xacro" />
+</robot>

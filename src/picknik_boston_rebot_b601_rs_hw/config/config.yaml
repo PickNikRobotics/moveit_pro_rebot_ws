@@ -1,0 +1,60 @@
+# Cube-stacking application layer. Placement and camera values are uncalibrated
+# nominal defaults for the reference layout; calibrate and override your own.
+based_on_package: rebot_b601_rs_hw
+hardware:
+  additional_driver_launch_file:
+    package: picknik_boston_rebot_b601_rs_hw
+    path: launch/rebot_drivers.launch.py
+  robot_description:
+    urdf:
+      package: picknik_boston_rebot_b601_rs_hw
+      path: description/rebot.urdf.xacro
+    srdf:
+      package: picknik_boston_rebot_b601_rs_hw
+      path: config/moveit/rebot.srdf
+    urdf_params:
+      - hardware_interface: real
+      # Nominal URDF inertials; set true after writing your own fit to
+      # config/gravity/identified_first_moments.yaml.
+      - boston_gravity_fit: false
+      # Nominal reference-layout placement of the base and scene camera in the
+      # mat (world) frame. Measure or calibrate your own and override here.
+      - world_to_base_xyz: "0.726 0.022 0.0"
+      - world_to_base_rpy: "0 0 3.14159"
+      - scene_camera_xyz: "-0.075 0.07 0.565"
+      - scene_camera_rpy: "0.17 0.975 0.245"
+      # The wrist camera keeps the stock nominal mount; set
+      # wrist_camera_color_optical_xyz/_rpy from your own hand-eye calibration.
+ros_global_params:
+  # The office Star Arm enables the optional stock leader (see the stock README).
+  # The stock driver launch starts its bridge; calibration, publish rate and
+  # engage caps are the stock defaults.
+  rebot_leader_enabled: true
+  rebot_leader_port: "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0"
+ros2_control:
+  config:
+    package: picknik_boston_rebot_b601_rs_hw
+    path: config/control/rebot.ros2_control.yaml
+  controllers_inactive_at_startup:
+    - leader_position_controller
+    - joint_velocity_controller
+    - gripper_joint_velocity_controller
+    - velocity_force_controller
+objectives:
+  behavior_loader_plugins:
+    rebot_leader:
+      - rebot_b601_rs_hw::RebotLeaderBehaviorsLoader
+    rebot_bench:
+      - rebot_bench_behaviors::RebotBenchBehaviorsLoader
+  objective_library_paths:
+    # Mirror plus the fail-closed leader idle/notify subtrees; listed after the
+    # inherited stock library, so they replace its no-leader versions.
+    rebot_leader_objectives:
+      package_name: rebot_b601_rs_hw
+      relative_path: leader_objectives
+    boston_objectives:
+      package_name: picknik_boston_rebot_b601_rs_hw
+      relative_path: objectives
+  waypoints_file:
+    package_name: picknik_boston_rebot_b601_rs_hw
+    relative_path: waypoints/rebot_waypoints.yaml

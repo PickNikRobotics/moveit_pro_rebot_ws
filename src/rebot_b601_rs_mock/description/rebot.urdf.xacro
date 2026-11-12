@@ -8,19 +8,25 @@
   <xacro:arg name="hardware_interface" default="mock" />
   <xacro:arg name="can_interface" default="can0" />
   <xacro:arg name="torque_enable" default="true" />
+  <!-- Resolve the stock package only for real hardware; mock stays independent. -->
+  <xacro:arg name="relax_safe_poses_file" default="" />
   <xacro:arg name="thermal_cutoff_c" default="100.0" />
   <xacro:arg name="thermal_clear_c" default="75.0" />
   <xacro:arg name="arm_control_mode" default="motion" />
   <xacro:arg name="arm_effort_command" default="false" />
   <xacro:arg name="jaw_kp" default="12.0" />
   <xacro:arg name="jaw_kd" default="0.5" />
-  <!-- Closed at rest: -0.01055 rad; fast-close feedback reached -0.12 rad on a bench unit.
-       Allow 0.03 rad beyond that feedback, never as a Close Gripper target (which stays zero). -->
+  <!-- Fast Mirror closes reached -0.120 rad and opens reached 5.72 rad on a bench unit.
+       These feedback allowances retain the zero Close Gripper and nominal 310-degree Open Gripper targets. -->
   <xacro:property name="jaw_lower_limit" value="-0.15" />
+  <xacro:property name="jaw_upper_limit" value="6.10" />
   <xacro:arg name="world_to_base_xyz" default="0 0 0" />
   <xacro:arg name="world_to_base_rpy" default="0 0 0" />
   <xacro:property name="world_to_base_xyz" default="$(arg world_to_base_xyz)" />
   <xacro:property name="world_to_base_rpy" default="$(arg world_to_base_rpy)" />
+  <!-- Optional wrapper overrides; stock configurations keep nominal inertias/trim. -->
+  <xacro:property name="rebot_inertial_xyz" default="${dict()}" />
+  <xacro:property name="rebot_custom_trim_enabled" default="false" />
   <xacro:property name="hardware_plugins" value="${dict(mock='mock_components/GenericSystem', real='robstride_hardware_interface/RobstrideHardware', mujoco='')}" />
   <xacro:property name="hardware_plugin" value="${hardware_plugins['$(arg hardware_interface)']}" />
   <material name="rs_base_black">
@@ -90,7 +96,7 @@
   </joint>
   <link name="link2">
     <inertial>
-      <origin xyz="-0.117864812717456 -0.00342226413942967 -0.0271551938501484" rpy="0 0 0" />
+      <origin xyz="${rebot_inertial_xyz.get('link2', '-0.117864812717456 -0.00342226413942967 -0.0271551938501484')}" rpy="0 0 0" />
       <mass value="1.552" />
       <inertia ixx="0.00073374" ixy="-0.00000043" ixz="0.00000851" iyy="0.01255987" iyz="0.00000128" izz="0.01281387" />
     </inertial>
@@ -114,6 +120,7 @@
       </geometry>
       <material name="rs_anodized_silver" />
     </visual>
+    <xacro:unless value="${rebot_custom_trim_enabled}">
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
@@ -128,6 +135,8 @@
       </geometry>
       <material name="rs_seeed_green" />
     </visual>
+    </xacro:unless>
+    <xacro:if value="${rebot_custom_trim_enabled}"><xacro:rebot_custom_trim link="link2" /></xacro:if>
   </link>
   <joint name="joint2" type="revolute">
     <origin xyz="0.020343 0.027237 0.07" rpy="-1.5708 0 0" />
@@ -139,7 +148,7 @@
   </joint>
   <link name="link3">
     <inertial>
-      <origin xyz="0.103427154487799 -0.0664137912104635 -0.0271068687716704" rpy="0 0 0" />
+      <origin xyz="${rebot_inertial_xyz.get('link3', '0.103427154487799 -0.0664137912104635 -0.0271068687716704')}" rpy="0 0 0" />
       <mass value="1.252" />
       <inertia ixx="0.00046807" ixy="-0.00003456" ixz="-0.00004260" iyy="0.00632695" iyz="0.00000006" izz="0.00648221" />
     </inertial>
@@ -163,6 +172,7 @@
       </geometry>
       <material name="rs_motor_black" />
     </visual>
+    <xacro:unless value="${rebot_custom_trim_enabled}">
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
@@ -191,17 +201,19 @@
       </geometry>
       <material name="rs_seeed_green" />
     </visual>
+    </xacro:unless>
+    <xacro:if value="${rebot_custom_trim_enabled}"><xacro:rebot_custom_trim link="link3" /></xacro:if>
   </link>
   <joint name="joint3" type="revolute">
     <origin xyz="-0.236 0 0" rpy="0 0 0" />
     <parent link="link2" />
     <child link="link3" />
     <axis xyz="0 0 -1" />
-    <limit lower="-0.010000000000" upper="4.171336912266" effort="36" velocity="0.6" />
+    <limit lower="-0.010000000000" upper="4.181336912266" effort="36" velocity="0.6" />
   </joint>
   <link name="link4">
     <inertial>
-      <origin xyz="0.0475544540775559 -0.0441113470158517 -0.0314111924918381" rpy="0 0 0" />
+      <origin xyz="${rebot_inertial_xyz.get('link4', '0.0475544540775559 -0.0441113470158517 -0.0314111924918381')}" rpy="0 0 0" />
       <mass value="0.46" />
       <inertia ixx="0.00045986" ixy="0.00024219" ixz="-0.0" iyy="0.00075258" iyz="-0.0" izz="0.00066742" />
     </inertial>
@@ -235,7 +247,7 @@
   </joint>
   <link name="link5">
     <inertial>
-      <origin xyz="0.0114400622356175 4.7907739316217E-06 0.0380487481818926" rpy="0 0 0" />
+      <origin xyz="${rebot_inertial_xyz.get('link5', '0.0114400622356175 4.7907739316217E-06 0.0380487481818926')}" rpy="0 0 0" />
       <mass value="0.20120457182895" />
       <inertia ixx="7.34238025911107E-05" ixy="1.35700947009798E-08" ixz="-8.58146433770359E-07" iyy="5.5153884237714E-05" iyz="-1.32742144977931E-08" izz="5.29920095811017E-05" />
     </inertial>
@@ -259,6 +271,7 @@
       </geometry>
       <material name="rs_anodized_silver" />
     </visual>
+    <xacro:unless value="${rebot_custom_trim_enabled}">
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
@@ -266,6 +279,8 @@
       </geometry>
       <material name="rs_seeed_green" />
     </visual>
+    </xacro:unless>
+    <xacro:if value="${rebot_custom_trim_enabled}"><xacro:rebot_custom_trim link="link5" /></xacro:if>
   </link>
   <joint name="joint5" type="revolute">
     <origin xyz="0.087 -0.048 -0.03075" rpy="-1.5708 0 0" />
@@ -276,7 +291,7 @@
   </joint>
   <link name="link6">
     <inertial>
-      <origin xyz="1.80196022567525E-05 2.48334592051007E-08 0.00434805764057547" rpy="0 0 0" />
+      <origin xyz="${rebot_inertial_xyz.get('link6', '1.80196022567525E-05 2.48334592051007E-08 0.00434805764057547')}" rpy="0 0 0" />
       <mass value="0.1" />
       <inertia ixx="4.42273835852359E-06" ixy="3.16758463739482E-12" ixz="1.51852818442002E-10" iyy="4.37185522080034E-06" iyz="-2.21864017603015E-12" izz="8.54299378942051E-06" />
     </inertial>
@@ -303,7 +318,7 @@
   </joint>
   <link name="gripper_end">
     <inertial>
-      <origin xyz="-0.112751692515958 0.000128443070436966 -5.72602449749882E-06" rpy="0 0 0" />
+      <origin xyz="${rebot_inertial_xyz.get('gripper_end', '-0.112751692515958 0.000128443070436966 -5.72602449749882E-06')}" rpy="0 0 0" />
       <mass value="0.65" />
       <inertia ixx="0.00037354" ixy="-0.00000011" ixz="0.00000050" iyy="0.00015830" iyz="0.00000348" izz="0.00045353" />
     </inertial>
@@ -313,6 +328,7 @@
         <mesh filename="package://rebot_description/meshes/shared/gripper_end.STL" />
       </geometry>
     </collision>
+    <xacro:unless value="${rebot_custom_trim_enabled}">
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
@@ -320,6 +336,8 @@
       </geometry>
       <material name="rs_seeed_green" />
     </visual>
+    </xacro:unless>
+    <xacro:if value="${rebot_custom_trim_enabled}"><xacro:rebot_custom_trim link="gripper_end" /></xacro:if>
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
@@ -373,7 +391,7 @@
     <parent link="gripper_end" />
     <child link="gripper_left" />
     <axis xyz="0 0 1" />
-    <limit lower="${0.008 * jaw_lower_limit}" upper="0.04328416544945937" effort="500" velocity="0.024" />
+    <limit lower="${0.008 * jaw_lower_limit}" upper="${0.008 * jaw_upper_limit}" effort="500" velocity="0.024" />
     <mimic joint="joint7" multiplier="0.008" offset="0" />
   </joint>
   <link name="gripper_right">
@@ -408,7 +426,7 @@
     <parent link="gripper_end" />
     <child link="gripper_right" />
     <axis xyz="0 0 1" />
-    <limit lower="${0.008 * jaw_lower_limit}" upper="0.04328416544945937" effort="500" velocity="0.024" />
+    <limit lower="${0.008 * jaw_lower_limit}" upper="${0.008 * jaw_upper_limit}" effort="500" velocity="0.024" />
     <mimic joint="joint7" multiplier="0.008" offset="0" />
   </joint>
   <link name="gripper_motor_frame" />
@@ -416,7 +434,7 @@
     <parent link="gripper_end" />
     <child link="gripper_motor_frame" />
     <axis xyz="0 0 1" />
-    <limit lower="${jaw_lower_limit}" upper="5.410520681182422" velocity="3.0" effort="14" />
+    <limit lower="${jaw_lower_limit}" upper="${jaw_upper_limit}" velocity="3.0" effort="14" />
   </joint>
   <link name="world" />
   <joint name="world_to_base" type="fixed">
@@ -479,6 +497,11 @@
           <param name="thermal_cutoff_c">$(arg thermal_cutoff_c)</param>
           <param name="thermal_clear_c">$(arg thermal_clear_c)</param>
           <param name="torque_enable">$(arg torque_enable)</param>
+          <xacro:property name="relax_safe_poses_path" value="$(arg relax_safe_poses_file)" />
+          <xacro:if value="${relax_safe_poses_path == ''}">
+            <xacro:property name="relax_safe_poses_path" value="$(find rebot_b601_rs_hw)/config/relax_safe_poses.yaml" />
+          </xacro:if>
+          <param name="relax_safe_poses_file">${relax_safe_poses_path}</param>
         </xacro:if>
       </hardware>
       <xacro:rebot_joint name="joint1" id="1" model="RS06" kp="50.0" kd="3.0" />

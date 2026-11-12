@@ -1,0 +1,32 @@
+# Start the optional office scene camera if attached. The wrist Gemini 305 is
+# started by the inherited stock hardware launch; pin a calibrated unit's serial
+# in this package's driver launch and its mount in config.yaml.
+enable_cameras: true
+enable_scene_camera: true
+
+# OAK-D RGB output. Its ISP output at an explicit 1/2 scale turns the whole
+# 1280x800 sensor into 640x400: the full 97.1 deg view and correct published
+# intrinsics. The video path at 640x480 would crop to the central 640x480, a
+# 59.1 deg view. See README.md; the scene mount remains uncalibrated.
+image_width: 640
+scene_image_height: 400
+framerate: 30
+
+# Empty selects the first attached OAK-D; no bench-specific serial is required.
+scene_serial_no: ""
+# OAK encodes MJPEG on-device before USB transfer; the driver decodes to bgr8.
+scene_mjpeg_quality: 95
+
+# Also run the OAK's stereo depth, aligned to its colour camera (CAM_A) at the
+# colour stream's 640x400, and turn it into a point cloud: depth on
+# /scene_camera/depth/image_rect_raw and points on
+# /scene_camera/depth/color/points, both in scene_camera_color_optical_frame.
+# Stack and Unstack Cycle confirms each stack from it; set false to run colour
+# only, and the cycle then fails at its first stack check.
+scene_aligned_depth: true
+
+# Multiplies every scene depth before the point cloud is built; 1.0 publishes
+# the depth unchanged. Set a factor measured for your own OAK: one bench unit
+# read 4% long and needed 0.96 to put its mat at 0 mm and a 100 mm stack's top
+# at 100 mm in the calibrated world frame.
+scene_depth_scale: 1.0

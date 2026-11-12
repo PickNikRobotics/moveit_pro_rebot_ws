@@ -25,7 +25,7 @@ temperature still need bench measurement.
 - Pose jog moves `gripper_end` along +x/-x in `base_link` and stops on timeout.
 - JTAC is re-anchored with a stationary trajectory at the measured pose after a
   jog, and the stiff jaw gets no positive-kp frame away from its current pose.
-- The installed Stop Gravity Comp Objective, run after a float in which the arm
+- Stop Gravity Comp's installed `reBot Set Spring Gains` subtree, run after a float in which the arm
   was moved away from JTAC's held target, sends no positive-kp frame whose
   target differs from the motor's pose before that frame (no snap).
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright 2026 PickNik Inc.
 # SPDX-License-Identifier: BSD-3-Clause
-"""Thermal latch -> measured-pose anchor -> configured gains -> cancel/HOME/OFF.
+"""Thermal latch -> own JTAC -> measured-pose anchor -> configured gains -> cancel/HOME/OFF.
 
 One backend process owns thermal recovery even when the leader is disabled.
 It never opens CAN/USB, enables torque, or changes lifecycle. After successful
@@ -16,6 +16,7 @@ import rclpy
 from action_msgs.msg import GoalStatus
 from action_msgs.srv import CancelGoal
 from control_msgs.msg import JointTrajectoryControllerState
+from controller_manager_msgs.srv import ListControllers, SwitchController
 from moveit_pro_controllers_msgs.action import FollowJointTrajectoryWithAdmittance
 from moveit_studio_sdk_msgs.action import DoObjectiveSequence
 from rclpy.action import ActionClient
@@ -28,16 +29,25 @@ from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool, String, UInt64
 from std_srvs.srv import SetBool
 from trajectory_msgs.msg import JointTrajectoryPoint
+from rebot_safe_poses import load_home
 
 # Hardware joint order is independent of any optional teleoperation device.
 JOINT_NAMES = tuple(f"joint{i}" for i in range(1, 8))
+ANCHOR_CONTROLLER = "joint_trajectory_admittance_controller"
 
 # Each stage has its own bound, so time spent canceling never shortens native HOME.
 STAGE_LIMITS = {
+    # Also covers the wait for a first motor sample after a latched hot start.
+    "own": (3.0, "Controller list unavailable; gains unchanged"),
+    "switch": (
+        2.0,
+        "Measured-pose controller activation not confirmed; gains unchanged",
+    ),
     "anchor": (3.0, "Measured-pose anchor unavailable or not accepted"),
     "anchor_reference": (1.0, "Measured-pose controller reference not confirmed"),
     "restore": (7.0, "Configured spring gains not restored"),
     "cancel": (3.0, "Objective cancellation unavailable"),
+    "release": (2.0, "Measured-pose anchor goal not released before HOME"),
     "home": (3.0, "Native HOME server unavailable or goal not accepted"),
     "result": (120.0, "Native HOME did not finish"),
     "verify": (5.0, "Fresh stationary HOME not confirmed"),
@@ -46,9 +56,14 @@ STAGE_LIMITS = {
 }
 
 
+PRELUDE_STAGES = ("own", "switch", "anchor", "anchor_reference", "restore")
+PRE_HOME_STAGES = PRELUDE_STAGES + ("cancel", "release", "home")
+
+
 class ThermalGuard:
     def __init__(self, node):
         self.node = node
+        self.home_pose = load_home()
         self.stage = "idle"
         self.started = None
         self.future = None
@@ -68,6 +83,12 @@ class ThermalGuard:
         self.anchor_sent_ns = self.reference_stamp_ns = -1
         self.reference_time = -math.inf
         self.reference_samples = 0
+        self.list_controllers = node.create_client(
+            ListControllers, "/controller_manager/list_controllers"
+        )
+        self.switch_controllers = node.create_client(
+            SwitchController, "/controller_manager/switch_controller"
+        )
         self.anchor = ActionClient(
             node,
             FollowJointTrajectoryWithAdmittance,
@@ -126,7 +147,9 @@ class ThermalGuard:
                 "Thermal latch cleared; torque stays OFF, explicitly restart the Objective at HOME"
             )
         if message.data and self.stage == "idle":
-            self.stage, self.future = "anchor", None
+            # Mirror and jog leave another controller owning the arm; the anchor
+            # goal is accepted only by an active JTAC.
+            self.stage, self.future = "own", None
             self.started = time.monotonic()
             self.anchor_handle = self.anchor_result = None
             self.anchor_positions = self.reference_positions = None
@@ -275,7 +298,7 @@ class ThermalGuard:
         return (
             self.measured is not None
             and 0 <= now - self.measured_time < 0.1
-            and all(abs(q) <= 0.08 for q, v in self.measured[:6])
+            and self.home_pose.matches([q for q, v in self.measured], arm_only=True)
             and all(abs(v) <= 0.01 for q, v in self.measured)
         )
 
@@ -312,7 +335,7 @@ class ThermalGuard:
                 self.next_clear = now + 1.0
             return
         if (
-            self.stage in ("anchor", "anchor_reference", "restore", "cancel", "home")
+            self.stage in PRE_HOME_STAGES
             and self.hardware_fresh(now)
             and not any(self.hardware.enabled)
         ):
@@ -327,10 +350,10 @@ class ThermalGuard:
         if now - self.started > limit:
             self.fail(reason)
             return
-        if self.stage in ("anchor", "anchor_reference", "restore"):
-            if self.stage == "anchor" and self.future is None and self.hardware is None:
+        if self.stage in PRELUDE_STAGES:
+            if self.stage == "own" and self.future is None and self.hardware is None:
                 # The latched notification can arrive before the first motor sample.
-                # Wait within the anchor bound, preserving the hot/all-OFF startup path.
+                # Wait within the own bound, preserving the hot/all-OFF startup path.
                 return
             if not self.hardware_fresh(now) or not all(self.hardware.enabled):
                 self.fail(
@@ -340,7 +363,10 @@ class ThermalGuard:
             if self.measured is None or not 0 <= now - self.measured_time < 0.1:
                 self.fail("Measured pose stale before spring restore")
                 return
-            self.restore_spring(now)
+            if self.stage in ("own", "switch"):
+                self.own_controller(now)
+            else:
+                self.restore_spring(now)
         elif self.stage == "cancel":
             if self.future is None:
                 if self.cancel.service_is_ready():
@@ -350,7 +376,22 @@ class ThermalGuard:
                 if result is None or result.return_code != 0:
                     self.fail("Objective cancellation rejected")
                     return
+                self.stage, self.future, self.started = "release", None, now
+        elif self.stage == "release":
+            # JTAC stitches a new goal onto an executing one rather than replacing
+            # it, and HOME's first leg fails to stitch onto the stationary anchor.
+            # Canceled, JTAC holds its last (anchor) reference at restored gains.
+            if self.anchor_result is None or self.anchor_result.done():
                 self.stage, self.future, self.started = "home", None, now
+            elif self.future is None:
+                self.future = self.anchor_handle.cancel_goal_async()
+            elif self.future.done():
+                response = self.future.result()
+                if (
+                    response is None
+                    or response.return_code == CancelGoal.Response.ERROR_REJECTED
+                ):
+                    self.fail("Measured-pose anchor cancel rejected")
         elif self.stage == "home":
             # Let the canceled Objective and leader bridge relinquish control.
             if now - self.started < 0.5:
@@ -364,7 +405,9 @@ class ThermalGuard:
             if self.future is None:
                 if self.home.server_is_ready():
                     goal = DoObjectiveSequence.Goal()
-                    goal.objective_name = "Return reBot Leader Home"
+                    # Thermal recovery is already powered and must never call
+                    # engage: that service correctly refuses a thermal latch.
+                    goal.objective_name = "Return reBot Leader Home Under Power"
                     goal.caller.type = goal.caller.SCRIPT
                     goal.caller.name = "rebot_thermal_guard"
                     self.future = self.home.send_goal_async(goal)
@@ -416,6 +459,58 @@ class ThermalGuard:
                 "Thermal recovery complete: HOME and all seven motors OFF; waiting for cooling"
             )
 
+    def own_controller(self, now):
+        """Activate JTAC, deactivating only controllers that claim its interfaces."""
+        if self.stage == "switch":
+            if self.future.done():
+                response = self.future.result()
+                if response is None or not response.ok:
+                    self.fail(
+                        "Measured-pose controller activation rejected; gains unchanged"
+                    )
+                    return
+                self.stage, self.future, self.started = "anchor", None, now
+            return
+        if self.future is None:
+            # Without configured gains there is nothing to restore; change nothing.
+            if (
+                self.gain_commands is None
+                or not self.list_controllers.service_is_ready()
+            ):
+                return
+            self.future = self.list_controllers.call_async(ListControllers.Request())
+            return
+        if not self.future.done():
+            return
+        response, self.future = self.future.result(), None
+        controllers = (
+            {} if response is None else {c.name: c for c in response.controller}
+        )
+        anchor = controllers.get(ANCHOR_CONTROLLER)
+        if anchor is not None and anchor.state == "active":
+            self.stage, self.started = "anchor", now
+            return
+        required = set() if anchor is None else set(anchor.required_command_interfaces)
+        if anchor is None or anchor.state != "inactive" or not required:
+            self.fail("Measured-pose controller not available; gains unchanged")
+            return
+        request = SwitchController.Request()
+        request.activate_controllers = [ANCHOR_CONTROLLER]
+        # Gravity compensation claims effort only and stays active.
+        request.deactivate_controllers = sorted(
+            c.name
+            for c in controllers.values()
+            if c.state == "active" and required & set(c.claimed_interfaces)
+        )
+        request.strictness = SwitchController.Request.STRICT
+        request.timeout.sec = 1
+        self.node.get_logger().error(
+            f"Activating {ANCHOR_CONTROLLER} for the measured-pose anchor; deactivating "
+            f"{', '.join(request.deactivate_controllers) or 'nothing'}"
+        )
+        self.future = self.switch_controllers.call_async(request)
+        self.stage, self.started = "switch", now
+
     def restore_spring(self, now):
         if self.stage == "anchor":
             if self.future is None:
@@ -433,7 +528,7 @@ class ThermalGuard:
                 goal.trajectory.header.stamp = stamp.to_msg()
                 goal.trajectory.joint_names = list(JOINT_NAMES)
                 # Keep the stationary goal alive through the bounded gain writes so
-                # reference/goal status remain observable. Native HOME supersedes it.
+                # reference/goal status remain observable; released before HOME.
                 for seconds in (0, 10):
                     point = JointTrajectoryPoint(
                         positions=self.anchor_positions,

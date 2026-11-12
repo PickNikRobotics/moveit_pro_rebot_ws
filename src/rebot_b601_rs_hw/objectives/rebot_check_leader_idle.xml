@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root BTCPP_format="4" main_tree_to_execute="reBot Check Leader Idle">
+  <BehaviorTree
+    ID="reBot Check Leader Idle"
+    _description="No-leader check: always succeeds. A leader-enabled config lists the leader_objectives library, whose version fails unless the leader bridge is idle."
+  >
+    <AlwaysSuccess />
+  </BehaviorTree>
+  <TreeNodesModel>
+    <SubTree ID="reBot Check Leader Idle">
+      <MetadataFields>
+        <Metadata runnable="false" />
+        <Metadata subcategory="reBot" />
+      </MetadataFields>
+    </SubTree>
+  </TreeNodesModel>
+</root>

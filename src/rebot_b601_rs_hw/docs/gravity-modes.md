@@ -13,15 +13,22 @@ An installed Objective is not permission or evidence of safe physical use.
 
 ## Start Gravity Comp
 
-1. Read all seven measured joints from the current planning scene.
-2. Send and complete a nonzero-stamped, two-identical-point stationary trajectory
-   at 0/0.2 s through the already-active JTAC.
-3. Queue kd `[1.5,3.5,5,1.25,1,1]`, then kp `[0,0,0,0,0,0]`, for arm motor IDs1–6.
-4. Finish successfully. JTAC and gravity remain active; the jaw gains are unchanged.
+1. Engage torque with a measured-pose hold (after Relax at HOME torque is off,
+   so float gains would otherwise land on a limp arm). A refused engage stops here.
+2. Make JTAC the arm position owner (`SwitchController`, automatic deactivation,
+   strict). Teleoperation Joint Jog/Pose Jog and Mirror leave another position
+   controller active after they end; gravity is effort-only and unaffected.
+   The remaining steps are the `reBot Set Float Gains` subtree.
+3. Read all seven measured joints from the current planning scene.
+4. Send and complete a nonzero-stamped, two-identical-point stationary trajectory
+   at 0/0.2 s through JTAC.
+5. Queue kd `[1.5,3.5,5,1.25,1,1]`, then kp `[0,0,0,0,0,0]`, for arm motor IDs1–6.
+6. Finish successfully. JTAC and gravity remain active; the jaw gains are unchanged.
 
 ## Stop Gravity Comp
 
-The same measured-pose trajectory precedes all gain writes. Then restore the
+The same JTAC switch, then the same measured-pose trajectory (the
+`reBot Set Spring Gains` subtree), precede all gain writes. Then restore the
 configured stock spring kd `[3,10,10,5,4,4]`, followed by kp
 `[50,150,150,50,50,50]`, and finish. Stop retains torque; it does not command HOME
 or disable motors. These values match the shipped GPIO configuration. A custom
@@ -31,10 +38,10 @@ Objective; the thermal guard separately reads its initial gains from the URDF.
 These reusable damping/stiffness values and sequence come from the published
 [gravity mode source](https://github.com/PickNikRobotics/moveit_pro_example_ws/pull/1138)
 and [integrated source](https://github.com/PickNikRobotics/moveit_pro_example_ws/pull/1139),
-not a new tuning or physical validation run. The migrated trees retain the
+not a new tuning or physical validation run. The two gain subtrees retain the
 original flat sixteen-Action sequence, with only model/category wording changed.
-Neither switches controllers or changes the gravity model, gains, offsets or
-feedforward caps.
+The only controller change is the leading JTAC activation; neither Objective
+changes the gravity model, gains, offsets or feedforward caps.
 
 ## Preconditions and limits
 
@@ -42,6 +49,10 @@ Support the arm and hold still while switching. The anchor is a measured
 snapshot, not continuous tracking. No competing Objective, jog, leader or
 manual gain/trajectory writer may command during floating or switching.
 Cancelling an already-completed Start does not restore stiffness: run Stop.
+Every top-level arm motion entry (Teleoperate, Mirror, Return reBot Leader Home
+and so Relax at HOME, Move to Raised/Rest, Move reBot to Waypoint, Execute reBot
+Joint Trajectory, Collect reBot Gravity Data) runs `reBot Engage Arm`, which
+ends with the spring subtree, so it ends the float. The stack family does not.
 
 `SetRebotMotorGain` allows only arm IDs1–6 and kp/kd, validates protocol bounds,
 waits at most3s for service discovery and0.5s for a response, and never accesses
@@ -53,7 +64,7 @@ required. No physical sag, float-quality or no-snap guarantee is made.
 
 ## Offline ordering regression
 
-The package test runs the actual source Stop → Start → Stop trees through their
+The package test runs the actual source spring → float → spring gain subtrees through their
 registered leaves, installed ControllerManager/JTAC and the imported chainable
 gravity controller. Only the planning-scene response, gain service and memory
 hardware are fake. Command propagation is disabled so stale commands cannot be

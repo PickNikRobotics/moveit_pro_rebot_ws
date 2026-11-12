@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root BTCPP_format="4" main_tree_to_execute="reBot Notify Leader Home">
+  <BehaviorTree
+    ID="reBot Notify Leader Home"
+    _description="Best-effort notification after powered arm HOME so the leader bridge may clear its failed-HOME latch. Missing or refused notification does not change HOME success, jaw HOME or the driver's relax admission."
+  >
+    <Decorator ID="ForceSuccess">
+      <Action
+        ID="CallTriggerService"
+        service_name="/rebot_leader_bridge/home_verified"
+        wait_for_server_available_timeout="1.0"
+        response_timeout="1.0"
+      />
+    </Decorator>
+  </BehaviorTree>
+  <TreeNodesModel>
+    <SubTree ID="reBot Notify Leader Home">
+      <MetadataFields>
+        <Metadata runnable="false" />
+        <Metadata subcategory="reBot" />
+      </MetadataFields>
+    </SubTree>
+  </TreeNodesModel>
+</root>

@@ -95,7 +95,12 @@ TEST_P(ObjectiveLibraryTest, NativeServerLoadsAndInstantiatesStockObjectivesWith
   if (GetParam() != "rebot_b601_rs_mock")
     owned_libraries.emplace_back(fs::path(ament_index_cpp::get_package_share_directory(GetParam())) / "objectives");
   if (GetParam() == "rebot_b601_rs_hw")
+    owned_libraries.emplace_back(
+        fs::path(ament_index_cpp::get_package_share_directory("rebot_b601_rs_hw_generated_objectives")) / "objectives");
+  if (GetParam() == "rebot_b601_rs_hw")
     EXPECT_FALSE(server.createTree("Reset MuJoCo Sim").has_value());
+  // The optional leader is absent until a config lists its library and loader.
+  EXPECT_FALSE(server.createTree("Mirror reBot Leader").has_value());
   for (const auto& library : owned_libraries)
     for (const auto& entry : fs::directory_iterator(library))
     {
@@ -110,6 +115,52 @@ TEST_P(ObjectiveLibraryTest, NativeServerLoadsAndInstantiatesStockObjectivesWith
       const auto created = server.createTree(name.value());
       EXPECT_TRUE(created.has_value()) << created.error().what;
     }
+}
+
+TEST_F(ObjectiveLibraryTest, LeaderOptInLoadsMirrorAndReplacesTheNoLeaderSubtrees)
+{
+  const auto mock_share = fs::path(ament_index_cpp::get_package_share_directory("rebot_b601_rs_mock"));
+  const auto hw_share = fs::path(ament_index_cpp::get_package_share_directory("rebot_b601_rs_hw"));
+  const auto urdf = urdf::parseURDF(readFile(TEST_URDF));
+  ASSERT_TRUE(urdf);
+  auto srdf = std::make_shared<srdf::Model>();
+  ASSERT_TRUE(srdf->initString(*urdf, readFile(mock_share / "config/moveit/rebot.srdf")));
+  auto node = std::make_shared<rclcpp::Node>("test_rebot_leader_objective_library");
+  auto context = std::make_shared<moveit_pro::behaviors::BehaviorContext>(node, false);
+  context->robot_model = std::make_shared<moveit_pro::base::RobotModel>(urdf, srdf);
+  moveit_studio::objective_server::ObjectiveServer server(context);
+  std::map<std::string, std::vector<std::string>> loader_groups;
+  std::vector<std::pair<std::string, std::string>> library_specs;
+  collectLibraries("rebot_b601_rs_hw", loader_groups, library_specs);
+  // The documented opt-in: one loader group and one library after the stock ones.
+  loader_groups["rebot_leader"] = { "rebot_b601_rs_hw::RebotLeaderBehaviorsLoader" };
+  library_specs.emplace_back("rebot_leader_objectives", (hw_share / "leader_objectives").string());
+  std::vector<std::string> loaders, directories;
+  for (const auto& [group, names] : loader_groups)
+    loaders.insert(loaders.end(), names.begin(), names.end());
+  for (const auto& [id, directory] : library_specs)
+    directories.push_back(directory);
+  const auto loaded = server.registerBehaviorLoaderPlugins(loaders);
+  ASSERT_TRUE(loaded.has_value()) << loaded.error().what;
+  const auto registered = server.registerObjectives(directories);
+  ASSERT_TRUE(registered.has_value()) << registered.error();
+  for (const auto& error : registered->errors)
+    ADD_FAILURE() << error;
+  for (const auto& entry : fs::directory_iterator(hw_share / "leader_objectives"))
+  {
+    SCOPED_TRACE(entry.path().string());
+    const auto text = readFile(entry.path());
+    const auto valid = server.verifyXML(text);
+    ASSERT_TRUE(valid.has_value()) << valid.error().what;
+    const auto name = moveit_studio::objective_server::utils::getObjectiveNameFromXml(text);
+    ASSERT_TRUE(name.has_value()) << name.error();
+    EXPECT_TRUE(server.createTree(name.value()).has_value());
+  }
+  for (const auto* name : { "Relax at HOME", "Return reBot Leader Home" })
+  {
+    const auto created = server.createTree(name);
+    EXPECT_TRUE(created.has_value()) << name << ": " << created.error().what;
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(StockBackends, ObjectiveLibraryTest,

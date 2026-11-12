@@ -125,7 +125,7 @@ def test_backend_isolation(mode, plugin, sim_time):
 
 
 @pytest.mark.parametrize("mode", ["mock", "sim", "hw"])
-def test_closed_jaw_allowance_is_shared(mode):
+def test_jaw_feedback_allowance_is_shared(mode):
     config = resolved(mode)
     robot = expanded(config)
     selection = config.moveit_params.joint_limits
@@ -136,9 +136,7 @@ def test_closed_jaw_allowance_is_shared(mode):
     )["joint_limits"]
     jaw = robot.find("joint[@name='joint7']/limit")
     assert float(jaw.get("lower")) == limits["joint7"]["min_position"] == -0.15
-    assert (
-        float(jaw.get("upper")) == limits["joint7"]["max_position"] == 5.410520681182422
-    )
+    assert float(jaw.get("upper")) == limits["joint7"]["max_position"] == 6.10
     for name in ("gripper_joint1", "gripper_joint2"):
         finger = robot.find(f"joint[@name='{name}']")
         mimic = finger.find("mimic")
@@ -147,7 +145,7 @@ def test_closed_jaw_allowance_is_shared(mode):
         lower = float(finger.find("limit").get("lower"))
         upper = float(finger.find("limit").get("upper"))
         assert lower == pytest.approx(factor * -0.15 + offset)
-        assert upper == pytest.approx(factor * 5.410520681182422 + offset)
+        assert upper == pytest.approx(factor * 6.10 + offset)
 
 
 def test_nominal_wrist_camera_mount_is_overridable_for_an_office_calibration():
@@ -251,15 +249,19 @@ def test_physical_spring_and_nominal_gravity_startup():
     limits = yaml.safe_load((path / "config/moveit/joint_limits.yaml").read_text())[
         "joint_limits"
     ]
-    for joint, lower in [("joint2", -0.02), ("joint3", -0.01)]:
+    for joint, lower, upper in [
+        ("joint2", -0.02, 3.543018381548),
+        ("joint3", -0.01, 4.181336912266),
+    ]:
+        limit = robot.find(f"joint[@name='{joint}']/limit")
         assert limits[joint]["min_position"] == lower
-        assert float(robot.find(f"joint[@name='{joint}']/limit").get("lower")) == lower
+        assert limits[joint]["max_position"] == upper
+        assert float(limit.get("lower")) == lower
+        assert float(limit.get("upper")) == upper
     # Stop's source values must track the configured spring gains. The execution
     # regression separately proves the ordering and actual service requests.
-    stop = ET.parse(
-        Path(get_package_share_directory("rebot_b601_rs_hw"))
-        / "objectives/stop_gravity_comp.xml"
-    ).getroot()
+    objectives = Path(get_package_share_directory("rebot_b601_rs_hw")) / "objectives"
+    stop = ET.parse(objectives / "rebot_set_spring_gains.xml").getroot()
     requests = stop.findall(".//Action[@ID='SetRebotMotorGain']")
     assert [
         (int(r.get("motor_id")), r.get("gain"), float(r.get("value"))) for r in requests
@@ -268,6 +270,31 @@ def test_physical_spring_and_nominal_gravity_startup():
         for gain, values in [("kd", arm_kd), ("kp", arm_kp)]
         for i, value in enumerate(values)
     ]
+    # Both mode Objectives first make JTAC the position owner (a jog or leader
+    # controller may hold it), then run their gain subtree unchanged. Start
+    # engages before that, so it never floats a relaxed (torque-off) arm.
+    for name, subtree, engage in [
+        ("start_gravity_comp.xml", "reBot Set Float Gains", True),
+        ("stop_gravity_comp.xml", "reBot Set Spring Gains", False),
+    ]:
+        steps = list(ET.parse(objectives / name).getroot().find("BehaviorTree")[0])
+        if engage:
+            first = steps.pop(0)
+            assert (first.tag, first.get("ID"), first.get("service_name")) == (
+                "Action",
+                "CallTriggerService",
+                "/robstride_hardware_interface/engage",
+            )
+        assert [(s.tag, s.get("ID")) for s in steps] == [
+            ("Action", "SwitchController"),
+            ("SubTree", subtree),
+        ]
+        assert steps[0].attrib == {
+            "ID": "SwitchController",
+            "activate_controllers": "joint_trajectory_admittance_controller",
+            "automatic_deactivation": "true",
+            "strictness": "2",
+        }
     for mode in ["mock", "sim"]:
         child = resolved(mode)
         assert (

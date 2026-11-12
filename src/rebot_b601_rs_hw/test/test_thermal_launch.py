@@ -65,13 +65,13 @@ def test_invalid_backend_fails_without_launch(thermal_launch):
         thermal_launch.configured_nodes(config)
 
 
-def test_driver_launch_includes_thermal_guard_and_wrist_camera():
+def test_driver_launch_includes_thermal_guard_wrist_camera_and_optional_leader():
     path = Path(__file__).resolve().parents[1] / "launch/rebot_drivers.launch.py"
     spec = importlib.util.spec_from_file_location("stock_driver_launch", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     launch = module.generate_launch_description()
-    assert len(launch.entities) == 2
+    assert len(launch.entities) == 3
     assert all(
         isinstance(action, IncludeLaunchDescription) for action in launch.entities
     )

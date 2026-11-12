@@ -22,12 +22,14 @@ The configuration/control contract is ported from
 with reusable tuning from integrated source
 `7d7761965e8082d169be39817ab3545c924e446c`: J2/J3 lower allowances of
 -0.02/-0.01 rad, shared path tolerance 0.20 rad and J2 feedforward cap 18 Nm.
-J7's lower bound additionally allows -0.15 rad for variable closed-jaw contact
-feedback measured on a bench unit (-0.01055 rad at rest, -0.120 rad during fast
-closes); its passive finger lower bounds follow at -0.0012 m. Named closure
-remains zero and the 310-degree opening bound is unchanged. No driver clipping,
-zero correction, feedback-wrap fix or soft limits are applied. Feedback beyond
-this allowance still requires calibration and mechanical verification.
+J3's upper bound additionally allows 4.181336912266 rad for measured bench
+overshoot. J7's range additionally allows -0.15 to 6.10 rad for variable jaw
+feedback measured on a bench unit: fast Mirror trigger closes reached -0.120
+rad for 40–100 ms, fast opens reached 5.72 rad, and a closed jaw at rest reads
+about -0.01055 rad. Its passive finger bounds follow at -0.0012 to 0.0488 m.
+Named closure remains zero and nominal opening remains 5.410520681182422 rad.
+No driver clipping or zero correction is applied. Larger historical calibration
+offsets remain outside these allowances.
 These are software defaults, not per-unit calibration or a new physical acceptance.
 The supplied jaw's current kp=12/kd=0.5 and nominal masses are retained; office
 camera installations, calibrated mounts, modified trim, calibrated placements

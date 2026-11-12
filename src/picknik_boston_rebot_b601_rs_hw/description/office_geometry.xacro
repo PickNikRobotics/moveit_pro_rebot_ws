@@ -1,0 +1,148 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="boston_rebot_additions">
+  <!-- Derived from Seeed reBot-DevArm and retained RealSense provenance; see
+       NOTICE.md and exact license files. PickNik Inc. 2026: office trim visuals,
+       a hand-eye-calibrated wrist-camera frame, and a scene-camera frame. -->
+  <xacro:macro name="rebot_custom_trim" params="link">
+    <xacro:if value="${link == 'link2'}">
+      <visual name="pla2_internal">
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://picknik_boston_rebot_b601_rs_hw/description/assets/printed/pla2_internal.STL" scale="1 1 1" />
+        </geometry>
+        <material name="rs_pla_black" />
+      </visual>
+      <visual name="1-DOWN-DL">
+        <origin xyz="-0.02 0.145 -0.02625" rpy="0 0 3.141592653589793" />
+        <geometry>
+          <mesh filename="package://picknik_boston_rebot_b601_rs_hw/description/assets/printed/1-DOWN-DL.dae" scale="1 1 1" />
+        </geometry>
+      </visual>
+      <visual name="1-DOWN-DR">
+        <origin xyz="-0.02 0.145 -0.02625" rpy="0 0 3.141592653589793" />
+        <geometry>
+          <mesh filename="package://picknik_boston_rebot_b601_rs_hw/description/assets/printed/1-DOWN-DR.dae" scale="1 1 1" />
+        </geometry>
+      </visual>
+      <visual name="1-COVER-upper">
+        <origin xyz="-0.02 0.145 -0.02625" rpy="0 0 3.141592653589793" />
+        <geometry>
+          <mesh filename="package://picknik_boston_rebot_b601_rs_hw/description/assets/printed/1-COVER-upper.dae" scale="1 1 1" />
+        </geometry>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${link == 'link3'}">
+      <visual name="pla3_internal">
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://picknik_boston_rebot_b601_rs_hw/description/assets/printed/pla3_internal.STL" scale="1 1 1" />
+        </geometry>
+        <material name="rs_pla_black" />
+      </visual>
+      <visual name="1-UP-DL">
+        <origin xyz="0.216 0.145 -0.02625" rpy="0 0 3.141592653589793" />
+        <geometry>
+          <mesh filename="package://picknik_boston_rebot_b601_rs_hw/description/assets/printed/1-UP-DL.dae" scale="1 1 1" />
+        </geometry>
+      </visual>
+      <visual name="1-UP-DR">
+        <origin xyz="0.216 0.145 -0.02625" rpy="0 0 3.141592653589793" />
+        <geometry>
+          <mesh filename="package://picknik_boston_rebot_b601_rs_hw/description/assets/printed/1-UP-DR.dae" scale="1 1 1" />
+        </geometry>
+      </visual>
+      <visual name="1-COVER-lower">
+        <origin xyz="0.02 0.145 -0.02625" rpy="3.141592653589793 0 0" />
+        <geometry>
+          <mesh filename="package://picknik_boston_rebot_b601_rs_hw/description/assets/printed/1-COVER-lower.dae" scale="1 1 1" />
+        </geometry>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${link == 'link5'}">
+      <visual name="1-STOPPER-1">
+        <origin xyz="0 0 0.048" rpy="-1.5707963267948966 0 3.141592653589793" />
+        <geometry>
+          <mesh filename="package://picknik_boston_rebot_b601_rs_hw/description/assets/printed/1-STOPPER-1.dae" scale="1 1 1" />
+        </geometry>
+      </visual>
+    </xacro:if>
+    <xacro:if value="${link == 'gripper_end'}">
+      <visual name="1-RAIL-BASE-2">
+        <origin xyz="-0.25730933 0 -0.1445" rpy="3.141592653589793 0 -1.5707963267948966" />
+        <geometry>
+          <mesh filename="package://picknik_boston_rebot_b601_rs_hw/description/assets/printed/1-RAIL-BASE-2.dae" scale="1 1 1" />
+        </geometry>
+      </visual>
+    </xacro:if>
+  </xacro:macro>
+  <!-- The Gemini 305 mount comes from the wrist_camera_color_optical_* args:
+       the stock nominal mount unless a hand-eye calibration overrides it.
+       The real hardware description uses one
+       fixed gripper_end-to-color-optical-frame joint and the inherited driver's
+       factory camera_info. The non-real branch preserves the existing D435
+       geometry that the separate MuJoCo twin generates from; it is not a
+       physical camera description. -->
+  <xacro:if value="${'$(arg hardware_interface)' == 'real'}">
+    <xacro:unless value="${simulator_owns_optical_frames}">
+      <xacro:rebot_gemini305_wrist_camera
+        color_optical_xyz="$(arg wrist_camera_color_optical_xyz)"
+        color_optical_rpy="$(arg wrist_camera_color_optical_rpy)" />
+    </xacro:unless>
+  </xacro:if>
+  <xacro:unless value="${'$(arg hardware_interface)' == 'real'}">
+    <link name="d435_mount_link">
+      <visual name="D435_mount">
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://picknik_boston_rebot_b601_rs_hw/description/assets/printed/D435_mount.dae" scale="1 1 1" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="d435_mount_joint" type="fixed">
+      <parent link="gripper_end" />
+      <child link="d435_mount_link" />
+      <origin xyz="$(arg wrist_camera_mount_xyz)" rpy="$(arg wrist_camera_mount_rpy)" />
+    </joint>
+    <link name="d435_bottom_screw_frame" />
+    <joint name="d435_screw_joint" type="fixed">
+      <parent link="d435_mount_link" />
+      <child link="d435_bottom_screw_frame" />
+      <origin xyz="-0.0003 0.0445 -0.0095" rpy="0.0126 -1.0489 -1.5981" />
+    </joint>
+    <link name="d435_link">
+      <visual name="D435_body">
+        <origin xyz="0.0043 -0.0175 0" rpy="1.5707963267948966 0 1.5707963267948966" />
+        <geometry>
+          <mesh filename="package://picknik_boston_rebot_b601_rs_hw/description/assets/realsense/d435.dae" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="d435_link_joint" type="fixed">
+      <parent link="d435_bottom_screw_frame" />
+      <child link="d435_link" />
+      <origin xyz="0.0106 0.0175 0.0125" rpy="0 0 0" />
+    </joint>
+    <xacro:unless value="${simulator_owns_optical_frames}">
+      <link name="d435_color_optical_frame" />
+      <joint name="d435_optical_joint" type="fixed">
+        <parent link="d435_link" />
+        <child link="d435_color_optical_frame" />
+        <origin xyz="0 0.015 0" rpy="-1.5707963267948966 0 -1.5707963267948966" />
+      </joint>
+    </xacro:unless>
+  </xacro:unless>
+  <link name="scene_camera_link" />
+  <joint name="scene_camera_mount_joint" type="fixed">
+    <parent link="world" />
+    <child link="scene_camera_link" />
+    <origin xyz="${scene_camera_xyz}" rpy="${scene_camera_rpy}" />
+  </joint>
+  <xacro:unless value="${simulator_owns_optical_frames}">
+    <link name="scene_camera_color_optical_frame" />
+    <joint name="scene_camera_optical_joint" type="fixed">
+      <parent link="scene_camera_link" />
+      <child link="scene_camera_color_optical_frame" />
+      <origin xyz="0 0 0" rpy="-1.5707963267948966 0 -1.5707963267948966" />
+    </joint>
+  </xacro:unless>
+</robot>

@@ -47,7 +47,7 @@ JVC_GRIP = "gripper_joint_velocity_controller"
 VFC = "velocity_force_controller"
 JTAC = "joint_trajectory_admittance_controller"
 OPEN_Q, CLOSED_Q = 5.410520681182422, 0.0  # Gripper Open / Gripper Closed waypoints
-J_LIMITS = {"joint2": (-0.02, 3.543018381548), "joint3": (-0.01, 4.171336912266)}
+J_LIMITS = {"joint2": (-0.02, 3.543018381548), "joint3": (-0.01, 4.181336912266)}
 HZ = 30.0
 
 
