@@ -243,8 +243,6 @@ def test_motion_entries_engage_before_any_motion_or_prepare():
         hw / "move_to_raised.xml",
         hw / "move_to_rest.xml",
         mirror,
-        boston / "move_rebot_to_waypoint.xml",
-        boston / "execute_rebot_joint_trajectory.xml",
         boston / "collect_rebot_gravity_data.xml",
     ):
         sequence = ET.parse(path).getroot().find("BehaviorTree")[0]

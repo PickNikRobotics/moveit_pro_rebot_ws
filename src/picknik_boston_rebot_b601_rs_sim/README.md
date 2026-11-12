@@ -28,11 +28,7 @@ moveit_pro run --config-package picknik_boston_rebot_b601_rs_sim --instance bost
 The controllers, joint limits, SRDF, waypoints and Objectives are the base
 config's. On top of them this package adds the MuJoCo behaviors, **Reset MuJoCo
 Sim**, and **Move reBot to Pose**, a Cartesian move of the gripper to a pose in
-`base_link` (by default pointing straight down above the cubes). **Move reBot to
-Waypoint** is the joint move. Run **Plan reBot Joint Move** from **Raised**. From
-the Zeroed Rest start its planned profile dipped just below joint2's and joint3's
-former 0 rad lower limits; that start has not been rechecked against the current
-−0.02 and −0.01 rad limits.
+`base_link` (by default pointing straight down above the cubes).
 
 ## The bench layout file
 
@@ -205,8 +201,8 @@ non-runnable refusal overrides here: they cannot be used to tune simulation or
 collect motor-identification data.
 
 The engage-first Objectives (those starting with `reBot Engage Arm`:
-Teleoperate, Mirror reBot Leader, Return reBot Leader Home, Move to Raised/Rest,
-Move reBot to Waypoint, Execute reBot Joint Trajectory) call the RobStride
+Teleoperate, Mirror reBot Leader, Return reBot Leader Home, Move to Raised/Rest)
+call the RobStride
 driver's engage service and then restore the spring gains. A **SIM-ONLY** node, `scripts/sim_torque_services.py`, answers
 `/robstride_hardware_interface/engage` with success and no torque transition,
 since MuJoCo actuators are always powered, and refuses

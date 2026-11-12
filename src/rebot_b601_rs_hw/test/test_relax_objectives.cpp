@@ -144,17 +144,15 @@ protected:
       <BehaviorTree ID="reBot Set Spring Gains"><SpringGains/></BehaviorTree>
       <BehaviorTree ID="reBot Set Float Gains"><FloatGains/></BehaviorTree>
       <BehaviorTree ID="Move to Named Waypoint"><WaypointMotion/></BehaviorTree>
-      <BehaviorTree ID="Move to Waypoint"><WaypointMotion/></BehaviorTree>
       </root>)");
     factory.registerBehaviorTreeFromFile(LEADER_OBJECTIVES "/rebot_check_leader_idle.xml");
     factory.registerBehaviorTreeFromFile(LEADER_OBJECTIVES "/rebot_notify_leader_home.xml");
     factory.registerBehaviorTreeFromFile(GENERATED_OBJECTIVES "/relax_at_home.xml");
     factory.registerBehaviorTreeFromFile(HW_SHARE "/objectives/rebot_engage_arm.xml");
-    // Physical overrides of the stock Move to Raised/Rest, and the Boston waypoint entry.
+    // Physical overrides of the stock Move to Raised/Rest.
     for (const auto* objective :
          { "teleoperate.xml", "move_to_raised.xml", "move_to_rest.xml", "start_gravity_comp.xml" })
       factory.registerBehaviorTreeFromFile(std::string(HW_SHARE "/objectives/") + objective);
-    factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/move_rebot_to_waypoint.xml");
     factory.registerBehaviorTreeFromFile(LEADER_OBJECTIVES "/mirror_rebot_leader.xml");
   }
   BT::NodeStatus run(const std::string& name)
@@ -325,7 +323,7 @@ TEST_P(EngageFirstMotion, FailedSpringRestoreNeverMoves)
   EXPECT_EQ(receipt.events, (std::vector<std::string>{ kEngage, "switch", "spring" }));
 }
 INSTANTIATE_TEST_SUITE_P(Waypoints, EngageFirstMotion,
-                         testing::Values("Move to Raised", "Move to Rest", "Move reBot to Waypoint"));
+                         testing::Values("Move to Raised", "Move to Rest"));
 
 TEST_F(RelaxObjectives, StartGravityCompEngagesBeforeFloat)
 {
