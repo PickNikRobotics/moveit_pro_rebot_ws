@@ -60,7 +60,7 @@ from launch import LaunchDescription, LaunchService
 from moveit_studio_utils_py.system_config import load_system_config
 config = load_system_config(sys.argv[1], Path(sys.argv[2]))[0]
 config.ros_global_params['rebot_leader_enabled'] = True
-path = Path(get_package_share_directory('picknik_boston_rebot_b601_rs_hw')) / 'launch/rebot_leader.launch.py'
+path = Path(get_package_share_directory('rebot_b601_rs_hw')) / 'launch/rebot_leader.launch.py'
 spec = importlib.util.spec_from_file_location('leader_launch', path)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)

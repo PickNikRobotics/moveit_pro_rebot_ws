@@ -57,11 +57,11 @@ def configured_nodes(config):
         executable="sim_compressed_cameras.py",
         output="screen",
     )
-    # Inherit exactly the base YAML leader selection, without real camera drivers.
+    # The stock optional leader, selected by the merged YAML, without camera drivers.
     leader = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             str(
-                Path(get_package_share_directory("picknik_boston_rebot_b601_rs_hw"))
+                Path(get_package_share_directory("rebot_b601_rs_hw"))
                 / "launch/rebot_leader.launch.py"
             )
         )

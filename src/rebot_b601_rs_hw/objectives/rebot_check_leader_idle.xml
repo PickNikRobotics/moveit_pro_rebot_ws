@@ -2,7 +2,7 @@
 <root BTCPP_format="4" main_tree_to_execute="reBot Check Leader Idle">
   <BehaviorTree
     ID="reBot Check Leader Idle"
-    _description="The stock robot has no leader bridge. A config with a leader must override this check and fail unless that command producer is idle."
+    _description="No-leader check: always succeeds. A leader-enabled config lists the leader_objectives library, whose version fails unless the leader bridge is idle."
   >
     <AlwaysSuccess />
   </BehaviorTree>

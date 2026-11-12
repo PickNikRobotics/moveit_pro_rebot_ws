@@ -13,6 +13,7 @@
   <depend>moveit_pro_behavior_interface</depend>
   <depend>robstride_interfaces</depend>
   <depend>pluginlib</depend>
+  <depend>std_srvs</depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
   <exec_depend>xacro</exec_depend>
@@ -27,7 +28,6 @@
   <exec_depend>moveit_studio_sdk_msgs</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>std_msgs</exec_depend>
-  <exec_depend>std_srvs</exec_depend>
   <exec_depend>trajectory_msgs</exec_depend>
   <exec_depend>rebot_b601_rs_mock</exec_depend>
   <exec_depend>rebot_b601_rs_sim</exec_depend>
@@ -35,6 +35,10 @@
   <exec_depend>robstride_hardware_interface</exec_depend>
   <exec_depend>orbbec_camera</exec_depend>
   <exec_depend>kdl_gravity_compensation_controller</exec_depend>
+  <!-- Optional Star Arm leader: bridge, native collision model and command controller. -->
+  <exec_depend>position_controllers</exec_depend>
+  <exec_depend>moveit_pro_base_py</exec_depend>
+  <exec_depend>moveit_msgs</exec_depend>
   <test_depend>ament_cmake_pytest</test_depend>
   <test_depend>ament_cmake_gtest</test_depend>
   <test_depend>moveit_pro_test_utils</test_depend>

@@ -16,9 +16,6 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/waypoints/rebot_waypoints.yaml
   DESTINATION share/${PROJECT_NAME}/waypoints)
 install(FILES README.md LICENSE DESTINATION share/${PROJECT_NAME})
 install(PROGRAMS scripts/scale_depth.py scripts/fit_gravity.py
-  scripts/rebot_leader.py scripts/rebot_leader_bridge.py scripts/rebot_leader_tune.py
-  DESTINATION lib/${PROJECT_NAME})
-install(FILES scripts/rebot_leader_state.py scripts/rebot_leader_collision.py
   DESTINATION lib/${PROJECT_NAME})
 if(BUILD_TESTING)
   # Exact upstream legal text, separate from code-formatting hooks.
@@ -50,7 +47,8 @@ if(BUILD_TESTING)
   set(STOCK_SHARE ${rebot_b601_rs_mock_DIR}/..)
   target_compile_definitions(test_stack_objectives PRIVATE PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
     STOCK_OBJECTIVES_DIR="${STOCK_SHARE}/objectives"
-    STOCK_GENERATED_OBJECTIVES="${rebot_b601_rs_hw_DIR}/../../rebot_b601_rs_hw_generated_objectives/objectives")
+    STOCK_GENERATED_OBJECTIVES="${rebot_b601_rs_hw_DIR}/../../rebot_b601_rs_hw_generated_objectives/objectives"
+    STOCK_LEADER_OBJECTIVES="${rebot_b601_rs_hw_DIR}/../leader_objectives")
   set(TEST_URDF ${CMAKE_CURRENT_BINARY_DIR}/test_rebot.urdf)
   add_custom_command(
     OUTPUT ${TEST_URDF}
@@ -78,7 +76,8 @@ if(BUILD_TESTING)
     TEST_URDF="${TEST_URDF}" PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
     TEST_SRDF="${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/config/moveit/rebot.srdf"
     STOCK_SHARE="${STOCK_SHARE}"
-    STOCK_GENERATED_OBJECTIVES="${rebot_b601_rs_hw_DIR}/../../rebot_b601_rs_hw_generated_objectives/objectives")
+    STOCK_GENERATED_OBJECTIVES="${rebot_b601_rs_hw_DIR}/../../rebot_b601_rs_hw_generated_objectives/objectives"
+    STOCK_LEADER_OBJECTIVES="${rebot_b601_rs_hw_DIR}/../leader_objectives")
   find_package(moveit_studio_agent REQUIRED)
   find_package(moveit_pro_test_utils REQUIRED)
   ament_add_gtest(test_objective_library test/test_objective_library.cpp TIMEOUT 60)
@@ -93,8 +92,8 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_stack_legs test/test_stack_legs.py TIMEOUT 60)
   ament_add_pytest_test(test_scale_depth test/test_scale_depth.py TIMEOUT 60)
   ament_add_pytest_test(test_hardware_selection test/test_hardware_selection.py TIMEOUT 60)
-  ament_add_pytest_test(test_rebot_leader test/test_rebot_leader.py TIMEOUT 60)
   ament_add_pytest_test(test_rebot_startup test/test_startup.py TIMEOUT 60)
+  ament_add_pytest_test(test_leader_office_model test/test_leader_office_model.py TIMEOUT 60)
   ament_add_pytest_test(test_optional_cameras test/test_cameras.py TIMEOUT 60)
   ament_add_pytest_test(test_rebot_model test/test_model.py TIMEOUT 60)
   ament_add_pytest_test(test_gravity_fit test/test_gravity_fit.py TIMEOUT 60)

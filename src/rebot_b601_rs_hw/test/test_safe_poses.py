@@ -222,9 +222,7 @@ def test_duplicate_yaml_key_is_rejected(tmp_path):
 
 def test_motion_entries_engage_before_any_motion_or_prepare():
     hw = share("rebot_b601_rs_hw")
-    mirror = (
-        share("picknik_boston_rebot_b601_rs_hw") / "objectives/mirror_rebot_leader.xml"
-    )
+    mirror = hw / "leader_objectives/mirror_rebot_leader.xml"
     for path in (
         generated("return_rebot_leader_home.xml"),
         hw / "objectives/teleoperate.xml",
@@ -262,11 +260,10 @@ def test_home_notification_is_config_specific_and_optional():
     )
     assert stock.find("BehaviorTree/AlwaysSuccess") is not None
     assert stock.find(".//Action") is None
-    boston = ET.parse(
-        share("picknik_boston_rebot_b601_rs_hw")
-        / "objectives/rebot_notify_leader_home.xml"
+    leader = ET.parse(
+        share("rebot_b601_rs_hw") / "leader_objectives/rebot_notify_leader_home.xml"
     )
-    call = boston.find("BehaviorTree/Decorator[@ID='ForceSuccess']/Action")
+    call = leader.find("BehaviorTree/Decorator[@ID='ForceSuccess']/Action")
     assert call.attrib == {
         "ID": "CallTriggerService",
         "service_name": "/rebot_leader_bridge/home_verified",

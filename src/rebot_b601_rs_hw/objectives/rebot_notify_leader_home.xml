@@ -2,7 +2,7 @@
 <root BTCPP_format="4" main_tree_to_execute="reBot Notify Leader Home">
   <BehaviorTree
     ID="reBot Notify Leader Home"
-    _description="No-op HOME notification for the stock robot without a leader. This is not HOME verification or permission to relax; powered HOME and the driver's relax guards remain required."
+    _description="No-op HOME notification without a leader; leader_objectives replaces it for a leader-enabled config. This is not HOME verification or permission to relax; powered HOME and the driver's relax guards remain required."
   >
     <AlwaysSuccess />
   </BehaviorTree>

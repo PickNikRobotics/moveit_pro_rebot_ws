@@ -5,7 +5,7 @@
 #include <moveit_pro_behavior_interface/service_client_behavior_base.hpp>
 #include <std_srvs/srv/trigger.hpp>
 
-namespace rebot_bench_behaviors
+namespace rebot_b601_rs_hw
 {
 /** Call a leader Trigger service, reporting its refusal through the Objective's UI failure logger.
  * A missing bridge is reported with how to enable it. The supported service-client base owns
@@ -33,4 +33,4 @@ private:
   }
   std::shared_future<tl::expected<bool, std::string>> future_;
 };
-}  // namespace rebot_bench_behaviors
+}  // namespace rebot_b601_rs_hw

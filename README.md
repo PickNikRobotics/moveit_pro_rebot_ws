@@ -9,11 +9,13 @@ B601-RS arm and supplied native jaw. The backend chain is:
 | `rebot_b601_rs_sim` | `rebot_b601_rs_mock` | MuJoCo arm with isolated jaw-contact smoke fixture |
 | `rebot_b601_rs_hw` | `rebot_b601_rs_sim` | RobStride SocketCAN hardware |
 
-`main` contains the product configuration, with identity `world` → `base_link`
-placement and a stock Orbbec Gemini 305 wrist camera. The separate public
-`picknik_boston_rebot_b601_rs` branch is reserved for the complete office
-application, its cameras, fixtures and per-unit calibration. On this office
-branch, select
+These stock configs are the product configuration, with identity `world` →
+`base_link` placement, a stock Orbbec Gemini 305 wrist camera and an
+[optional Star Arm leader](src/rebot_b601_rs_hw/README.md#optional-star-arm-leader)
+that is off by default. `main` and the public `picknik_boston_rebot_b601_rs`
+branch currently carry the same content; both also contain the Boston office
+application, its cameras, fixtures and per-unit calibration. For the office
+bench, select
 [`picknik_boston_rebot_b601_rs_hw`](src/picknik_boston_rebot_b601_rs_hw/README.md),
 [`picknik_boston_rebot_b601_rs_sim`](src/picknik_boston_rebot_b601_rs_sim/README.md),
 or the [frozen peg twin](src/picknik_boston_rebot_b601_rs_peg_sim/README.md).

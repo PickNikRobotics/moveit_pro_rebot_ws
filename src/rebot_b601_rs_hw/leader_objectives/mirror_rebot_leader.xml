@@ -36,7 +36,7 @@
     <SubTree ID="Mirror reBot Leader">
       <MetadataFields>
         <Metadata runnable="true" />
-        <Metadata subcategory="reBot Bench" />
+        <Metadata subcategory="reBot" />
       </MetadataFields>
     </SubTree>
   </TreeNodesModel>

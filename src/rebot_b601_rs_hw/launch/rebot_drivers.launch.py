@@ -1,6 +1,6 @@
 # Copyright 2026 PickNik Inc.
 # SPDX-License-Identifier: BSD-3-Clause
-"""Persistent physical-backend helpers, including the wrist camera."""
+"""Persistent physical-backend helpers: thermal guard, wrist camera, optional leader."""
 
 from pathlib import Path
 
@@ -10,7 +10,12 @@ from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 
-LAUNCH_FILES = ("rebot_thermal.launch.py", "wrist_camera.launch.py")
+# The leader launch starts nothing unless the selected config enables it.
+LAUNCH_FILES = (
+    "rebot_thermal.launch.py",
+    "wrist_camera.launch.py",
+    "rebot_leader.launch.py",
+)
 
 
 def generate_launch_description():
