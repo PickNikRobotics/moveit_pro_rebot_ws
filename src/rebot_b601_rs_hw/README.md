@@ -474,6 +474,34 @@ Mirror left another position controller active; gravity stays active. The indepe
 recovery sequence remains required during physical use. Source integration and
 offline tests do not certify float quality or motor-side gain delivery.
 
+## Record and Replay reBot Motion
+
+`Record reBot Motion` saves a hand-guided motion of J1-J7 to
+`<recordings_folder>/<motion_name>.yaml`; `Replay reBot Motion` plays it back.
+Both reuse the stock `RecordJointTrajectory`, `SaveJointTrajectoryToYaml`,
+`LoadJointTrajectoryFromYaml` and `ExecuteTrajectory` Behaviors.
+
+- `recordings_folder` is an existing absolute folder inside the Runtime
+  container, outside this repository. Use one that the host mounts, for example
+  under the MoveIt Pro data directory. `~` and `$HOME` are refused, since they
+  resolve inside the container.
+- `motion_name` is required. A taken name fails before the arm floats unless
+  `overwrite` is true.
+- Record engages with spring gains, then asks for Start recording. Start floats
+  J1-J6 (Start Gravity Comp) and records. Stop recording restores spring gains
+  where the arm is released, then saves. Discard, a refused step or a failed
+  save also restores spring gains and saves nothing.
+- Use Stop recording or Discard, not the Objective Stop button. A stopped
+  Objective leaves the float on until the next reBot motion Objective engages.
+- The jaw stays spring-held during the float, so a recording carries the jaw
+  where it is held.
+- Replay engages, checks the recording against the current planning scene and
+  plans an approach to its first point. It then executes the recording with its
+  recorded timing and holds at the last point with spring gains. It never moves
+  HOME or relaxes.
+- An empty run-time text input reaches the tree as `null`, so `null` is refused
+  as a name or folder.
+
 ## Verification and rollback
 
 [Virtual CAN qualification](docs/vcan-qualification.md) runs the driver and this
