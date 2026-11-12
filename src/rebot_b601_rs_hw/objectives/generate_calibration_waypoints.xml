@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root BTCPP_format="4" main_tree_to_execute="Generate Calibration Waypoints">
+  <BehaviorTree
+    ID="Generate Calibration Waypoints"
+    _description="Before you run this, follow the Camera Calibration guide at https://docs.picknik.ai/how_to/robotics_applications/camera_calibration/. Generates the waypoints for the camera calibration Objectives. Start with the arm at a pose where the camera sees the whole ChArUco calibration board, then run. The Objective tilts that pose in view_count directions, shifts each tilted pose by up to max_translation so the board moves around the image and changes size between waypoints, moves the arm to each pose, and saves it as a waypoint named waypoint_prefix_01, _02, and so on. Set pivot_distance to about the distance from the end effector to the board when the camera is on the arm, or to 0 when the board is on the arm and the camera is fixed in the workspace. A camera on the arm must look along the z axis of end_effector_frame. A pose the arm cannot reach is skipped with a warning. Waypoints with the same names are replaced. Waypoints from an earlier run with higher numbers stay; delete them by hand."
+    _favorite="false"
+  >
+    <Control ID="Sequence" name="root">
+      <!-- reBot override of the stock Objective with the same ID: the only
+           change is the 0.0025 m link padding (stock default 0.01 m, which
+           reBot's own posture fails) for view generation and motion. Delete
+           this file once the stock calibration subtrees expose the padding. -->
+      <Action
+        ID="GenerateCalibrationViews"
+        end_effector_frame="{end_effector_frame}"
+        joint_group_name="{joint_group_name}"
+        link_padding="0.0025"
+        pivot_distance="{pivot_distance}"
+        tilt_angle_deg="{tilt_angle_deg}"
+        max_translation="{max_translation}"
+        view_count="{view_count}"
+        waypoint_prefix="{waypoint_prefix}"
+        joint_states="{joint_states}"
+        waypoint_names="{waypoint_names}"
+      />
+      <Decorator
+        ID="ForEach"
+        vector_in="{waypoint_names}"
+        out="{waypoint_name}"
+        index="{view_index}"
+      >
+        <Control ID="Sequence">
+          <Action
+            ID="GetElementOfVector"
+            vector_in="{joint_states}"
+            index="{view_index}"
+            element="{target_joint_state}"
+          />
+          <SubTree
+            ID="Move to Joint State"
+            _collapsed="true"
+            target_joint_state="{target_joint_state}"
+            joint_group_name="{joint_group_name}"
+            collision_check_params="[{override_scene_link_padding: true, link_padding: 0.0025}]"
+          />
+          <Action ID="WaitForDuration" delay_duration="1.0" />
+          <Action
+            ID="EditWaypoint"
+            waypoint_name="{waypoint_name}"
+            waypoint_operation="save"
+            joint_group_names="{joint_group_name}"
+          />
+        </Control>
+      </Decorator>
+    </Control>
+  </BehaviorTree>
+  <TreeNodesModel>
+    <SubTree ID="Generate Calibration Waypoints">
+      <MetadataFields>
+        <Metadata runnable="true" />
+        <Metadata subcategory="Perception - Camera Calibration" />
+      </MetadataFields>
+      <input_port
+        name="waypoint_prefix"
+        default="calibration"
+        type="std::string"
+      >
+        Prefix of the waypoint names. Use the same prefix in the calibration
+        Objective.
+      </input_port>
+      <input_port name="pivot_distance" default="0.5" type="double">
+        About the distance from the end effector to the ChArUco board, measured
+        along the end effector's z axis, in meters. Use 0 when the board is on
+        the arm.
+      </input_port>
+      <input_port name="tilt_angle_deg" default="25" type="double">
+        How far each waypoint tilts away from the starting pose, in degrees.
+      </input_port>
+      <input_port name="max_translation" default="0.05" type="double">
+        Largest shift of each waypoint from its tilted pose along each of its
+        own axes, in meters. The shifts follow a fixed pattern that moves the
+        board around the image and changes its size between waypoints. Keep it
+        well below pivot_distance for a camera on the arm. Use 0 to keep the
+        board centered.
+      </input_port>
+      <input_port name="view_count" default="12" type="int">
+        Number of waypoints to generate. The calibration needs at least 5.
+      </input_port>
+      <input_port
+        name="end_effector_frame"
+        default="grasp_link"
+        type="std::string"
+      >
+        Link of the arm the waypoints are generated for. A camera on the arm
+        must look along the z axis of this link.
+      </input_port>
+      <input_port
+        name="joint_group_name"
+        default="manipulator"
+        type="std::string"
+      >
+        Joint group that moves to each waypoint.
+      </input_port>
+    </SubTree>
+  </TreeNodesModel>
+</root>

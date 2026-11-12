@@ -274,3 +274,48 @@ def test_physical_spring_and_nominal_gravity_startup():
             "gravity_compensation_controller"
             not in child.ros2_control["controllers_active_at_startup"]
         )
+
+
+CALIBRATION_PADDING = 0.0025
+
+
+def stripped(root):
+    for element in root.iter():
+        element.text = (element.text or "").strip()
+        element.tail = (element.tail or "").strip()
+    return ET.tostring(root)
+
+
+@pytest.mark.parametrize(
+    "name", ["collect_calibration_samples.xml", "generate_calibration_waypoints.xml"]
+)
+def test_calibration_overrides_change_only_the_padding(name):
+    # Same-ID overrides of stock calibration subtrees. Fail when the stock file
+    # changes, so the copy is resynced or deleted once the padding is exposed.
+    override = ET.parse(
+        Path(get_package_share_directory("rebot_b601_rs_hw")) / "objectives" / name
+    ).getroot()
+    libraries = resolved("hw").objectives.objective_library_paths
+    stock_library = libraries["perception_objectives"]
+    assert stock_library.package_name == "moveit_pro_objectives"
+    # The physical library is registered after the stock one, so its ID wins.
+    assert list(libraries).index("rebot_hw_objectives") > list(libraries).index(
+        "perception_objectives"
+    )
+    stock = ET.parse(
+        Path(get_package_share_directory(stock_library.package_name))
+        / stock_library.relative_path
+        / name
+    ).getroot()
+    margins = []
+    for element in override.iter():
+        if element.get("ID") == "GenerateCalibrationViews":
+            margins.append(float(element.attrib.pop("link_padding")))
+        params = element.attrib.pop("collision_check_params", None)
+        if params is not None:
+            [entry] = yaml.safe_load(params)
+            assert entry["override_scene_link_padding"] is True
+            margins.append(float(entry["link_padding"]))
+    assert len(margins) == (2 if name.startswith("generate") else 1)
+    assert set(margins) == {CALIBRATION_PADDING}
+    assert stripped(override) == stripped(stock)
