@@ -295,8 +295,9 @@ fault-byte-swap branch.
 ## Start and Stop Gravity Comp
 
 [Start Gravity Comp and Stop Gravity Comp](docs/gravity-modes.md) preserve the
-published measured-pose anchor before damping/stiffness changes. Both finish
-without switching controllers; gravity stays active. The independent thermal
+published measured-pose anchor before damping/stiffness changes. Both first make
+JTAC the arm position owner, so they also work after a teleoperation jog or
+Mirror left another position controller active; gravity stays active. The independent thermal
 recovery sequence remains required during physical use. Source integration and
 offline tests do not certify float quality or motor-side gain delivery.
 
