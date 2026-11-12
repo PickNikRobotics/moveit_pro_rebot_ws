@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root
+  BTCPP_format="4"
+  main_tree_to_execute="Generate reBot Calibration Waypoints"
+>
+  <BehaviorTree
+    ID="Generate reBot Calibration Waypoints"
+    _description="Save the calibration_01, calibration_02, ... waypoints for the reBot wrist camera calibrations by tilting the arm around a point on the board. Jog the arm first so the wrist camera sees the whole board; the views ring around that pose. See https://docs.picknik.ai/how_to/robotics_applications/camera_calibration/."
+    _favorite="false"
+  >
+    <Control ID="Sequence" name="TopLevelSequence">
+      <!-- link6's z axis is the approach axis, close to the wrist camera's view
+           axis; gripper_end's z axis points sideways. -->
+      <SubTree
+        ID="Generate Calibration Waypoints"
+        _collapsed="true"
+        waypoint_prefix="calibration"
+        pivot_distance="{pivot_distance}"
+        end_effector_frame="link6"
+        joint_group_name="manipulator"
+      />
+    </Control>
+  </BehaviorTree>
+  <TreeNodesModel>
+    <SubTree ID="Generate reBot Calibration Waypoints">
+      <MetadataFields>
+        <Metadata runnable="true" />
+        <Metadata subcategory="Perception - Camera Calibration" />
+      </MetadataFields>
+      <input_port name="pivot_distance" default="0.35" type="double">
+        Distance in meters from link6 along its approach axis to the board point
+        the views tilt around; about the camera-to-board distance.
+      </input_port>
+    </SubTree>
+  </TreeNodesModel>
+</root>

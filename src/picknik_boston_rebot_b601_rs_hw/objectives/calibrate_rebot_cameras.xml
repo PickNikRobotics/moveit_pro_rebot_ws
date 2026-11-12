@@ -1,0 +1,353 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root BTCPP_format="4" main_tree_to_execute="Calibrate reBot Cameras">
+  <BehaviorTree
+    ID="Calibrate reBot Cameras"
+    _description="Calibrate the Gemini 305 wrist camera (eye-in-hand, from a ChArUco board fixed on the mat) and the OAK-D scene camera (eye-to-hand, from a second board mounted on the gripper) in one run. The arm visits the saved calibration waypoints, captures one image per camera at each, solves each camera's pose, then a bundle adjustment refines both; when the refinement fails, the per-camera results stand. The two boards must use different ArUco dictionary families. Run Generate reBot Calibration Waypoints first. The stock wrist driver publishes no point cloud, so the closing snapshot step fails on hardware after the solve. Two-camera form of Calibrate Multiple Cameras. See https://docs.picknik.ai/how_to/robotics_applications/camera_calibration/."
+    _favorite="false"
+  >
+    <Control ID="Sequence" name="root">
+      <!--Clear the previous capture so the 3D view holds only this run's
+          snapshot.-->
+      <Action ID="ClearSnapshot" />
+      <Action
+        ID="ResetCalibrationSamplesVector"
+        vector="{calibration_samples}"
+      />
+      <Action
+        ID="GetCameraInfo"
+        topic_name="{eye_in_hand_camera_info_topic}"
+        message_out="{eye_in_hand_camera_info}"
+      />
+      <Action
+        ID="GetCameraInfo"
+        topic_name="{eye_to_hand_camera_a_camera_info_topic}"
+        message_out="{eye_to_hand_camera_a_camera_info}"
+      />
+      <Action
+        ID="GetWaypointNames"
+        prefix="{waypoint_prefix}"
+        waypoint_names="{waypoint_names}"
+      />
+      <Decorator
+        ID="ForEach"
+        vector_in="{waypoint_names}"
+        out="{current_waypoint}"
+      >
+        <Control ID="Sequence">
+          <SubTree
+            ID="Move to Waypoint"
+            _collapsed="true"
+            waypoint_name="{current_waypoint}"
+            joint_group_name="{joint_group_name}"
+          />
+          <Action ID="WaitForDuration" delay_duration="{settle_seconds}" />
+          <SubTree
+            ID="Capture Calibration Sample"
+            _collapsed="true"
+            image_topic="{eye_in_hand_image_topic}"
+            camera_info="{eye_in_hand_camera_info}"
+            camera_name="{eye_in_hand_camera_name}"
+            base_frame="{base_frame}"
+            end_effector_frame="{end_effector_frame}"
+            board="{world_board}"
+            view_label="{current_waypoint}"
+            samples="{calibration_samples}"
+          />
+          <SubTree
+            ID="Capture Calibration Sample"
+            _collapsed="true"
+            image_topic="{eye_to_hand_camera_a_image_topic}"
+            camera_info="{eye_to_hand_camera_a_camera_info}"
+            camera_name="{eye_to_hand_camera_a_camera_name}"
+            base_frame="{base_frame}"
+            end_effector_frame="{end_effector_frame}"
+            board="{arm_board}"
+            view_label="{current_waypoint}"
+            samples="{calibration_samples}"
+          />
+        </Control>
+      </Decorator>
+      <Action
+        ID="SolveEyeInHandCalibration"
+        samples="{calibration_samples}"
+        camera_name="{eye_in_hand_camera_name}"
+        calibrated_camera_pose="{eye_in_hand_calibrated_camera_pose}"
+        calibrated_board_pose="{eye_in_hand_calibrated_board_pose}"
+        used_sample_count="{eye_in_hand_used_sample_count}"
+        rotation_residual="{eye_in_hand_rotation_residual}"
+        translation_residual="{eye_in_hand_translation_residual}"
+      />
+      <Action
+        ID="SolveEyeToHandCalibration"
+        samples="{calibration_samples}"
+        camera_name="{eye_to_hand_camera_a_camera_name}"
+        calibrated_camera_pose="{eye_to_hand_camera_a_calibrated_camera_pose}"
+        calibrated_board_pose="{eye_to_hand_camera_a_calibrated_board_pose}"
+        used_sample_count="{eye_to_hand_camera_a_used_sample_count}"
+        rotation_residual="{eye_to_hand_camera_a_rotation_residual}"
+        translation_residual="{eye_to_hand_camera_a_translation_residual}"
+      />
+      <Decorator ID="ForceSuccess">
+        <Control ID="Sequence">
+          <Action
+            ID="Script"
+            code="eye_in_hand_cameras := eye_in_hand_camera_name"
+          />
+          <Action
+            ID="RefineCalibrationBundleAdjustment"
+            samples="{calibration_samples}"
+            eye_in_hand_cameras="{eye_in_hand_cameras}"
+            eye_to_hand_cameras="{eye_to_hand_cameras}"
+            refined_calibration="{refined_calibration}"
+            initial_rms_reprojection_error="{bundle_initial_rms}"
+            final_rms_reprojection_error="{bundle_final_rms}"
+            iterations="{bundle_iterations}"
+            termination="{bundle_termination}"
+          />
+          <Action
+            ID="GetRefinedCameraCalibration"
+            refined_calibration="{refined_calibration}"
+            camera_name="{eye_in_hand_camera_name}"
+            calibrated_camera_pose="{eye_in_hand_calibrated_camera_pose}"
+            calibrated_board_pose="{eye_in_hand_calibrated_board_pose}"
+            used_sample_count="{eye_in_hand_used_sample_count}"
+            rms_reprojection_error="{eye_in_hand_rms_reprojection_error}"
+            initial_rms_reprojection_error="{eye_in_hand_initial_rms_reprojection_error}"
+          />
+          <Action
+            ID="GetRefinedCameraCalibration"
+            refined_calibration="{refined_calibration}"
+            camera_name="{eye_to_hand_camera_a_camera_name}"
+            calibrated_camera_pose="{eye_to_hand_camera_a_calibrated_camera_pose}"
+            calibrated_board_pose="{eye_to_hand_camera_a_calibrated_board_pose}"
+            used_sample_count="{eye_to_hand_camera_a_used_sample_count}"
+            rms_reprojection_error="{eye_to_hand_camera_a_rms_reprojection_error}"
+            initial_rms_reprojection_error="{eye_to_hand_camera_a_initial_rms_reprojection_error}"
+          />
+        </Control>
+      </Decorator>
+      <Action
+        ID="VisualizePose"
+        pose="{eye_in_hand_calibrated_board_pose}"
+        marker_name="world_board_pose"
+        marker_text="world board"
+      />
+      <Action
+        ID="VisualizePose"
+        pose="{eye_to_hand_camera_a_calibrated_board_pose}"
+        marker_name="arm_board_pose"
+        marker_text="arm board"
+      />
+      <Action
+        ID="VisualizePose"
+        pose="{eye_in_hand_calibrated_camera_pose}"
+        marker_name="{eye_in_hand_camera_name}"
+        marker_text="{eye_in_hand_camera_name}"
+      />
+      <Action
+        ID="VisualizePose"
+        pose="{eye_to_hand_camera_a_calibrated_camera_pose}"
+        marker_name="{eye_to_hand_camera_a_camera_name}"
+        marker_text="{eye_to_hand_camera_a_camera_name}"
+      />
+      <!--Snapshot the calibrated cameras so the result can be checked against
+          the robot model: the clouds are placed with the calibration just
+          solved, so where they sit is that calibration's error.-->
+      <Action ID="ResetVector" vector="{snapshot_clouds}" />
+      <SubTree
+        ID="Capture Camera Point Cloud"
+        _collapsed="true"
+        point_cloud_topic="{eye_in_hand_point_cloud_topic}"
+        target_frame="{base_frame}"
+        crop_box_size="5.000000;5.000000;5.000000"
+        point_cloud_vector="{snapshot_clouds}"
+      />
+      <SubTree
+        ID="Capture Camera Point Cloud"
+        _collapsed="true"
+        point_cloud_topic="{eye_to_hand_camera_a_point_cloud_topic}"
+        target_frame="{base_frame}"
+        crop_box_size="5.000000;5.000000;5.000000"
+        point_cloud_vector="{snapshot_clouds}"
+      />
+      <!--MergePointClouds also voxel-downsamples, which keeps the payload the
+          3D view has to draw within reason. align_point_clouds stays false: ICP
+          would pull the clouds together and hide the disagreement worth
+          seeing.-->
+      <Action
+        ID="MergePointClouds"
+        align_point_clouds="false"
+        grid_resolution_meters="0.005000"
+        merged_cloud="{snapshot_cloud}"
+        point_clouds="{snapshot_clouds}"
+      />
+      <Action
+        ID="SendPointCloudToUI"
+        pcd_topic="/pcd_pointcloud_captures"
+        point_cloud="{snapshot_cloud}"
+      />
+      <Action
+        ID="LogMessage"
+        log_level="info"
+        message="Calibration finished. The solved camera and board poses are shown in the 3D view and on this Objective's output ports."
+      />
+    </Control>
+  </BehaviorTree>
+  <TreeNodesModel>
+    <SubTree ID="Calibrate reBot Cameras">
+      <MetadataFields>
+        <Metadata subcategory="Perception - Camera Calibration" />
+        <Metadata runnable="true" />
+      </MetadataFields>
+      <input_port
+        name="waypoint_prefix"
+        default="calibration"
+        type="std::string"
+      >
+        Samples are collected at every waypoint whose name starts with this
+        prefix, visited in name order. Zero-pad numbered waypoints
+        (calibration_01 ...) so ten or more sort correctly, and save
+        consecutive waypoints close in joint space to avoid large arm motions
+        between views.
+      </input_port>
+      <input_port
+        name="joint_group_name"
+        default="manipulator"
+        type="std::string"
+      >
+        Joint group that moves to each waypoint.
+      </input_port>
+      <input_port
+        name="end_effector_frame"
+        default="gripper_end"
+        type="std::string"
+      >
+        The eye-in-hand camera pose and the eye-to-hand board poses are
+        expressed in this frame. Use a link that moves rigidly with the camera
+        and the arm board, not one past an actuated gripper joint.
+      </input_port>
+      <input_port name="base_frame" default="base_link" type="std::string">
+        Frame the end effector pose is looked up in, and the frame the
+        eye-to-hand camera poses and the world board pose are expressed
+        in. Must be rigidly fixed to the arm's mount, not a map or localization
+        frame.
+      </input_port>
+      <input_port name="settle_seconds" default="1.0" type="double">
+        Time to wait after each motion so the robot settles before the images
+        are captured.
+      </input_port>
+      <input_port
+        name="eye_in_hand_camera_name"
+        default="wrist_mounted_camera"
+        type="std::string"
+      >
+        Name of the camera mounted on the arm. It views the world board and is
+        calibrated eye-in-hand.
+      </input_port>
+      <input_port
+        name="eye_in_hand_image_topic"
+        default="/wrist_mounted_camera/color/image_raw"
+        type="std::string"
+      >
+        Topic publishing the raw (unrectified) image of the eye-in-hand
+        camera.
+      </input_port>
+      <input_port
+        name="eye_in_hand_camera_info_topic"
+        default="/wrist_mounted_camera/color/camera_info"
+        type="std::string"
+      >
+        Topic publishing the intrinsics of the eye-in-hand camera.
+      </input_port>
+      <input_port
+        name="eye_to_hand_camera_a_camera_name"
+        default="scene_camera"
+        type="std::string"
+      >
+        Name of the scene camera. It views the board mounted on the arm
+        and is calibrated eye-to-hand.
+      </input_port>
+      <input_port
+        name="eye_to_hand_camera_a_image_topic"
+        default="/scene_camera/color/image_raw"
+        type="std::string"
+      >
+        Topic publishing the raw (unrectified) image of the scene camera.
+      </input_port>
+      <input_port
+        name="eye_to_hand_camera_a_camera_info_topic"
+        default="/scene_camera/color/camera_info"
+        type="std::string"
+      >
+        Topic publishing the intrinsics of the scene camera.
+      </input_port>
+      <input_port
+        name="eye_in_hand_point_cloud_topic"
+        default="/wrist_mounted_camera/depth/color/points"
+        type="std::string"
+      >
+        Topic publishing the point cloud of the eye-in-hand camera. A
+        snapshot is taken from it once the solve finishes and drawn in the 3D
+        view, so
+        the calibration can be checked against the robot model.
+      </input_port>
+      <input_port
+        name="eye_to_hand_camera_a_point_cloud_topic"
+        default="/scene_camera/depth/color/points"
+        type="std::string"
+      >
+        Topic publishing the point cloud of the scene camera. A snapshot is
+        taken from it once the solve finishes and drawn in the 3D view, so
+        the calibration can be checked against the robot model.
+      </input_port>
+      <input_port
+        name="world_board"
+        default="[{squares_x: 7, squares_y: 5, square_length: 0.035, marker_length: 0.026, dictionary: DICT_4X4_50}]"
+        type="moveit_studio_msgs::msg::CharucoBoard"
+      >
+        The ChArUco board fixed on the mat, seen by the wrist camera. The
+        default is the bench's A4 print of the standard 7x5 DICT_4X4_50 board
+        (35 mm squares, 26 mm markers). Its dictionary must come from a
+        different family than the arm board's.
+      </input_port>
+      <input_port
+        name="arm_board"
+        default="[{squares_x: 5, squares_y: 4, square_length: 0.045, marker_length: 0.033, dictionary: DICT_5X5_50}]"
+        type="moveit_studio_msgs::msg::CharucoBoard"
+      >
+        The ChArUco board mounted rigidly on the gripper, seen by the scene
+        camera. Its dictionary must come from a different family than the
+        world board's.
+      </input_port>
+      <output_port
+        name="eye_in_hand_calibrated_camera_pose"
+        default="{eye_in_hand_calibrated_camera_pose}"
+        type="geometry_msgs::msg::PoseStamped"
+      >
+        Solved eye-in-hand camera pose in the end effector frame.
+      </output_port>
+      <output_port
+        name="eye_in_hand_calibrated_board_pose"
+        default="{eye_in_hand_calibrated_board_pose}"
+        type="geometry_msgs::msg::PoseStamped"
+      >
+        Solved world board pose in the base frame, where the board is fixed.
+      </output_port>
+      <output_port
+        name="eye_to_hand_camera_a_calibrated_camera_pose"
+        default="{eye_to_hand_camera_a_calibrated_camera_pose}"
+        type="geometry_msgs::msg::PoseStamped"
+      >
+        Solved pose of the scene camera in the base frame.
+      </output_port>
+      <output_port
+        name="eye_to_hand_camera_a_calibrated_board_pose"
+        default="{eye_to_hand_camera_a_calibrated_board_pose}"
+        type="geometry_msgs::msg::PoseStamped"
+      >
+        Arm board pose in the end effector frame, as solved from the scene
+        camera.
+      </output_port>
+    </SubTree>
+  </TreeNodesModel>
+</root>

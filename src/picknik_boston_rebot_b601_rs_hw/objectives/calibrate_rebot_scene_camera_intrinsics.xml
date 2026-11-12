@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root
+  BTCPP_format="4"
+  main_tree_to_execute="Calibrate reBot Scene Camera Intrinsics"
+>
+  <BehaviorTree
+    ID="Calibrate reBot Scene Camera Intrinsics"
+    _description="Calibrate the intrinsics of the fixed OAK-D scene camera and check them against the camera_info its driver publishes. The camera and arm stay still; a prompt before each sample asks you to move the ChArUco board by hand and hold it. See https://docs.picknik.ai/how_to/robotics_applications/camera_calibration/."
+    _favorite="false"
+  >
+    <Control ID="Sequence" name="TopLevelSequence">
+      <SubTree
+        ID="Calibrate Camera Intrinsics"
+        _collapsed="true"
+        use_waypoints="false"
+        image_topic="/scene_camera/color/image_raw"
+        camera_info_topic="/scene_camera/color/camera_info"
+        camera_name="scene_camera"
+        joint_group_name="manipulator"
+        end_effector_frame="gripper_end"
+        base_frame="base_link"
+        board="{board}"
+      />
+    </Control>
+  </BehaviorTree>
+  <TreeNodesModel>
+    <SubTree ID="Calibrate reBot Scene Camera Intrinsics">
+      <MetadataFields>
+        <Metadata runnable="true" />
+        <Metadata subcategory="Perception - Camera Calibration" />
+      </MetadataFields>
+      <input_port
+        name="board"
+        default="[{squares_x: 7, squares_y: 5, square_length: 0.035, marker_length: 0.026, dictionary: DICT_4X4_50}]"
+        type="moveit_studio_msgs::msg::CharucoBoard"
+      >
+        The hand-held ChArUco board. The default is the bench's A4 print of the
+        standard 7x5 DICT_4X4_50 board (35 mm squares, 26 mm markers).
+      </input_port>
+    </SubTree>
+  </TreeNodesModel>
+</root>

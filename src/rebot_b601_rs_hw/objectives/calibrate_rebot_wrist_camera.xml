@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root BTCPP_format="4" main_tree_to_execute="Calibrate reBot Wrist Camera">
+  <BehaviorTree
+    ID="Calibrate reBot Wrist Camera"
+    _description="Calibrate the pose of the Gemini 305 wrist camera in gripper_end from views of a ChArUco board fixed in the workspace, and draw the solved camera and board poses in the 3D view. Run Generate reBot Calibration Waypoints first. The solved pose is the wrist_camera_color_optical_xyz/rpy mount. The stock driver publishes no point cloud, so the closing snapshot step fails on hardware after the solve. See https://docs.picknik.ai/how_to/robotics_applications/camera_calibration/."
+    _favorite="false"
+  >
+    <Control ID="Sequence" name="TopLevelSequence">
+      <SubTree
+        ID="Calibrate Eye In Hand Camera"
+        _collapsed="true"
+        image_topic="/wrist_mounted_camera/color/image_raw"
+        camera_info_topic="/wrist_mounted_camera/color/camera_info"
+        camera_name="wrist_mounted_camera"
+        point_cloud_topic="/wrist_mounted_camera/depth/color/points"
+        joint_group_name="manipulator"
+        end_effector_frame="gripper_end"
+        base_frame="base_link"
+        board="{board}"
+      />
+    </Control>
+  </BehaviorTree>
+  <TreeNodesModel>
+    <SubTree ID="Calibrate reBot Wrist Camera">
+      <MetadataFields>
+        <Metadata runnable="true" />
+        <Metadata subcategory="Perception - Camera Calibration" />
+      </MetadataFields>
+      <input_port
+        name="board"
+        default="[{squares_x: 7, squares_y: 5, square_length: 0.05, marker_length: 0.037143, dictionary: DICT_4X4_50}]"
+        type="moveit_studio_msgs::msg::CharucoBoard"
+      >
+        The ChArUco board fixed in the workspace. Match your print: squares
+        along x and y, square and marker side lengths in meters, dictionary.
+      </input_port>
+    </SubTree>
+  </TreeNodesModel>
+</root>

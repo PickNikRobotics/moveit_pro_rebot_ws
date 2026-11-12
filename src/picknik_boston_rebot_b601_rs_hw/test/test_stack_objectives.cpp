@@ -107,8 +107,10 @@ protected:
     std::set<std::string> local_trees;
     std::vector<std::filesystem::path> paths{ STOCK_OBJECTIVES_DIR "/close_gripper.xml",
                                               STOCK_GENERATED_OBJECTIVES "/return_rebot_leader_home.xml" };
+    // Calibrate reBot Cameras is the stock multi-camera tree with its ForEach
+    // loop, not a stack leg; the runtime twin check covers it.
     for (const auto& entry : std::filesystem::directory_iterator(PACKAGE_DIR "/objectives"))
-      if (entry.path().extension() == ".xml")
+      if (entry.path().extension() == ".xml" && entry.path().filename() != "calibrate_rebot_cameras.xml")
         paths.push_back(entry.path());
     // The office config's leader library: its HOME notification calls the bridge.
     paths.push_back(STOCK_LEADER_OBJECTIVES "/rebot_notify_leader_home.xml");
