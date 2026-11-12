@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root BTCPP_format="4" main_tree_to_execute="Collect Calibration Samples">
+  <BehaviorTree
+    ID="Collect Calibration Samples"
+    _description="Move through the given waypoints and record a hand-eye calibration sample at each one. A view where the camera does not see enough of the board is recorded anyway, and the solve reports it as skipped. A rejected sample or any other failure stops the run."
+    _favorite="false"
+  >
+    <Decorator
+      ID="ForEach"
+      vector_in="{waypoint_names}"
+      out="{current_waypoint}"
+    >
+      <Control ID="Sequence">
+        <!-- reBot override of the stock Objective with the same ID: the only
+             change is the 0.0025 m link padding (stock default 0.01 m, which
+             reBot's own posture fails). Delete this file once the stock
+             calibration subtrees expose the padding. -->
+        <SubTree
+          ID="Move to Waypoint"
+          _collapsed="true"
+          waypoint_name="{current_waypoint}"
+          joint_group_name="{joint_group_name}"
+          collision_check_params="[{override_scene_link_padding: true, link_padding: 0.0025}]"
+        />
+        <Action ID="WaitForDuration" delay_duration="{settle_seconds}" />
+        <SubTree
+          ID="Capture Calibration Sample"
+          _collapsed="true"
+          image_topic="{image_topic}"
+          camera_info="{camera_info}"
+          camera_name="{camera_name}"
+          base_frame="{base_frame}"
+          end_effector_frame="{end_effector_frame}"
+          board="{board}"
+          view_label="{current_waypoint}"
+          samples="{samples}"
+        />
+      </Control>
+    </Decorator>
+  </BehaviorTree>
+  <TreeNodesModel>
+    <SubTree ID="Collect Calibration Samples">
+      <MetadataFields>
+        <Metadata subcategory="Perception - Camera Calibration" />
+        <Metadata runnable="false" />
+      </MetadataFields>
+      <input_port
+        name="waypoint_names"
+        default="{waypoint_names}"
+        type="std::vector&lt;BT::Any, std::allocator&lt;BT::Any&gt; &gt;"
+      >
+        Waypoint names to visit, in order.
+      </input_port>
+      <input_port
+        name="joint_group_name"
+        default="manipulator"
+        type="std::string"
+      >
+        Joint group that moves to each waypoint.
+      </input_port>
+      <input_port
+        name="image_topic"
+        default="/wrist_camera/color"
+        type="std::string"
+      >
+        Topic publishing the raw (unrectified) image of the camera being
+        calibrated.
+      </input_port>
+      <input_port
+        name="camera_info"
+        default="{camera_info}"
+        type="sensor_msgs::msg::CameraInfo"
+      >
+        Intrinsics of the camera being calibrated.
+      </input_port>
+      <input_port name="camera_name" default="wrist_camera" type="std::string">
+        Name that identifies this camera in the recorded samples.
+      </input_port>
+      <input_port
+        name="end_effector_frame"
+        default="grasp_link"
+        type="std::string"
+      >
+        Link whose pose is recorded with each sample. Use a link that moves
+        rigidly with the camera or board mounted on the arm, not one past an
+        actuated gripper joint.
+      </input_port>
+      <input_port name="base_frame" default="world" type="std::string">
+        Frame the end effector pose is looked up and recorded in. Must be
+        rigidly fixed to the arm's mount, not a map or localization frame.
+      </input_port>
+      <input_port
+        name="board"
+        default="{board}"
+        type="moveit_studio_msgs::msg::CharucoBoard"
+      >
+        The ChArUco board to look for: squares along x and y, square and
+        marker side lengths in meters, and the ArUco dictionary by name.
+      </input_port>
+      <input_port name="settle_seconds" default="1.0" type="double">
+        Time to wait after each motion so the robot settles before the image is
+        captured.
+      </input_port>
+      <inout_port
+        name="samples"
+        default="{samples}"
+        type="std::vector&lt;moveit_pro::hand_eye_calibration::CalibrationSample&gt;"
+      >
+        Vector the recorded samples are appended to.
+      </inout_port>
+    </SubTree>
+  </TreeNodesModel>
+</root>

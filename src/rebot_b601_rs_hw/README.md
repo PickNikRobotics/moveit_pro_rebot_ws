@@ -135,6 +135,44 @@ Build the child config and restart the backend after changing that source. The
 stock camera frame has no body, collision or inertial geometry. The mock and
 MuJoCo descriptions gain no camera frame.
 
+## Camera calibration
+
+The stock calibration subtrees `Generate Calibration Waypoints` and
+`Collect Calibration Samples` plan and generate views with a fixed 0.01 m link
+padding, which reBot's own posture already fails (no view is found from
+`Raised`). This package overrides both with same-ID copies whose only change is
+a 0.0025 m padding, the largest at which the MuJoCo twin generated and reached
+all 12 views from `Raised`. Delete the two files once the stock subtrees expose
+the padding (PickNikRobotics/moveit_pro#24531). `Calibrate Multiple Cameras`
+moves through its own stock `Move to Waypoint` call and keeps the 0.01 m
+padding.
+
+Enter these port values when you run the stock calibration Objectives:
+
+| Port | reBot value |
+| --- | --- |
+| `joint_group_name` | `manipulator` |
+| `end_effector_frame` | `gripper_end`; `link6` for `Generate Calibration Waypoints` (its z axis is the camera's approach) |
+| `base_frame` | `base_link` |
+| Wrist `image_topic` | `/wrist_mounted_camera/color/image_raw` |
+| Wrist `camera_info_topic` | `/wrist_mounted_camera/color/camera_info` |
+| Wrist `camera_name` | `wrist_mounted_camera` |
+| Scene camera `image_topic` (if fitted) | `/scene_camera/color/image_raw` |
+| Scene camera `camera_info_topic` (if fitted) | `/scene_camera/color/camera_info` |
+| Scene camera `camera_name` (if fitted) | `scene_camera` |
+| Scene camera `point_cloud_topic` (if fitted) | `/scene_camera/depth/color/points` |
+| `board` | `[{squares_x: 7, squares_y: 5, square_length: 0.035, marker_length: 0.026, dictionary: DICT_4X4_50}]` |
+
+The `board` value cannot be entered at run time yet: the run-time parameter
+override rejects the `CharucoBoard` port type ("no parser is registered"), so
+each Objective uses its stock default board. Until the stock Objectives take
+the board dimensions as run-time inputs (PickNikRobotics/moveit_pro#24532),
+print and use each Objective's stock default board.
+
+The wrist launch publishes no point cloud. `Calibrate Eye In Hand Camera` solves
+and draws the poses first, then fails at its closing point-cloud snapshot of
+the wrist camera.
+
 ## Preserved torque and fault behavior
 
 | Event | Configured behavior |
