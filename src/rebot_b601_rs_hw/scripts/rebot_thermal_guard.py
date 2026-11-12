@@ -47,6 +47,7 @@ STAGE_LIMITS = {
     "anchor_reference": (1.0, "Measured-pose controller reference not confirmed"),
     "restore": (7.0, "Configured spring gains not restored"),
     "cancel": (3.0, "Objective cancellation unavailable"),
+    "release": (2.0, "Measured-pose anchor goal not released before HOME"),
     "home": (3.0, "Native HOME server unavailable or goal not accepted"),
     "result": (120.0, "Native HOME did not finish"),
     "verify": (5.0, "Fresh stationary HOME not confirmed"),
@@ -56,7 +57,7 @@ STAGE_LIMITS = {
 
 
 PRELUDE_STAGES = ("own", "switch", "anchor", "anchor_reference", "restore")
-PRE_HOME_STAGES = PRELUDE_STAGES + ("cancel", "home")
+PRE_HOME_STAGES = PRELUDE_STAGES + ("cancel", "release", "home")
 
 
 class ThermalGuard:
@@ -375,7 +376,22 @@ class ThermalGuard:
                 if result is None or result.return_code != 0:
                     self.fail("Objective cancellation rejected")
                     return
+                self.stage, self.future, self.started = "release", None, now
+        elif self.stage == "release":
+            # JTAC stitches a new goal onto an executing one rather than replacing
+            # it, and HOME's first leg fails to stitch onto the stationary anchor.
+            # Canceled, JTAC holds its last (anchor) reference at restored gains.
+            if self.anchor_result is None or self.anchor_result.done():
                 self.stage, self.future, self.started = "home", None, now
+            elif self.future is None:
+                self.future = self.anchor_handle.cancel_goal_async()
+            elif self.future.done():
+                response = self.future.result()
+                if (
+                    response is None
+                    or response.return_code == CancelGoal.Response.ERROR_REJECTED
+                ):
+                    self.fail("Measured-pose anchor cancel rejected")
         elif self.stage == "home":
             # Let the canceled Objective and leader bridge relinquish control.
             if now - self.started < 0.5:
@@ -512,7 +528,7 @@ class ThermalGuard:
                 goal.trajectory.header.stamp = stamp.to_msg()
                 goal.trajectory.joint_names = list(JOINT_NAMES)
                 # Keep the stationary goal alive through the bounded gain writes so
-                # reference/goal status remain observable. Native HOME supersedes it.
+                # reference/goal status remain observable; released before HOME.
                 for seconds in (0, 10):
                     point = JointTrajectoryPoint(
                         positions=self.anchor_positions,

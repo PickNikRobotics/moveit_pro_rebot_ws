@@ -150,6 +150,9 @@ def test_cancel_home_verify_disable_confirm_are_sequential(guard):
     guard.advance(10.0)  # cancel requested
     assert guard.cancel.call_async.called and not guard.home.send_goal_async.called
     guard.advance(10.0)  # cancel acknowledged
+    assert guard.stage == "release"
+    guard.advance(10.0)  # no anchor goal left to release
+    assert guard.stage == "home" and not guard.home.send_goal_async.called
     guard.started = 9.0
     guard.advance(10.0)  # HOME requested
     assert (
@@ -251,6 +254,7 @@ def test_native_home_keeps_its_full_budget_after_slow_cancel(guard, monkeypatch)
     tick_at(10.0)  # cancel requested
     done["cancel"] = True
     tick_at(12.9)  # acknowledged just inside the cancel bound
+    tick_at(13.0)  # anchor released
     tick_at(13.5)  # HOME requested
     tick_at(13.5)  # accepted
     tick_at(13.5 + 119.0)  # a slow native HOME is still within its own budget
@@ -893,3 +897,84 @@ def test_controller_manager_unavailable_is_bounded(guard, monkeypatch):
     assert guard.stage == "failed"
     assert not guard.list_controllers.call_async.called
     assert not guard.anchor.send_goal_async.called and not guard.gains.call_async.called
+
+
+def finish_gains(guard, monkeypatch):
+    begin_anchor(guard, monkeypatch)
+    confirm_anchor(guard, monkeypatch)
+    for _ in range(24):
+        guard.advance(10.02)
+    assert guard.stage == "cancel"
+    guard.advance(10.02)  # Objective cancel requested
+    guard.advance(10.02)  # acknowledged
+    assert guard.stage == "release"
+
+
+def test_anchor_goal_is_released_before_native_home(guard, monkeypatch):
+    """JTAC would stitch HOME onto the still-running stationary anchor and abort."""
+    finished = {"anchor": False}
+    anchor_result = Obj(done=lambda: finished["anchor"])
+    guard.anchor.send_goal_async.return_value = future(
+        Obj(
+            accepted=True,
+            status=2,
+            get_result_async=lambda: anchor_result,
+            cancel_goal_async=Mock(return_value=future(Obj(return_code=0))),
+        )
+    )
+    finish_gains(guard, monkeypatch)
+    guard.advance(10.03)
+    assert guard.anchor_handle.cancel_goal_async.call_count == 1
+    for now in (10.04, 10.05):
+        guard.hardware_time = guard.measured_time = now
+        guard.advance(now)  # cancel accepted, goal not yet terminal
+    assert guard.stage == "release"
+    assert guard.anchor_handle.cancel_goal_async.call_count == 1
+    finished["anchor"] = True
+    guard.advance(10.05)
+    assert guard.stage == "home" and guard.started == 10.05
+    guard.hardware_time = guard.measured_time = 10.6
+    guard.advance(10.6)  # settle passed; HOME only now
+    assert guard.home.send_goal_async.called
+    assert not guard.torque.call_async.called
+
+
+def test_already_finished_anchor_needs_no_cancel(guard, monkeypatch):
+    guard.anchor_result = Obj(done=lambda: True)
+    cancel_goal = Mock()
+    guard.anchor.send_goal_async.return_value = future(
+        Obj(
+            accepted=True,
+            status=2,
+            get_result_async=lambda: guard.anchor_result,
+            cancel_goal_async=cancel_goal,
+        )
+    )
+    monkeypatch.setattr("rebot_thermal_guard.time.monotonic", lambda: 10.0)
+    guard.stage, guard.started = "release", 10.0
+    guard.anchor_handle = guard.anchor.send_goal_async.return_value.result()
+    guard.advance(10.0)
+    assert guard.stage == "home" and not cancel_goal.called
+
+
+@pytest.mark.parametrize("bad", ["rejected", "never_terminal"])
+def test_unreleased_anchor_stops_before_home(guard, monkeypatch, bad):
+    anchor_result = Obj(done=lambda: False)
+    guard.anchor.send_goal_async.return_value = future(
+        Obj(
+            accepted=True,
+            status=2,
+            get_result_async=lambda: anchor_result,
+            cancel_goal_async=Mock(
+                return_value=future(Obj(return_code=1 if bad == "rejected" else 0))
+            ),
+        )
+    )
+    finish_gains(guard, monkeypatch)
+    for now in (10.03, 10.04, 12.0, 12.03):
+        if guard.stage == "failed":
+            break
+        guard.hardware_time = guard.measured_time = now
+        guard.advance(now)
+    assert guard.stage == "failed"
+    assert not guard.home.send_goal_async.called and not guard.torque.call_async.called
