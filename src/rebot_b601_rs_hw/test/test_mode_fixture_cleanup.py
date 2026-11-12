@@ -57,4 +57,4 @@ def test_failed_mode_fixture_joins_worker_and_releases_resources(fault, reason):
     ), output
     assert "ROS context shutdown complete" in output, output
     assert "BEFORE gain-service ACK" not in output, output
-    assert "3/3 exact source Objective runs PASS" not in output, output
+    assert "3/3 exact source gain-subtree runs PASS" not in output, output

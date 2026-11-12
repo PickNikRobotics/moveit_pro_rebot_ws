@@ -2,9 +2,10 @@
 <root BTCPP_format="4" main_tree_to_execute="Execute reBot Joint Trajectory">
   <BehaviorTree
     ID="Execute reBot Joint Trajectory"
-    _description="Load a saved joint trajectory, check it against the current planning scene, and execute it unchanged."
+    _description="Engage and restore configured spring gains at the measured pose, then load a saved joint trajectory, check it against the current planning scene, and execute it unchanged."
   >
     <Control ID="Sequence">
+      <SubTree ID="reBot Engage Arm" _collapsed="true" />
       <Action
         ID="LoadJointTrajectoryFromYaml"
         file_path="{file_path}"

@@ -29,18 +29,20 @@ the latch. A trip received while every motor is already OFF remains OFF; the
 guard does not request HOME or enable torque in that case.
 
 For a new latch with fresh healthy feedback from all enabled motors, the guard
-first sends JTAC a nonzero-stamped stationary goal with two identical measured
+first makes JTAC active (switching it in and deactivating only controllers that
+claim its command interfaces, when Mirror or jog left another owner), then sends
+JTAC a nonzero-stamped stationary goal with two identical measured
 seven-joint poses. After two advancing controller-reference samples match that
 pose, it restores the configured `kd` for arm motor IDs 1–6, then their `kp`,
 one acknowledged request at a time through
 `/robstride_hardware_interface/set_data_to_robstride`. The values come from
 the initial `/robot_description` GPIO configuration; the jaw gains and gravity
-compensation are unchanged. JTAC stays active, the stationary goal remains
-observable for up to 10 s while gains are restored, and native HOME supersedes
-it.
+compensation are unchanged. JTAC stays active and the stationary goal remains
+observable for up to 10 s while gains are restored.
 
-Only after that restore does the guard cancel the active Objective and request
-**Return reBot Leader Home**. It waits for success and fresh stationary HOME
+Only after that restore does the guard cancel the active Objective, cancel its
+own anchor goal and wait for its terminal status (JTAC would stitch HOME onto an
+executing goal), and request **Return reBot Leader Home**. It waits for success and fresh stationary HOME
 for 0.5 s, then asks the owning driver to turn torque OFF. A failed anchor,
 reference check, gain request, cancellation, HOME, or HOME verification leaves
 the latch set and never disables away from HOME. Gain requests are bounded to
@@ -185,7 +187,11 @@ Motor status and fault telemetry remain available through the pinned driver's
 
 ## Relax-safe poses and Relax at HOME
 
-The arm has no brakes. **Relax at HOME** returns HOME under power, waits one
+The arm has no brakes. **Relax at HOME** first ends any gravity-comp float the
+way Stop Gravity Comp does (engage, make JTAC the arm owner, re-anchor at the
+measured pose, restore the configured spring gains); a floating arm sags out of
+the HOME box and never settles, so the driver would refuse relax. It then
+returns HOME under power, waits one
 configured stillness window plus 0.1 s after the jaw move, then calls
 `/robstride_hardware_interface/relax` (`std_srvs/Trigger`). This is a
 request, not an idle timer. A failed HOME prevents the
@@ -207,8 +213,19 @@ safety-rated protective stop or power isolation.
 `/robstride_hardware_interface/engage` is also `std_srvs/Trigger`: enable torque
 only after the driver's measured-bounds and health checks, re-seed the hold at
 the measured pose without a step, and report elapsed milliseconds and maximum
-step. Return Home, Mirror's prepare entry, and the physical Teleoperate
-Objective wait for engage success before motion. Stock mock/MuJoCo teleop
+step. Every top-level physical arm motion entry starts with the shared
+`reBot Engage Arm` subtree: engage, make JTAC the arm owner, then run
+`reBot Set Spring Gains`. It covers Return Home, Mirror's prepare entry,
+Teleoperate, the physical Move to Raised/Move to Rest overrides, and Boston's
+Move reBot to Waypoint, Execute reBot Joint Trajectory and Collect reBot Gravity
+Data. A refused engage fails before any switch or motion, so nothing moves a
+relaxed arm. Engage while torque is on keeps the runtime gains, so the spring
+step ends any gravity-comp float (kp=0) at the measured pose; the anchor holds
+the jaw where it measures. Start Gravity Comp engages before its float gains.
+The stack family is not wrapped: those Objectives nest each other, and a
+mid-task anchor would release a held cube's squeeze.
+The thermal guard calls the internal Under Power tree and restores its own gains.
+Stock mock/MuJoCo teleop
 remains independent of physical services. The Boston twin inherits the physical
 entries; validation supplies fake Trigger servers, not a second motor owner.
 Relax at HOME checks `reBot Check Leader Idle` before HOME and immediately
@@ -369,8 +386,10 @@ verify the clearance on the installation first.
 Mirror still requires fresh leader/follower feedback, the native collision scene,
 a healthy controller handoff and **reBot at HOME**, using the per-joint
 allowances in `config/relax_safe_poses.yaml`. The Objective calls the driver's
-`engage` Trigger before bridge preparation or a controller switch.
-Start it explicitly; recovered USB, a cleared fault or completed HOME does not
+`engage` Trigger before bridge preparation or a controller switch, then makes
+JTAC the arm owner and runs `reBot Set Spring Gains` (the shared
+`reBot Engage Arm` subtree), so a gravity-comp float (kp=0) never reaches
+following. Start it explicitly; recovered USB, a cleared fault or completed HOME does not
 re-engage it automatically. Do not move reBot by hand to match the leader.
 
 Engage seeds its position command from the measured follower pose, clamped
@@ -452,8 +471,9 @@ fault-byte-swap branch.
 ## Start and Stop Gravity Comp
 
 [Start Gravity Comp and Stop Gravity Comp](docs/gravity-modes.md) preserve the
-published measured-pose anchor before damping/stiffness changes. Both finish
-without switching controllers; gravity stays active. The independent thermal
+published measured-pose anchor before damping/stiffness changes. Both first make
+JTAC the arm position owner, so they also work after a teleoperation jog or
+Mirror left another position controller active; gravity stays active. The independent thermal
 recovery sequence remains required during physical use. Source integration and
 offline tests do not certify float quality or motor-side gain delivery.
 

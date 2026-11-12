@@ -2,23 +2,26 @@
 <root BTCPP_format="4" main_tree_to_execute="Move reBot to Waypoint">
   <BehaviorTree
     ID="Move reBot to Waypoint"
-    _description="Plan and execute a mock-only reBot arm waypoint."
+    _description="Engage, make JTAC the arm owner and restore configured spring gains (ending a relax or gravity-comp float), then plan and execute a named reBot arm waypoint."
     _favorite="true"
   >
-    <SubTree
-      ID="Move to Waypoint"
-      _collapsed="true"
-      waypoint_name="{waypoint_name}"
-      joint_group_name="manipulator"
-      velocity_scale_factor="{velocity_scale_factor}"
-      acceleration_scale_factor="{acceleration_scale_factor}"
-      seed="0"
-      keep_orientation="false"
-      controller_names="joint_trajectory_admittance_controller"
-      controller_action_server="/joint_trajectory_admittance_controller/follow_joint_trajectory"
-      collision_check_params="[{override_scene_link_padding: true, link_padding: 0.0}]"
-      execution_pipeline="jtac"
-    />
+    <Control ID="Sequence" name="EngageThenMove">
+      <SubTree ID="reBot Engage Arm" _collapsed="true" />
+      <SubTree
+        ID="Move to Waypoint"
+        _collapsed="true"
+        waypoint_name="{waypoint_name}"
+        joint_group_name="manipulator"
+        velocity_scale_factor="{velocity_scale_factor}"
+        acceleration_scale_factor="{acceleration_scale_factor}"
+        seed="0"
+        keep_orientation="false"
+        controller_names="joint_trajectory_admittance_controller"
+        controller_action_server="/joint_trajectory_admittance_controller/follow_joint_trajectory"
+        collision_check_params="[{override_scene_link_padding: true, link_padding: 0.0}]"
+        execution_pipeline="jtac"
+      />
+    </Control>
   </BehaviorTree>
   <TreeNodesModel>
     <SubTree ID="Move reBot to Waypoint">
