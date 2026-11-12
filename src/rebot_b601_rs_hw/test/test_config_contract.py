@@ -260,10 +260,8 @@ def test_physical_spring_and_nominal_gravity_startup():
         assert float(limit.get("upper")) == upper
     # Stop's source values must track the configured spring gains. The execution
     # regression separately proves the ordering and actual service requests.
-    stop = ET.parse(
-        Path(get_package_share_directory("rebot_b601_rs_hw"))
-        / "objectives/stop_gravity_comp.xml"
-    ).getroot()
+    objectives = Path(get_package_share_directory("rebot_b601_rs_hw")) / "objectives"
+    stop = ET.parse(objectives / "rebot_set_spring_gains.xml").getroot()
     requests = stop.findall(".//Action[@ID='SetRebotMotorGain']")
     assert [
         (int(r.get("motor_id")), r.get("gain"), float(r.get("value"))) for r in requests
@@ -272,6 +270,23 @@ def test_physical_spring_and_nominal_gravity_startup():
         for gain, values in [("kd", arm_kd), ("kp", arm_kp)]
         for i, value in enumerate(values)
     ]
+    # Both mode Objectives first make JTAC the position owner (a jog or leader
+    # controller may hold it), then run their gain subtree unchanged.
+    for name, subtree in [
+        ("start_gravity_comp.xml", "reBot Set Float Gains"),
+        ("stop_gravity_comp.xml", "reBot Set Spring Gains"),
+    ]:
+        steps = list(ET.parse(objectives / name).getroot().find("BehaviorTree")[0])
+        assert [(s.tag, s.get("ID")) for s in steps] == [
+            ("Action", "SwitchController"),
+            ("SubTree", subtree),
+        ]
+        assert steps[0].attrib == {
+            "ID": "SwitchController",
+            "activate_controllers": "joint_trajectory_admittance_controller",
+            "automatic_deactivation": "true",
+            "strictness": "2",
+        }
     for mode in ["mock", "sim"]:
         child = resolved(mode)
         assert (
