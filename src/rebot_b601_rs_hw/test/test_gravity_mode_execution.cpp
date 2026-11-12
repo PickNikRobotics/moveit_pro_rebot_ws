@@ -365,10 +365,10 @@ void runModeTest(const std::shared_ptr<rclcpp::executors::SingleThreadedExecutor
     require(status == BT::NodeStatus::SUCCESS,
             scenario + " did not succeed: " + context->logger->consumeErrorLogBuffer());
     require(gains.size() == 12 && !bad_order, scenario + " gain count/order failure");
-    const std::array<double, 6> kd = filename.starts_with("start") ?
+    const std::array<double, 6> kd = filename == "rebot_set_float_gains.xml" ?
                                          std::array<double, 6>{ 1.5, 3.5, 5., 1.25, 1., 1. } :
                                          std::array<double, 6>{ 3., 10., 10., 5., 4., 4. };
-    const std::array<double, 6> kp = filename.starts_with("start") ?
+    const std::array<double, 6> kp = filename == "rebot_set_float_gains.xml" ?
                                          std::array<double, 6>{} :
                                          std::array<double, 6>{ 50., 150., 150., 50., 50., 50. };
     for (size_t i = 0; i < 12; ++i)
@@ -387,11 +387,11 @@ void runModeTest(const std::shared_ptr<rclcpp::executors::SingleThreadedExecutor
     std::cout << "PASS " << scenario
               << ": all 7 command positions equal measured BEFORE every gain write; JTAC stayed active.\n";
   };
-  run("stop_gravity_comp.xml", { .15, 1.9, 2., -.7, .3, -.6, .2 });
-  run("start_gravity_comp.xml", { -.15, 1.1, 1.3, .5, -.2, .6, .1 });
-  run("stop_gravity_comp.xml", { .1, .8, 1.5, .2, .3, -.3, .15 });
+  run("rebot_set_spring_gains.xml", { .15, 1.9, 2., -.7, .3, -.6, .2 });
+  run("rebot_set_float_gains.xml", { -.15, 1.1, 1.3, .5, -.2, .6, .1 });
+  run("rebot_set_spring_gains.xml", { .1, .8, 1.5, .2, .3, -.3, .15 });
   switch_controller(false);
-  std::cout << "3/3 exact source Objective runs PASS; 36 fake driver writes checked, 12 positive kp restorations "
+  std::cout << "3/3 exact source gain-subtree runs PASS; 36 fake driver writes checked, 12 positive kp restorations "
                "preceded by exact measured commands.\n";
   executor->remove_node(node);
 }

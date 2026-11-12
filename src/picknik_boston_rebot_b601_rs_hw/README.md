@@ -81,6 +81,9 @@ A config derived from this one with the leader disabled must put the stock
 `reBot Notify Leader Home` in its last Objective library; the YAML enable flag
 alone only controls the device launch.
 
+Collect reBot Gravity Data starts with the same `reBot Engage Arm` subtree as
+Mirror, so it never moves a relaxed arm.
+
 ## Objectives and recordings
 
 Print the cubes and place the bench as in [cube-stacking layout](docs/cube-stacking-layout.md)

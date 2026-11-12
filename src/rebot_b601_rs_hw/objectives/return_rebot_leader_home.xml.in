@@ -4,15 +4,11 @@
 <root BTCPP_format="4" main_tree_to_execute="Return reBot Leader Home">
   <BehaviorTree
     ID="Return reBot Leader Home"
-    _description="Engage torque with a measured-pose hold before returning HOME. Return retains torque; use Relax at HOME for guarded torque-off."
+    _description="Engage torque with a measured-pose hold and restore configured spring gains (ending any gravity-comp float) before returning HOME. Return retains torque; use Relax at HOME for guarded torque-off."
   >
     <Sequence name="EngageThenHome">
-      <Action
-        ID="CallTriggerService"
-        service_name="/robstride_hardware_interface/engage"
-        wait_for_server_available_timeout="3.0"
-        response_timeout="3.0"
-      />
+      <!-- The thermal guard calls Under Power directly and restores gains itself. -->
+      <SubTree ID="reBot Engage Arm" _collapsed="true" />
       <SubTree ID="Return reBot Leader Home Under Power" _collapsed="true" />
     </Sequence>
   </BehaviorTree>
