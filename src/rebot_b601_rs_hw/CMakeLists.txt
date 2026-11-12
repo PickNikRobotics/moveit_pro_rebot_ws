@@ -74,7 +74,8 @@ if(BUILD_TESTING)
   target_compile_definitions(test_relax_objectives PRIVATE
     HW_SHARE="${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}"
     GENERATED_OBJECTIVES="${CMAKE_INSTALL_PREFIX}/share/${REBOT_GENERATED_OBJECTIVES}/objectives"
-    LEADER_OBJECTIVES="${CMAKE_CURRENT_SOURCE_DIR}/leader_objectives")
+    LEADER_OBJECTIVES="${CMAKE_CURRENT_SOURCE_DIR}/leader_objectives"
+    BOSTON_SHARE="${CMAKE_CURRENT_SOURCE_DIR}/../picknik_boston_rebot_b601_rs_hw")
   ament_add_gtest(test_leader_service test/test_leader_service.cpp)
   ament_target_dependencies(test_leader_service moveit_pro_test_utils)
   target_link_libraries(test_leader_service rebot_hardware_behaviors)

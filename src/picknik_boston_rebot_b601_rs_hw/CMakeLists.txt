@@ -47,6 +47,7 @@ if(BUILD_TESTING)
   set(STOCK_SHARE ${rebot_b601_rs_mock_DIR}/..)
   target_compile_definitions(test_stack_objectives PRIVATE PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
     STOCK_OBJECTIVES_DIR="${STOCK_SHARE}/objectives"
+    HW_OBJECTIVES="${rebot_b601_rs_hw_DIR}/../objectives"
     STOCK_GENERATED_OBJECTIVES="${rebot_b601_rs_hw_DIR}/../../rebot_b601_rs_hw_generated_objectives/objectives"
     STOCK_LEADER_OBJECTIVES="${rebot_b601_rs_hw_DIR}/../leader_objectives")
   set(TEST_URDF ${CMAKE_CURRENT_BINARY_DIR}/test_rebot.urdf)
@@ -76,6 +77,7 @@ if(BUILD_TESTING)
     TEST_URDF="${TEST_URDF}" PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
     TEST_SRDF="${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/config/moveit/rebot.srdf"
     STOCK_SHARE="${STOCK_SHARE}"
+    HW_OBJECTIVES="${rebot_b601_rs_hw_DIR}/../objectives"
     STOCK_GENERATED_OBJECTIVES="${rebot_b601_rs_hw_DIR}/../../rebot_b601_rs_hw_generated_objectives/objectives"
     STOCK_LEADER_OBJECTIVES="${rebot_b601_rs_hw_DIR}/../leader_objectives")
   find_package(moveit_studio_agent REQUIRED)

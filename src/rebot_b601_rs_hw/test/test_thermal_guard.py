@@ -20,6 +20,42 @@ def future(result):
     return Obj(done=lambda: True, result=lambda: result)
 
 
+ARM_POSITION = [f"joint{i}/position" for i in range(1, 8)]
+
+
+def controller(name, state, claimed=(), required=()):
+    return Obj(
+        name=name,
+        state=state,
+        claimed_interfaces=list(claimed),
+        required_command_interfaces=list(required),
+    )
+
+
+def controller_list(owner="joint_trajectory_admittance_controller"):
+    """Gravity compensation is active with whichever controller owns the arm."""
+    names = (
+        "joint_trajectory_admittance_controller",
+        "leader_position_controller",
+        "joint_velocity_controller",
+    )
+    controllers = [
+        controller(
+            name,
+            "active" if name == owner else "inactive",
+            ARM_POSITION if name == owner else (),
+            ARM_POSITION if name != "joint_velocity_controller" else ARM_POSITION[:6],
+        )
+        for name in names
+    ]
+    effort = [f"joint{i}/effort" for i in range(1, 7)]
+    controllers.append(
+        controller("gravity_compensation_controller", "active", effort, effort)
+    )
+    controllers.append(controller("joint_state_broadcaster", "active"))
+    return Obj(controller=controllers)
+
+
 @pytest.fixture
 def guard():
     result = ThermalGuard.__new__(ThermalGuard)
@@ -47,6 +83,14 @@ def guard():
     result.anchor_handle = None
     result.anchor_result = None
     anchor_result = Obj(done=lambda: False)
+    result.list_controllers = Obj(
+        service_is_ready=lambda: True,
+        call_async=Mock(return_value=future(controller_list())),
+    )
+    result.switch_controllers = Obj(
+        service_is_ready=lambda: True,
+        call_async=Mock(return_value=future(Obj(ok=True, message=""))),
+    )
     result.anchor = Obj(
         server_is_ready=lambda: True,
         send_goal_async=Mock(
@@ -94,10 +138,10 @@ def test_trip_latches_even_after_cooling_and_duplicate_notifications(
 ):
     monkeypatch.setattr("rebot_thermal_guard.time.monotonic", lambda: 10.0)
     guard.trip(Obj(data=True))
-    assert guard.stage == "anchor"
+    assert guard.stage == "own"
     guard.trip(Obj(data=False))
     guard.trip(Obj(data=True))
-    assert guard.stage == "anchor" and guard.started == 10.0
+    assert guard.stage == "own" and guard.started == 10.0
     assert not guard.torque.call_async.called
 
 
@@ -106,6 +150,9 @@ def test_cancel_home_verify_disable_confirm_are_sequential(guard):
     guard.advance(10.0)  # cancel requested
     assert guard.cancel.call_async.called and not guard.home.send_goal_async.called
     guard.advance(10.0)  # cancel acknowledged
+    assert guard.stage == "release"
+    guard.advance(10.0)  # no anchor goal left to release
+    assert guard.stage == "home" and not guard.home.send_goal_async.called
     guard.started = 9.0
     guard.advance(10.0)  # HOME requested
     assert (
@@ -181,6 +228,7 @@ def test_hot_initial_probe_with_all_motors_off_never_enables_or_moves(
     assert not guard.cancel.call_async.called
     assert not guard.home.send_goal_async.called and not guard.torque.call_async.called
     assert not guard.anchor.send_goal_async.called and not guard.gains.call_async.called
+    assert not guard.switch_controllers.call_async.called
 
 
 def test_native_home_keeps_its_full_budget_after_slow_cancel(guard, monkeypatch):
@@ -206,6 +254,7 @@ def test_native_home_keeps_its_full_budget_after_slow_cancel(guard, monkeypatch)
     tick_at(10.0)  # cancel requested
     done["cancel"] = True
     tick_at(12.9)  # acknowledged just inside the cancel bound
+    tick_at(13.0)  # anchor released
     tick_at(13.5)  # HOME requested
     tick_at(13.5)  # accepted
     tick_at(13.5 + 119.0)  # a slow native HOME is still within its own budget
@@ -218,6 +267,8 @@ def test_native_home_keeps_its_full_budget_after_slow_cancel(guard, monkeypatch)
 @pytest.mark.parametrize(
     "stage,limit",
     [
+        ("own", 3.0),
+        ("switch", 2.0),
         ("anchor", 3.0),
         ("anchor_reference", 1.0),
         ("restore", 7.0),
@@ -322,7 +373,7 @@ def test_cooling_requests_clear_without_enabling_and_waits_for_driver_false(guar
     guard.trip(Obj(data=False))
     assert guard.stage == "idle"
     guard.trip(Obj(data=True))
-    assert guard.stage == "anchor"  # subsequent trips re-anchor and restore again
+    assert guard.stage == "own"  # subsequent trips re-anchor and restore again
 
 
 def test_already_off_hot_start_does_not_attest_successful_home(guard):
@@ -429,6 +480,9 @@ def begin_anchor(guard, monkeypatch):
     gain_calls = guard.gains.call_async.call_count
     monkeypatch.setattr("rebot_thermal_guard.time.monotonic", lambda: 10.0)
     guard.trip(Obj(data=True))
+    guard.advance(10.0)  # controllers listed
+    guard.advance(10.0)  # JTAC already owns the arm
+    assert guard.stage == "anchor"
     guard.advance(10.0)  # stamped stationary goal sent
     guard.advance(10.0)  # accepted, but not yet commanded
     assert guard.stage == "anchor_reference"
@@ -525,8 +579,10 @@ def test_missing_configuration_waits_without_default_gain_or_anchor(guard, monke
     monkeypatch.setattr("rebot_thermal_guard.time.monotonic", lambda: 10.0)
     guard.trip(Obj(data=True))
     guard.advance(10.0)
-    assert guard.stage == "anchor"
+    assert guard.stage == "own"
     assert not guard.anchor.send_goal_async.called and not guard.gains.call_async.called
+    assert not guard.list_controllers.call_async.called
+    assert not guard.switch_controllers.call_async.called
 
 
 def test_configuration_uses_gpio_id_not_order_and_excludes_jaw(guard):
@@ -596,8 +652,8 @@ def test_prelude_failure_stops_without_home_or_torque(guard, monkeypatch, bad):
         guard.anchor.send_goal_async.return_value = future(Obj(accepted=False))
         monkeypatch.setattr("rebot_thermal_guard.time.monotonic", lambda: 10.0)
         guard.trip(Obj(data=True))
-        guard.advance(10.0)
-        guard.advance(10.0)
+        for _ in range(4):
+            guard.advance(10.0)
     else:
         begin_anchor(guard, monkeypatch)
         confirm_anchor(guard, monkeypatch)
@@ -707,20 +763,23 @@ def test_latched_hot_start_waits_for_first_health_then_stays_off(guard, monkeypa
     monkeypatch.setattr("rebot_thermal_guard.time.monotonic", lambda: 10.0)
     guard.trip(Obj(data=True))
     guard.advance(10.01)
-    assert guard.stage == "anchor"
+    assert guard.stage == "own"
+    assert not guard.list_controllers.call_async.called
     hardware.enabled = [False] * 7
     guard.hardware = hardware
     guard.advance(10.02)
     assert guard.stage == "off"
     assert not guard.anchor.send_goal_async.called and not guard.gains.call_async.called
     assert not guard.cancel.call_async.called and not guard.torque.call_async.called
+    assert not guard.switch_controllers.call_async.called
 
 
 def test_zero_clock_cannot_send_an_unstamped_anchor(guard, monkeypatch):
     guard.node.get_clock = lambda: Obj(now=lambda: Time(nanoseconds=0))
     monkeypatch.setattr("rebot_thermal_guard.time.monotonic", lambda: 10.0)
     guard.trip(Obj(data=True))
-    guard.advance(10.0)
+    for _ in range(3):
+        guard.advance(10.0)
     assert guard.stage == "failed"
     assert not guard.anchor.send_goal_async.called and not guard.gains.call_async.called
 
@@ -757,3 +816,165 @@ def test_stop_signals_exit_without_a_traceback(monkeypatch):
         rclpy.try_shutdown()
         for number, handler in handlers.items():
             signal.signal(number, handler)
+
+
+@pytest.mark.parametrize(
+    "owner", ["leader_position_controller", "joint_velocity_controller"]
+)
+def test_trip_while_mirror_or_jog_owns_the_arm_activates_jtac_before_anchor(
+    guard, monkeypatch, owner
+):
+    guard.list_controllers.call_async.return_value = future(controller_list(owner))
+    monkeypatch.setattr("rebot_thermal_guard.time.monotonic", lambda: 10.0)
+    guard.trip(Obj(data=True))
+    guard.advance(10.0)  # controllers listed
+    guard.advance(10.0)  # switch requested
+    assert guard.stage == "switch"
+    request = guard.switch_controllers.call_async.call_args.args[0]
+    assert list(request.activate_controllers) == [
+        "joint_trajectory_admittance_controller"
+    ]
+    # Only the arm's position owner; gravity compensation (effort) stays active.
+    assert list(request.deactivate_controllers) == [owner]
+    assert request.strictness == request.STRICT
+    assert not guard.anchor.send_goal_async.called
+    guard.advance(10.0)  # switch confirmed
+    assert guard.stage == "anchor" and guard.started == 10.0
+    guard.advance(10.0)  # stationary goal sent to the now-active JTAC
+    guard.advance(10.0)
+    assert guard.stage == "anchor_reference"
+    assert guard.switch_controllers.call_async.call_count == 1
+    assert not guard.gains.call_async.called and not guard.cancel.call_async.called
+
+
+def test_trip_with_jtac_already_active_switches_nothing(guard, monkeypatch):
+    begin_anchor(guard, monkeypatch)
+    assert guard.list_controllers.call_async.call_count == 1
+    assert not guard.switch_controllers.call_async.called
+
+
+@pytest.mark.parametrize(
+    "bad", ["rejected", "no_response", "list_failed", "unloaded", "unconfigured"]
+)
+def test_failed_controller_ownership_stops_without_anchor_gains_or_home(
+    guard, monkeypatch, bad
+):
+    listed = controller_list("leader_position_controller")
+    if bad == "list_failed":
+        listed = None
+    elif bad == "unloaded":
+        listed.controller = listed.controller[1:]
+    elif bad == "unconfigured":
+        listed.controller[0].state = "unconfigured"
+    guard.list_controllers.call_async.return_value = future(listed)
+    guard.switch_controllers.call_async.return_value = future(
+        None if bad == "no_response" else Obj(ok=False, message="claimed")
+    )
+    monkeypatch.setattr("rebot_thermal_guard.time.monotonic", lambda: 10.0)
+    guard.trip(Obj(data=True))
+    for _ in range(3):
+        if guard.stage != "failed":
+            guard.advance(10.0)
+    guard.tick()  # production tick does not advance failed recoveries
+    assert guard.stage == "failed"
+    assert guard.switch_controllers.call_async.called == (
+        bad in ("rejected", "no_response")
+    )
+    assert not guard.anchor.send_goal_async.called and not guard.gains.call_async.called
+    assert not guard.cancel.call_async.called and not guard.home.send_goal_async.called
+    assert not guard.torque.call_async.called
+
+
+def test_controller_manager_unavailable_is_bounded(guard, monkeypatch):
+    guard.list_controllers = Obj(service_is_ready=lambda: False, call_async=Mock())
+    monkeypatch.setattr("rebot_thermal_guard.time.monotonic", lambda: 10.0)
+    guard.trip(Obj(data=True))
+    guard.hardware_time = guard.measured_time = 12.99
+    guard.advance(12.99)
+    assert guard.stage == "own"
+    guard.hardware_time = guard.measured_time = 13.01
+    guard.advance(13.01)
+    assert guard.stage == "failed"
+    assert not guard.list_controllers.call_async.called
+    assert not guard.anchor.send_goal_async.called and not guard.gains.call_async.called
+
+
+def finish_gains(guard, monkeypatch):
+    begin_anchor(guard, monkeypatch)
+    confirm_anchor(guard, monkeypatch)
+    for _ in range(24):
+        guard.advance(10.02)
+    assert guard.stage == "cancel"
+    guard.advance(10.02)  # Objective cancel requested
+    guard.advance(10.02)  # acknowledged
+    assert guard.stage == "release"
+
+
+def test_anchor_goal_is_released_before_native_home(guard, monkeypatch):
+    """JTAC would stitch HOME onto the still-running stationary anchor and abort."""
+    finished = {"anchor": False}
+    anchor_result = Obj(done=lambda: finished["anchor"])
+    guard.anchor.send_goal_async.return_value = future(
+        Obj(
+            accepted=True,
+            status=2,
+            get_result_async=lambda: anchor_result,
+            cancel_goal_async=Mock(return_value=future(Obj(return_code=0))),
+        )
+    )
+    finish_gains(guard, monkeypatch)
+    guard.advance(10.03)
+    assert guard.anchor_handle.cancel_goal_async.call_count == 1
+    for now in (10.04, 10.05):
+        guard.hardware_time = guard.measured_time = now
+        guard.advance(now)  # cancel accepted, goal not yet terminal
+    assert guard.stage == "release"
+    assert guard.anchor_handle.cancel_goal_async.call_count == 1
+    finished["anchor"] = True
+    guard.advance(10.05)
+    assert guard.stage == "home" and guard.started == 10.05
+    guard.hardware_time = guard.measured_time = 10.6
+    guard.advance(10.6)  # settle passed; HOME only now
+    assert guard.home.send_goal_async.called
+    assert not guard.torque.call_async.called
+
+
+def test_already_finished_anchor_needs_no_cancel(guard, monkeypatch):
+    guard.anchor_result = Obj(done=lambda: True)
+    cancel_goal = Mock()
+    guard.anchor.send_goal_async.return_value = future(
+        Obj(
+            accepted=True,
+            status=2,
+            get_result_async=lambda: guard.anchor_result,
+            cancel_goal_async=cancel_goal,
+        )
+    )
+    monkeypatch.setattr("rebot_thermal_guard.time.monotonic", lambda: 10.0)
+    guard.stage, guard.started = "release", 10.0
+    guard.anchor_handle = guard.anchor.send_goal_async.return_value.result()
+    guard.advance(10.0)
+    assert guard.stage == "home" and not cancel_goal.called
+
+
+@pytest.mark.parametrize("bad", ["rejected", "never_terminal"])
+def test_unreleased_anchor_stops_before_home(guard, monkeypatch, bad):
+    anchor_result = Obj(done=lambda: False)
+    guard.anchor.send_goal_async.return_value = future(
+        Obj(
+            accepted=True,
+            status=2,
+            get_result_async=lambda: anchor_result,
+            cancel_goal_async=Mock(
+                return_value=future(Obj(return_code=1 if bad == "rejected" else 0))
+            ),
+        )
+    )
+    finish_gains(guard, monkeypatch)
+    for now in (10.03, 10.04, 12.0, 12.03):
+        if guard.stage == "failed":
+            break
+        guard.hardware_time = guard.measured_time = now
+        guard.advance(now)
+    assert guard.stage == "failed"
+    assert not guard.home.send_goal_async.called and not guard.torque.call_async.called

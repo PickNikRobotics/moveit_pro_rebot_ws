@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root BTCPP_format="4" main_tree_to_execute="reBot Engage Arm">
+  <BehaviorTree
+    ID="reBot Engage Arm"
+    _description="Known-state entry for physical arm motion: engage torque with a measured-pose hold, make JTAC the arm owner (ending a jog or leader controller), then restore the configured spring gains (ending any gravity-comp float). A refused or missing engage fails before any switch or motion. The jaw is held where it measures."
+  >
+    <Control ID="Sequence" name="engage_arm">
+      <Action
+        ID="CallTriggerService"
+        service_name="/robstride_hardware_interface/engage"
+        wait_for_server_available_timeout="3.0"
+        response_timeout="3.0"
+      />
+      <!-- Engage while already ON keeps runtime gains: end any gravity-comp
+           float (kp=0) at the measured pose before anything else moves. -->
+      <Action
+        ID="SwitchController"
+        activate_controllers="joint_trajectory_admittance_controller"
+        automatic_deactivation="true"
+        strictness="2"
+      />
+      <SubTree ID="reBot Set Spring Gains" _collapsed="true" />
+    </Control>
+  </BehaviorTree>
+  <TreeNodesModel>
+    <SubTree ID="reBot Engage Arm">
+      <MetadataFields>
+        <Metadata runnable="false" />
+        <Metadata subcategory="reBot" />
+      </MetadataFields>
+    </SubTree>
+  </TreeNodesModel>
+</root>

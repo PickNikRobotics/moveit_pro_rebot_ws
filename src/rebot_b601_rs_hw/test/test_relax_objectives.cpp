@@ -26,6 +26,7 @@ struct Receipt
   std::string refused;
   std::string unavailable;
   bool home_fails = false;
+  bool spring_fails = false;
   std::mutex mutex;
 
   void record(const std::string& event)
@@ -96,8 +97,20 @@ protected:
       receipt.record("HOME");
       return receipt.home_fails ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
     });
+    factory.registerSimpleAction("SpringGains", [this](BT::TreeNode&) {
+      receipt.record("spring");
+      return receipt.spring_fails ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
+    });
     factory.registerSimpleAction("TeleopEntry", [this](BT::TreeNode&) {
       receipt.record("teleop");
+      return BT::NodeStatus::SUCCESS;
+    });
+    factory.registerSimpleAction("WaypointMotion", [this](BT::TreeNode&) {
+      receipt.record("waypoint");
+      return BT::NodeStatus::SUCCESS;
+    });
+    factory.registerSimpleAction("FloatGains", [this](BT::TreeNode&) {
+      receipt.record("float");
       return BT::NodeStatus::SUCCESS;
     });
     factory.registerSimpleAction("CallRebotLeaderService",
@@ -128,11 +141,20 @@ protected:
     factory.registerBehaviorTreeFromText(R"(<root BTCPP_format="4">
       <BehaviorTree ID="Return reBot Leader Home Under Power"><HomeMotion/></BehaviorTree>
       <BehaviorTree ID="Request Teleoperation"><TeleopEntry/></BehaviorTree>
+      <BehaviorTree ID="reBot Set Spring Gains"><SpringGains/></BehaviorTree>
+      <BehaviorTree ID="reBot Set Float Gains"><FloatGains/></BehaviorTree>
+      <BehaviorTree ID="Move to Named Waypoint"><WaypointMotion/></BehaviorTree>
+      <BehaviorTree ID="Move to Waypoint"><WaypointMotion/></BehaviorTree>
       </root>)");
     factory.registerBehaviorTreeFromFile(LEADER_OBJECTIVES "/rebot_check_leader_idle.xml");
     factory.registerBehaviorTreeFromFile(LEADER_OBJECTIVES "/rebot_notify_leader_home.xml");
     factory.registerBehaviorTreeFromFile(GENERATED_OBJECTIVES "/relax_at_home.xml");
-    factory.registerBehaviorTreeFromFile(HW_SHARE "/objectives/teleoperate.xml");
+    factory.registerBehaviorTreeFromFile(HW_SHARE "/objectives/rebot_engage_arm.xml");
+    // Physical overrides of the stock Move to Raised/Rest, and the Boston waypoint entry.
+    for (const auto* objective :
+         { "teleoperate.xml", "move_to_raised.xml", "move_to_rest.xml", "start_gravity_comp.xml" })
+      factory.registerBehaviorTreeFromFile(std::string(HW_SHARE "/objectives/") + objective);
+    factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/move_rebot_to_waypoint.xml");
     factory.registerBehaviorTreeFromFile(LEADER_OBJECTIVES "/mirror_rebot_leader.xml");
   }
   BT::NodeStatus run(const std::string& name)
@@ -177,7 +199,14 @@ TEST_F(RelaxObjectives, StockHomeNotificationMakesNoServiceCall)
 TEST_F(RelaxObjectives, HomeBeforeRelaxUsesRealTriggerSuccess)
 {
   EXPECT_EQ(run("Relax at HOME"), BT::NodeStatus::SUCCESS);
-  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kIdle, kEngage, "HOME", kIdle, kRelax }));
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kIdle, kEngage, "switch", "spring", kEngage, "switch", "spring",
+                                                       "HOME", kIdle, kRelax }));
+}
+TEST_F(RelaxObjectives, FailedSpringRestoreNeverMovesOrRelaxes)
+{
+  receipt.spring_fails = true;
+  EXPECT_EQ(run("Relax at HOME"), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kIdle, kEngage, "switch", "spring" }));
 }
 TEST_F(RelaxObjectives, RefusedEngageNeverMovesOrRelaxes)
 {
@@ -189,13 +218,15 @@ TEST_F(RelaxObjectives, FailedHomeNeverCallsRelax)
 {
   receipt.home_fails = true;
   EXPECT_EQ(run("Relax at HOME"), BT::NodeStatus::FAILURE);
-  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kIdle, kEngage, "HOME" }));
+  EXPECT_EQ(receipt.events,
+            (std::vector<std::string>{ kIdle, kEngage, "switch", "spring", kEngage, "switch", "spring", "HOME" }));
 }
 TEST_F(RelaxObjectives, RefusedRelaxIsFailureNotBestEffort)
 {
   receipt.refused = kRelax;
   EXPECT_EQ(run("Relax at HOME"), BT::NodeStatus::FAILURE);
-  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kIdle, kEngage, "HOME", kIdle, kRelax }));
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kIdle, kEngage, "switch", "spring", kEngage, "switch", "spring",
+                                                       "HOME", kIdle, kRelax }));
 }
 TEST_F(RelaxObjectives, MissingEngageNeverMoves)
 {
@@ -218,22 +249,40 @@ TEST_F(RelaxObjectives, MissingIdleServiceFailsClosed)
 TEST_F(RelaxObjectives, TeleopWaitsForSuccessfulEngage)
 {
   EXPECT_EQ(run("Teleoperate"), BT::NodeStatus::SUCCESS);
-  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kEngage, "teleop" }));
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kEngage, "switch", "spring", "teleop" }));
 }
-TEST_F(RelaxObjectives, MirrorEngagesBeforePrepareAndControllerSwitch)
+TEST_F(RelaxObjectives, TeleopFailedSpringRestoreNeverEnters)
+{
+  receipt.spring_fails = true;
+  EXPECT_EQ(run("Teleoperate"), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kEngage, "switch", "spring" }));
+}
+TEST_F(RelaxObjectives, HomeFailedSpringRestoreNeverMovesOrRelaxes)
+{
+  receipt.spring_fails = true;
+  EXPECT_EQ(run("Relax at HOME"), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kIdle, kEngage, "switch", "spring" }));
+}
+TEST_F(RelaxObjectives, MirrorEngagesAndRestoresSpringBeforePrepareAndControllerSwitch)
 {
   auto tree = factory.createTree("Mirror reBot Leader");
-  for (int i = 0; i < 100 && receipt.snapshot().size() < 4; ++i)
+  for (int i = 0; i < 100 && receipt.snapshot().size() < 6; ++i)
   {
     tree.tickExactlyOnce();
     std::this_thread::sleep_for(std::chrono::milliseconds(2));
   }
   tree.haltTree();
   const auto events = receipt.snapshot();
-  ASSERT_GE(events.size(), 4U);
-  EXPECT_EQ(
-      std::vector<std::string>(events.begin(), events.begin() + 4),
-      (std::vector<std::string>{ kEngage, "/rebot_leader_bridge/prepare", "switch", "/rebot_leader_bridge/mirror" }));
+  ASSERT_GE(events.size(), 6U);
+  EXPECT_EQ(std::vector<std::string>(events.begin(), events.begin() + 6),
+            (std::vector<std::string>{ kEngage, "switch", "spring", "/rebot_leader_bridge/prepare", "switch",
+                                       "/rebot_leader_bridge/mirror" }));
+}
+TEST_F(RelaxObjectives, MirrorFailedSpringRestoreNeverPrepares)
+{
+  receipt.spring_fails = true;
+  EXPECT_EQ(run("Mirror reBot Leader"), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kEngage, "switch", "spring" }));
 }
 TEST_F(RelaxObjectives, MirrorRefusedEngageNeverPreparesOrSwitches)
 {
@@ -245,6 +294,48 @@ TEST_F(RelaxObjectives, TeleopRefusedEngageNeverEnters)
 {
   receipt.refused = kEngage;
   EXPECT_EQ(run("Teleoperate"), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kEngage }));
+}
+// After Relax at HOME torque is off: every arm motion entry engages, owns JTAC
+// and restores spring gains before it moves, and never moves on a refused engage.
+class EngageFirstMotion : public RelaxObjectives, public testing::WithParamInterface<const char*>
+{
+};
+TEST_P(EngageFirstMotion, EngagesSwitchesAndRestoresSpringBeforeMotion)
+{
+  EXPECT_EQ(run(GetParam()), BT::NodeStatus::SUCCESS);
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kEngage, "switch", "spring", "waypoint" }));
+}
+TEST_P(EngageFirstMotion, RefusedEngageNeverMoves)
+{
+  receipt.refused = kEngage;
+  EXPECT_EQ(run(GetParam()), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kEngage }));
+}
+TEST_P(EngageFirstMotion, MissingEngageNeverMoves)
+{
+  receipt.unavailable = kEngage;
+  EXPECT_EQ(run(GetParam()), BT::NodeStatus::FAILURE);
+  EXPECT_TRUE(receipt.events.empty());
+}
+TEST_P(EngageFirstMotion, FailedSpringRestoreNeverMoves)
+{
+  receipt.spring_fails = true;
+  EXPECT_EQ(run(GetParam()), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kEngage, "switch", "spring" }));
+}
+INSTANTIATE_TEST_SUITE_P(Waypoints, EngageFirstMotion,
+                         testing::Values("Move to Raised", "Move to Rest", "Move reBot to Waypoint"));
+
+TEST_F(RelaxObjectives, StartGravityCompEngagesBeforeFloat)
+{
+  EXPECT_EQ(run("Start Gravity Comp"), BT::NodeStatus::SUCCESS);
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kEngage, "switch", "float" }));
+}
+TEST_F(RelaxObjectives, StartGravityCompRefusedEngageNeverFloats)
+{
+  receipt.refused = kEngage;
+  EXPECT_EQ(run("Start Gravity Comp"), BT::NodeStatus::FAILURE);
   EXPECT_EQ(receipt.events, (std::vector<std::string>{ kEngage }));
 }
 }  // namespace
