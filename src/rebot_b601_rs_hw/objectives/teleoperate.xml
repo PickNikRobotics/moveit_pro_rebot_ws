@@ -5,21 +5,7 @@
     _description="Engage a measured-pose hold, make JTAC the arm owner and restore configured spring gains (ending any gravity-comp float) before native arm and gripper teleoperation with mesh collision checking and no added padding."
   >
     <Sequence name="EngageThenTeleoperate">
-      <Action
-        ID="CallTriggerService"
-        service_name="/robstride_hardware_interface/engage"
-        wait_for_server_available_timeout="3.0"
-        response_timeout="3.0"
-      />
-      <!-- Engage while already ON keeps runtime gains: end any gravity-comp
-           float (kp=0) at the measured pose before anything else moves. -->
-      <Action
-        ID="SwitchController"
-        activate_controllers="joint_trajectory_admittance_controller"
-        automatic_deactivation="true"
-        strictness="2"
-      />
-      <SubTree ID="reBot Set Spring Gains" _collapsed="true" />
+      <SubTree ID="reBot Engage Arm" _collapsed="true" />
       <SubTree
         ID="Request Teleoperation"
         _collapsed="true"

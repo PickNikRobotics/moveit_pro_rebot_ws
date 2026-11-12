@@ -166,6 +166,9 @@ TEST_F(LeaderServiceTest, ConfiguredPluginLoaderInstantiatesLeaderService)
                                  BT::InputPort<bool>("automatic_deactivation"), BT::InputPort<int>("strictness") });
   factory.registerSimpleAction("WaitForDuration", [](BT::TreeNode&) { return BT::NodeStatus::SUCCESS; },
                                { BT::InputPort<double>("delay_duration") });
+  // The engage entry is another package's subtree; only the leader Behaviors are under test here.
+  factory.registerBehaviorTreeFromText(
+      R"(<root BTCPP_format="4"><BehaviorTree ID="reBot Engage Arm"><AlwaysSuccess/></BehaviorTree></root>)");
   auto tree = factory.createTreeFromFile(MIRROR_OBJECTIVE);
   EXPECT_NE(tree.rootNode(), nullptr);
 }

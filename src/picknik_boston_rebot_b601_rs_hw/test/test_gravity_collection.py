@@ -244,7 +244,10 @@ def test_collection_is_plain_standard_waypoints():
         "WaitForDuration",
         "LogMessage",
     }
+    # Known-state entry first: engage, JTAC owner, spring gains (no float).
+    assert sequence[0].tag == "SubTree" and sequence[0].get("ID") == "reBot Engage Arm"
     assert {node.get("ID") for node in sequence.findall("SubTree")} == {
+        "reBot Engage Arm",
         "reBot Fixed Bench Scene",
         "Move to Waypoint",
     }

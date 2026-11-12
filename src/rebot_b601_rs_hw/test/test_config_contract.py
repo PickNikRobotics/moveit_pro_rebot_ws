@@ -271,12 +271,20 @@ def test_physical_spring_and_nominal_gravity_startup():
         for i, value in enumerate(values)
     ]
     # Both mode Objectives first make JTAC the position owner (a jog or leader
-    # controller may hold it), then run their gain subtree unchanged.
-    for name, subtree in [
-        ("start_gravity_comp.xml", "reBot Set Float Gains"),
-        ("stop_gravity_comp.xml", "reBot Set Spring Gains"),
+    # controller may hold it), then run their gain subtree unchanged. Start
+    # engages before that, so it never floats a relaxed (torque-off) arm.
+    for name, subtree, engage in [
+        ("start_gravity_comp.xml", "reBot Set Float Gains", True),
+        ("stop_gravity_comp.xml", "reBot Set Spring Gains", False),
     ]:
         steps = list(ET.parse(objectives / name).getroot().find("BehaviorTree")[0])
+        if engage:
+            first = steps.pop(0)
+            assert (first.tag, first.get("ID"), first.get("service_name")) == (
+                "Action",
+                "CallTriggerService",
+                "/robstride_hardware_interface/engage",
+            )
         assert [(s.tag, s.get("ID")) for s in steps] == [
             ("Action", "SwitchController"),
             ("SubTree", subtree),

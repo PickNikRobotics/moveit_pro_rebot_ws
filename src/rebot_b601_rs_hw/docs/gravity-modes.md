@@ -13,15 +13,17 @@ An installed Objective is not permission or evidence of safe physical use.
 
 ## Start Gravity Comp
 
-1. Make JTAC the arm position owner (`SwitchController`, automatic deactivation,
+1. Engage torque with a measured-pose hold (after Relax at HOME torque is off,
+   so float gains would otherwise land on a limp arm). A refused engage stops here.
+2. Make JTAC the arm position owner (`SwitchController`, automatic deactivation,
    strict). Teleoperation Joint Jog/Pose Jog and Mirror leave another position
    controller active after they end; gravity is effort-only and unaffected.
    The remaining steps are the `reBot Set Float Gains` subtree.
-2. Read all seven measured joints from the current planning scene.
-3. Send and complete a nonzero-stamped, two-identical-point stationary trajectory
+3. Read all seven measured joints from the current planning scene.
+4. Send and complete a nonzero-stamped, two-identical-point stationary trajectory
    at 0/0.2 s through JTAC.
-4. Queue kd `[1.5,3.5,5,1.25,1,1]`, then kp `[0,0,0,0,0,0]`, for arm motor IDs1–6.
-5. Finish successfully. JTAC and gravity remain active; the jaw gains are unchanged.
+5. Queue kd `[1.5,3.5,5,1.25,1,1]`, then kp `[0,0,0,0,0,0]`, for arm motor IDs1–6.
+6. Finish successfully. JTAC and gravity remain active; the jaw gains are unchanged.
 
 ## Stop Gravity Comp
 
@@ -47,9 +49,10 @@ Support the arm and hold still while switching. The anchor is a measured
 snapshot, not continuous tracking. No competing Objective, jog, leader or
 manual gain/trajectory writer may command during floating or switching.
 Cancelling an already-completed Start does not restore stiffness: run Stop.
-Teleoperate, Mirror and Return reBot Leader Home (and so Relax at HOME) also run
-the spring subtree after engage. Motion Objectives that do not engage, such as
-Move to Raised, keep the float.
+Every top-level arm motion entry (Teleoperate, Mirror, Return reBot Leader Home
+and so Relax at HOME, Move to Raised/Rest, Move reBot to Waypoint, Execute reBot
+Joint Trajectory, Collect reBot Gravity Data) runs `reBot Engage Arm`, which
+ends with the spring subtree, so it ends the float. The stack family does not.
 
 `SetRebotMotorGain` allows only arm IDs1–6 and kp/kd, validates protocol bounds,
 waits at most3s for service discovery and0.5s for a response, and never accesses

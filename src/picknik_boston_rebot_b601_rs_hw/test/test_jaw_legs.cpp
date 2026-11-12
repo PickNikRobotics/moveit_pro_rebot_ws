@@ -425,6 +425,7 @@ protected:
     for (const auto* objective :
          { "move_rebot_gripper.xml", "rebot_open_jaw.xml", "rebot_move_to_arm_waypoint.xml", "rebot_move_to_pose.xml" })
       factory.registerBehaviorTreeFromFile(std::string(PACKAGE_DIR "/objectives/") + objective);
+    factory.registerBehaviorTreeFromFile(HW_OBJECTIVES "/rebot_engage_arm.xml");
     factory.registerBehaviorTreeFromFile(STOCK_GENERATED_OBJECTIVES "/return_rebot_leader_home.xml");
     factory.registerBehaviorTreeFromFile(PACKAGE_DIR "/objectives/rebot_notify_leader_home.xml");
   }
