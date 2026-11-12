@@ -164,8 +164,10 @@ Enter these port values when you run the stock calibration Objectives:
 | `board` | `[{squares_x: 7, squares_y: 5, square_length: 0.035, marker_length: 0.026, dictionary: DICT_4X4_50}]` |
 
 The `board` value cannot be entered at run time yet: the run-time parameter
-override rejects the `CharucoBoard` port type, so the Objectives use the stock
-default board until that is fixed.
+override rejects the `CharucoBoard` port type ("no parser is registered"), so
+each Objective uses its stock default board. Until the stock Objectives take
+the board dimensions as run-time inputs (PickNikRobotics/moveit_pro#24532),
+print and use each Objective's stock default board.
 
 The wrist launch publishes no point cloud. `Calibrate Eye In Hand Camera` solves
 and draws the poses first, then fails at its closing point-cloud snapshot of
