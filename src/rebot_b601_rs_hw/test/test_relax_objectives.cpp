@@ -10,6 +10,7 @@
 
 #include <fstream>
 #include <mutex>
+#include <set>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -337,5 +338,211 @@ TEST_F(RelaxObjectives, StartGravityCompRefusedEngageNeverFloats)
   receipt.refused = kEngage;
   EXPECT_EQ(run("Start Gravity Comp"), BT::NodeStatus::FAILURE);
   EXPECT_EQ(receipt.events, (std::vector<std::string>{ kEngage }));
+}
+
+// Record and Replay reBot Motion with the real engage, gravity-comp and trigger
+// subtrees; recorder, files, UI prompts and motion are test seams.
+class RecordReplay : public RelaxObjectives
+{
+protected:
+  void SetUp() override
+  {
+    RelaxObjectives::SetUp();
+    const auto port = [](const char* name) { return BT::InputPort<std::string>(name); };
+    const auto out = [](const char* name) { return BT::OutputPort<std::string>(name); };
+    factory.registerSimpleAction("GetFilenamesFromDirectory",
+                                 [this](BT::TreeNode& node) {
+                                   const auto folder = node.getInput<std::string>("directory_path").value();
+                                   receipt.record("list:" + folder);
+                                   return folder == missing_folder ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
+                                 },
+                                 { port("directory_path"), port("file_type"), out("result") });
+    factory.registerSimpleAction("LoadJointTrajectoryFromYaml",
+                                 [this](BT::TreeNode& node) {
+                                   const auto path = node.getInput<std::string>("file_path").value();
+                                   receipt.record("load:" + path);
+                                   return files.contains(path) ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+                                 },
+                                 { port("file_path"), out("output") });
+    factory.registerSimpleAction("LogMessage",
+                                 [this](BT::TreeNode& node) {
+                                   receipt.record("log:" + node.getInput<std::string>("log_level").value());
+                                   return BT::NodeStatus::SUCCESS;
+                                 },
+                                 { port("message"), port("log_level") });
+    factory.registerSimpleDecorator("SuppressChildErrors", [](BT::NodeStatus status, BT::TreeNode&) { return status; });
+    factory.registerSimpleAction("WaitForUserDecision",
+                                 [this](BT::TreeNode& node) {
+                                   receipt.record("ask:" + node.getInput<std::string>("approve_label").value());
+                                   if (answers.empty())
+                                     return BT::NodeStatus::FAILURE;
+                                   const bool approve = answers.front();
+                                   answers.erase(answers.begin());
+                                   return approve ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+                                 },
+                                 { port("prompt"), port("approve_label"), port("reject_label"), port("timeout_sec") });
+    factory.registerSimpleAction("RecordJointTrajectory",
+                                 [this](BT::TreeNode& node) {
+                                   receipt.record("record:" + node.getInput<std::string>("planning_group_name").value());
+                                   return BT::NodeStatus::SUCCESS;
+                                 },
+                                 { port("joint_state_topic"), out("joint_trajectory_message"),
+                                   port("planning_group_name"), port("start_recording_service"),
+                                   port("stop_recording_service"), port("timeout_sec"), port("joint_space_step") });
+    factory.registerSimpleAction("SaveJointTrajectoryToYaml",
+                                 [this](BT::TreeNode& node) {
+                                   receipt.record("save:" + node.getInput<std::string>("yaml_filename").value());
+                                   return save_fails ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
+                                 },
+                                 { port("message"), port("yaml_filename"), port("overwrite") });
+    factory.registerSimpleAction("GetCurrentPlanningScene", [](BT::TreeNode&) { return BT::NodeStatus::SUCCESS; },
+                                 { out("planning_scene_msg") });
+    factory.registerSimpleAction("ValidateTrajectory",
+                                 [this](BT::TreeNode&) {
+                                   receipt.record("validate");
+                                   return invalid ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
+                                 },
+                                 { port("planning_scene_msg"), port("planning_group_name"), port("joint_trajectory_msg"),
+                                   port("joint_space_step"), port("cartesian_space_step") });
+    factory.registerSimpleAction("GetRobotStateFromTrajectory", [](BT::TreeNode&) { return BT::NodeStatus::SUCCESS; },
+                                 { port("joint_trajectory_msg"), port("from_start"), port("time_from_reference"),
+                                   out("joint_state") });
+    factory.registerSimpleAction("ApproachMotion", [this](BT::TreeNode&) {
+      receipt.record("approach");
+      return BT::NodeStatus::SUCCESS;
+    });
+    factory.registerSimpleAction("ExecuteTrajectory",
+                                 [this](BT::TreeNode&) {
+                                   receipt.record("execute");
+                                   return BT::NodeStatus::SUCCESS;
+                                 },
+                                 { port("joint_trajectory_msg"), port("execution_pipeline"),
+                                   port("controller_action_name") });
+    factory.registerBehaviorTreeFromText(R"(<root BTCPP_format="4">
+      <BehaviorTree ID="Move to Joint State"><ApproachMotion/></BehaviorTree></root>)");
+    for (const auto* objective : { "stop_gravity_comp.xml", "record_rebot_motion.xml", "replay_rebot_motion.xml" })
+      factory.registerBehaviorTreeFromFile(std::string(HW_SHARE "/objectives/") + objective);
+  }
+  BT::NodeStatus runWith(const std::string& name, const std::string& motion = "wave",
+                         const std::string& overwrite = "false")
+  {
+    auto blackboard = BT::Blackboard::create();
+    blackboard->set<std::string>("recordings_folder", kFolder);
+    blackboard->set<std::string>("motion_name", motion);
+    blackboard->set<std::string>("overwrite", overwrite);
+    blackboard->set<std::string>("joint_space_step", "0.01");
+    blackboard->set<std::string>("max_recording_seconds", "600.0");
+    auto tree = factory.createTree(name, blackboard);
+    return tree.tickWhileRunning();
+  }
+  static constexpr auto kFolder = "/data/rebot_recordings";
+  const std::string kPath = std::string(kFolder) + "/wave.yaml";
+  std::set<std::string> files;
+  std::vector<bool> answers;
+  std::string missing_folder;
+  bool save_fails = false;
+  bool invalid = false;
+};
+
+const std::string kStart = "/record_rebot_motion/start";
+const std::string kStop = "/record_rebot_motion/stop";
+const std::string kList = "list:/data/rebot_recordings";
+
+TEST_F(RecordReplay, RecordFloatsOnlyAfterStartAndSavesAfterSpringRestore)
+{
+  answers = { true, true };
+  EXPECT_EQ(runWith("Record reBot Motion"), BT::NodeStatus::SUCCESS);
+  EXPECT_EQ(receipt.events,
+            (std::vector<std::string>{ kList, "load:" + kPath, kEngage, "switch", "spring", "ask:Start recording",
+                                       kEngage, "switch", "float", "record:manipulator_and_gripper", kStart,
+                                       "ask:Stop recording", kStop, "switch", "spring", "save:" + kPath }));
+}
+TEST_F(RecordReplay, DiscardRestoresSpringAndSavesNothing)
+{
+  answers = { true, false };
+  EXPECT_EQ(runWith("Record reBot Motion"), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(receipt.events,
+            (std::vector<std::string>{ kList, "load:" + kPath, kEngage, "switch", "spring", "ask:Start recording",
+                                       kEngage, "switch", "float", "record:manipulator_and_gripper", kStart,
+                                       "ask:Stop recording", "switch", "spring", "log:error" }));
+}
+TEST_F(RecordReplay, CancelAtStartNeverFloats)
+{
+  answers = { false };
+  EXPECT_EQ(runWith("Record reBot Motion"), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kList, "load:" + kPath, kEngage, "switch", "spring",
+                                                       "ask:Start recording", "log:error" }));
+}
+TEST_F(RecordReplay, FailedSaveRestoresSpring)
+{
+  answers = { true, true };
+  save_fails = true;
+  EXPECT_EQ(runWith("Record reBot Motion"), BT::NodeStatus::FAILURE);
+  const auto events = receipt.snapshot();
+  ASSERT_GE(events.size(), 4U);
+  EXPECT_EQ(std::vector<std::string>(events.end() - 4, events.end()),
+            (std::vector<std::string>{ "save:" + kPath, "switch", "spring", "log:error" }));
+}
+TEST_F(RecordReplay, RefusesBeforeEngageOnEmptyNameMissingFolderOrTakenName)
+{
+  // An empty run-time string input arrives as 'null'.
+  for (const auto* empty : { "", "null" })
+  {
+    EXPECT_EQ(runWith("Record reBot Motion", empty), BT::NodeStatus::FAILURE);
+    EXPECT_EQ(runWith("Replay reBot Motion", empty), BT::NodeStatus::FAILURE);
+  }
+  EXPECT_EQ(receipt.snapshot(), std::vector<std::string>(4, "log:error"));
+  receipt.events.clear();
+  missing_folder = kFolder;
+  EXPECT_EQ(runWith("Record reBot Motion"), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(receipt.snapshot(), (std::vector<std::string>{ kList }));
+  missing_folder.clear();
+  receipt.events.clear();
+  files = { kPath };
+  EXPECT_EQ(runWith("Record reBot Motion"), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(receipt.snapshot(), (std::vector<std::string>{ kList, "load:" + kPath, "log:error" }));
+}
+TEST_F(RecordReplay, OverwriteSkipsTheTakenNameCheck)
+{
+  files = { kPath };
+  answers = { true, true };
+  EXPECT_EQ(runWith("Record reBot Motion", "wave", "true"), BT::NodeStatus::SUCCESS);
+  const auto events = receipt.snapshot();
+  ASSERT_GE(events.size(), 2U);
+  EXPECT_EQ(events[1], kEngage);
+  EXPECT_EQ(events.back(), "save:" + kPath);
+}
+TEST_F(RecordReplay, RecordRefusedEngageNeverAsksOrFloats)
+{
+  receipt.refused = kEngage;
+  answers = { true, true };
+  EXPECT_EQ(runWith("Record reBot Motion"), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kList, "load:" + kPath, kEngage }));
+}
+TEST_F(RecordReplay, ReplayEngagesChecksApproachesAndExecutesWithoutHomeOrRelax)
+{
+  files = { kPath };
+  EXPECT_EQ(runWith("Replay reBot Motion"), BT::NodeStatus::SUCCESS);
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ "load:" + kPath, kEngage, "switch", "spring", "validate",
+                                                       "approach", "execute" }));
+}
+TEST_F(RecordReplay, ReplayMissingRecordingNeverEngages)
+{
+  EXPECT_EQ(runWith("Replay reBot Motion"), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ "load:" + kPath }));
+}
+TEST_F(RecordReplay, ReplayInvalidRecordingNeverMoves)
+{
+  files = { kPath };
+  invalid = true;
+  EXPECT_EQ(runWith("Replay reBot Motion"), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ "load:" + kPath, kEngage, "switch", "spring", "validate" }));
+}
+TEST_F(RecordReplay, ReplayRefusedEngageNeverMoves)
+{
+  files = { kPath };
+  receipt.refused = kEngage;
+  EXPECT_EQ(runWith("Replay reBot Motion"), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ "load:" + kPath, kEngage }));
 }
 }  // namespace
