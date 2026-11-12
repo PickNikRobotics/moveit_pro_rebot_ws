@@ -183,7 +183,11 @@ safety-rated protective stop or power isolation.
 only after the driver's measured-bounds and health checks, re-seed the hold at
 the measured pose without a step, and report elapsed milliseconds and maximum
 step. Return Home, Mirror's prepare entry, and the physical Teleoperate
-Objective wait for engage success before motion. Stock mock/MuJoCo teleop
+Objective wait for engage success before motion. Each then makes JTAC the arm
+owner and runs `reBot Set Spring Gains`: engage while torque is on keeps the
+runtime gains, so this ends any gravity-comp float (kp=0) at the measured pose.
+The thermal guard calls the internal Under Power tree and restores its own gains.
+Stock mock/MuJoCo teleop
 remains independent of physical services. The Boston twin inherits the physical
 entries; validation supplies fake Trigger servers, not a second motor owner.
 Relax at HOME checks `reBot Check Leader Idle` before HOME and immediately

@@ -47,6 +47,9 @@ Support the arm and hold still while switching. The anchor is a measured
 snapshot, not continuous tracking. No competing Objective, jog, leader or
 manual gain/trajectory writer may command during floating or switching.
 Cancelling an already-completed Start does not restore stiffness: run Stop.
+Teleoperate, Mirror and Return reBot Leader Home (and so Relax at HOME) also run
+the spring subtree after engage. Motion Objectives that do not engage, such as
+Move to Raised, keep the float.
 
 `SetRebotMotorGain` allows only arm IDs1–6 and kp/kd, validates protocol bounds,
 waits at most3s for service discovery and0.5s for a response, and never accesses

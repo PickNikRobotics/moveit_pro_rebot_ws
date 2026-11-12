@@ -424,7 +424,8 @@ protected:
       <BehaviorTree ID="Move to Joint State"><Action ID="CloseJaw"
         target_joint_state="{target_joint_state}" joint_group_name="{joint_group_name}"/></BehaviorTree></root>)");
     // The gain subtree is exercised by test_gravity_mode_execution and vcan; here
-    // only its place in Relax at HOME (after engage and the switch, before HOME).
+    // only its place in the HOME wrapper and in Relax at HOME (after engage and the
+    // switch, before motion).
     factory.registerSimpleAction("SpringRestore", [this](BT::TreeNode&) {
       spring_restores.push_back({ engages, switches, executed.size() });
       return BT::NodeStatus::SUCCESS;
@@ -600,7 +601,8 @@ TEST_F(HomeRecovery, EntireInclusiveHomeBoxSkipsArmMotionAndClosesJaw)
       EXPECT_EQ(plans, 0);
       EXPECT_EQ(fallbacks, 0);
     }
-  EXPECT_EQ(switches, 12);
+  EXPECT_EQ(switches, 24);  // The wrapper's switch, then Under Power's own.
+  EXPECT_EQ(spring_restores.size(), 12U);
   EXPECT_EQ(std::ranges::count(home_tail, "close"), 12);
   EXPECT_DOUBLE_EQ(measured.at("joint7"), 0.0);
 }
@@ -612,6 +614,7 @@ TEST_F(HomeRecovery, FailedEngageNeverSwitchesPlansExecutesOrCloses)
   EXPECT_EQ(run(kReturn), BT::NodeStatus::FAILURE);
   EXPECT_EQ(engages, 1);
   EXPECT_EQ(switches, 0);
+  EXPECT_TRUE(spring_restores.empty());
   EXPECT_EQ(plans, 0);
   EXPECT_TRUE(executed.empty());
   EXPECT_TRUE(home_tail.empty());
@@ -624,6 +627,18 @@ TEST_F(HomeRecovery, ThermalUnderPowerRecoveryDoesNotTryToEngage)
   EXPECT_EQ(run(R"(<SubTree ID="Return reBot Leader Home Under Power"/>)"), BT::NodeStatus::SUCCESS);
   EXPECT_EQ(engages, 0);
   EXPECT_EQ(switches, 1);
+  EXPECT_TRUE(spring_restores.empty());  // The guard restores its own gains.
+}
+
+TEST_F(HomeRecovery, ReturnEndsFloatBeforeHomeMotion)
+{
+  // A floating arm (kp=0) is re-anchored and stiffened before HOME plans.
+  measured = withJaw(kDeepSag, 2.0);
+  EXPECT_EQ(run(kReturn), BT::NodeStatus::SUCCESS);
+  ASSERT_EQ(spring_restores.size(), 1U);
+  EXPECT_EQ(spring_restores.front(), std::make_tuple(1, 1, std::size_t{ 0 }));
+  EXPECT_EQ(executed.size(), 2U);
+  EXPECT_EQ(measured, withJaw(kHomePose, 0.0));
 }
 
 TEST_F(HomeRecovery, AtHomeSettlesVerifiesThenClosesAtNominalZero)
@@ -672,8 +687,10 @@ TEST_F(HomeRecovery, RelaxEndsFloatBeforeHomeMotion)
   useNoLeaderNotification();
   measured = withJaw(kDeepSag, 2.0);
   EXPECT_EQ(run(R"(<SubTree ID="Relax at HOME"/>)"), BT::NodeStatus::SUCCESS);
-  ASSERT_EQ(spring_restores.size(), 1U);
+  // Relax's own restore, then the HOME wrapper's; both before any motion.
+  ASSERT_EQ(spring_restores.size(), 2U);
   EXPECT_EQ(spring_restores.front(), std::make_tuple(1, 1, std::size_t{ 0 }));
+  EXPECT_EQ(spring_restores.back(), std::make_tuple(2, 2, std::size_t{ 0 }));
   EXPECT_EQ(engages, 2);  // HOME's own engage is the idempotent already-ON path.
   EXPECT_EQ(measured, withJaw(kHomePose, 0.0));
   EXPECT_EQ(home_tail, (std::vector<std::string>{ "settle", "close", "dwell", "relax" }));
@@ -778,7 +795,7 @@ TEST_F(HomeRecovery, YawFirstThenRestFromBoundedStartAtSourceSpeedWhileHoldingJa
   EXPECT_EQ(measured, withJaw(kHomePose, 0.0));
   EXPECT_EQ(home_tail, (std::vector<std::string>{ "settle", "verify", "close" }));
   EXPECT_EQ(fallbacks, 0);
-  EXPECT_EQ(switches, 1);
+  EXPECT_EQ(switches, 2);  // The wrapper's switch, then Under Power's own.
 }
 
 TEST_F(HomeRecovery, RestHasCollisionCheckedFallbackButYawDoesNot)
