@@ -139,5 +139,12 @@ TEST_F(TwinObjectiveLibrary, NativeServerLoadsCompleteInheritedLibraryWithoutExe
     auto tree = factory.createTreeFromFile(effective.at(filename).string());
     EXPECT_EQ(tree.tickOnce(), BT::NodeStatus::FAILURE);
   }
+  // The spring-gain restore engage-first Objectives call has nothing to
+  // restore in MuJoCo; its override succeeds without a gain-service leaf.
+  const auto spring = effective.at("rebot_set_spring_gains.xml");
+  ASSERT_EQ(spring.parent_path(), fs::path(ament_index_cpp::get_package_share_directory(sim_package)) / "objectives");
+  BT::BehaviorTreeFactory factory;
+  auto tree = factory.createTreeFromFile(spring.string());
+  EXPECT_EQ(tree.tickOnce(), BT::NodeStatus::SUCCESS);
 }
 }  // namespace

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root BTCPP_format="4" main_tree_to_execute="reBot Set Spring Gains">
+  <BehaviorTree
+    ID="reBot Set Spring Gains"
+    _description="Nothing to restore in the Boston twin: MuJoCo actuator gains are fixed and the twin never floats, since Start Gravity Comp fails here. Succeeds without commanding anything so the engage-first Objectives run; it is not a simulated gain-write test."
+  >
+    <AlwaysSuccess />
+  </BehaviorTree>
+  <TreeNodesModel>
+    <SubTree ID="reBot Set Spring Gains">
+      <MetadataFields>
+        <Metadata runnable="false" />
+        <Metadata subcategory="reBot" />
+      </MetadataFields>
+    </SubTree>
+  </TreeNodesModel>
+</root>

@@ -250,11 +250,16 @@ def test_peg_launch_never_spawns_the_absent_cube_proxy_or_physical_devices(tmp_p
     actions = module.configured_nodes(config)
     context = LaunchContext()
     nodes = [entry for entry in actions if isinstance(entry, Node)]
-    assert len(nodes) == 1  # Only simulation JPEG transport, no proxy/spawner/guard.
-    package = perform_substitutions(
-        context, normalize_to_list_of_substitutions(nodes[0].node_package)
-    )
-    assert package == "picknik_boston_rebot_b601_rs_sim"
+    # Only simulation JPEG transport and torque services, no proxy/spawner/guard.
+    assert [node.node_executable for node in nodes] == [
+        "sim_compressed_cameras.py",
+        "sim_torque_services.py",
+    ]
+    for node in nodes:
+        package = perform_substitutions(
+            context, normalize_to_list_of_substitutions(node.node_package)
+        )
+        assert package == "picknik_boston_rebot_b601_rs_sim"
     includes = [
         entry for entry in actions if isinstance(entry, IncludeLaunchDescription)
     ]

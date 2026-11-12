@@ -199,8 +199,10 @@ def test_sim_launches_compressed_cameras_and_only_the_explicit_grasp_proxy(confi
         ).read_text()
     )
     entities = module.configured_nodes(config)
-    # Compressed cameras, the shared leader include, then optional proxy nodes.
-    assert len(entities) == (4 if layout.get("sim_grasp_proxy", False) else 2)
+    # Compressed cameras, torque services, the shared leader include, then
+    # optional proxy nodes.
+    assert len(entities) == (5 if layout.get("sim_grasp_proxy", False) else 3)
+    assert entities[1].node_executable == "sim_torque_services.py"
 
 
 def test_layout_places_the_twin_over_the_inherited_bench_calibration(config):

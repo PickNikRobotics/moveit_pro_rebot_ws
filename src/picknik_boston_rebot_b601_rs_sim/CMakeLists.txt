@@ -53,7 +53,7 @@ install(FILES ${SCENE_XML} ${ARM_XML} ${LAYOUT_SNAPSHOT} ${ROBOT_XACRO}
 install(FILES README.md LICENSE thumbnail.png DESTINATION share/${PROJECT_NAME})
 
 install(PROGRAMS scripts/record_stack_evidence.py scripts/sim_compressed_cameras.py scripts/sim_grasp_proxy.py
-        scripts/generate_description.py
+        scripts/sim_torque_services.py scripts/generate_description.py
         DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
@@ -96,6 +96,9 @@ if(BUILD_TESTING)
           TIMEOUT 60)
   ament_add_pytest_test(
           boston_sim_compressed_cameras_test test/test_sim_compressed_cameras.py
+          TIMEOUT 60)
+  ament_add_pytest_test(
+          boston_sim_torque_services_test test/test_sim_torque_services.py
           TIMEOUT 60)
   ament_add_pytest_test(
           boston_sim_recorder_test test/test_record_stack_evidence.py
