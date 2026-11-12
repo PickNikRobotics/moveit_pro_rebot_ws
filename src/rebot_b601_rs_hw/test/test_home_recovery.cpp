@@ -424,7 +424,8 @@ protected:
       <BehaviorTree ID="Move to Joint State"><Action ID="CloseJaw"
         target_joint_state="{target_joint_state}" joint_group_name="{joint_group_name}"/></BehaviorTree></root>)");
     // The gain subtree is exercised by test_gravity_mode_execution and vcan; here
-    // only its place in the HOME wrapper (after engage and the switch, before motion).
+    // only its place in the HOME wrapper and in Relax at HOME (after engage and the
+    // switch, before motion).
     factory.registerSimpleAction("SpringRestore", [this](BT::TreeNode&) {
       spring_restores.push_back({ engages, switches, executed.size() });
       return BT::NodeStatus::SUCCESS;
@@ -680,6 +681,21 @@ TEST_F(HomeRecovery, RelaxWithoutLeaderKeepsArmHomeJawDwellThenGuardedRelax)
   EXPECT_EQ(idle_checks, 0);  // Stock no-leader idle leaf calls no service.
 }
 
+TEST_F(HomeRecovery, RelaxEndsFloatBeforeHomeMotion)
+{
+  // A floating arm sags out of the HOME box; spring gains return before HOME plans.
+  useNoLeaderNotification();
+  measured = withJaw(kDeepSag, 2.0);
+  EXPECT_EQ(run(R"(<SubTree ID="Relax at HOME"/>)"), BT::NodeStatus::SUCCESS);
+  // Relax's own restore, then the HOME wrapper's; both before any motion.
+  ASSERT_EQ(spring_restores.size(), 2U);
+  EXPECT_EQ(spring_restores.front(), std::make_tuple(1, 1, std::size_t{ 0 }));
+  EXPECT_EQ(spring_restores.back(), std::make_tuple(2, 2, std::size_t{ 0 }));
+  EXPECT_EQ(engages, 2);  // HOME's own engage is the idempotent already-ON path.
+  EXPECT_EQ(measured, withJaw(kHomePose, 0.0));
+  EXPECT_EQ(home_tail, (std::vector<std::string>{ "settle", "close", "dwell", "relax" }));
+}
+
 TEST_F(HomeRecovery, RelaxWithoutLeaderHomeFailureNeverClosesDwellsOrRelaxes)
 {
   useNoLeaderNotification();
@@ -729,6 +745,7 @@ TEST_F(HomeRecovery, LeaderIdleRefusalNeverEngagesMovesNotifiesOrRelaxes)
   EXPECT_EQ(run(R"(<SubTree ID="Relax at HOME"/>)"), BT::NodeStatus::FAILURE);
   EXPECT_EQ(idle_checks, 1);
   EXPECT_EQ(engages, 0);
+  EXPECT_TRUE(spring_restores.empty());
   EXPECT_TRUE(executed.empty());
   EXPECT_TRUE(home_tail.empty());
 }

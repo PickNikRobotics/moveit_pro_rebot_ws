@@ -156,7 +156,11 @@ Motor status and fault telemetry remain available through the pinned driver's
 
 ## Relax-safe poses and Relax at HOME
 
-The arm has no brakes. **Relax at HOME** returns HOME under power, waits one
+The arm has no brakes. **Relax at HOME** first ends any gravity-comp float the
+way Stop Gravity Comp does (engage, make JTAC the arm owner, re-anchor at the
+measured pose, restore the configured spring gains); a floating arm sags out of
+the HOME box and never settles, so the driver would refuse relax. It then
+returns HOME under power, waits one
 configured stillness window plus 0.1 s after the jaw move, then calls
 `/robstride_hardware_interface/relax` (`std_srvs/Trigger`). This is a
 request, not an idle timer. A failed HOME prevents the
