@@ -6,14 +6,15 @@ ament_python_install_package(rebot_safe_poses PACKAGE_DIR python/rebot_safe_pose
 find_package(moveit_pro_behavior_interface REQUIRED)
 find_package(robstride_interfaces REQUIRED)
 find_package(pluginlib REQUIRED)
+find_package(std_srvs REQUIRED)
 add_library(rebot_hardware_behaviors SHARED
-  src/set_rebot_motor_gain.cpp src/register_behaviors.cpp)
+  src/set_rebot_motor_gain.cpp src/call_rebot_leader_service.cpp src/register_behaviors.cpp)
 target_compile_features(rebot_hardware_behaviors PUBLIC cxx_std_20)
 target_include_directories(rebot_hardware_behaviors PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 ament_target_dependencies(rebot_hardware_behaviors
-  moveit_pro_behavior_interface robstride_interfaces pluginlib)
+  moveit_pro_behavior_interface robstride_interfaces pluginlib std_srvs)
 install(TARGETS rebot_hardware_behaviors EXPORT rebot_hardware_behaviorsTargets
   LIBRARY DESTINATION lib ARCHIVE DESTINATION lib RUNTIME DESTINATION bin)
 install(DIRECTORY include/ DESTINATION include)
@@ -21,7 +22,7 @@ install(DIRECTORY description DESTINATION share/${PROJECT_NAME})
 pluginlib_export_plugin_description_file(moveit_pro_behavior_interface
   rebot_hardware_behaviors_plugin_description.xml)
 ament_export_targets(rebot_hardware_behaviorsTargets HAS_LIBRARY_TARGET)
-ament_export_dependencies(moveit_pro_behavior_interface robstride_interfaces pluginlib)
+ament_export_dependencies(moveit_pro_behavior_interface robstride_interfaces pluginlib std_srvs)
 include(cmake/generate_home.cmake)
 rebot_generate_home(objective
   ${CMAKE_CURRENT_SOURCE_DIR}/objectives/return_rebot_leader_home.xml.in
@@ -31,7 +32,7 @@ rebot_generate_home(objective
   ${CMAKE_CURRENT_BINARY_DIR}/objectives/relax_at_home.xml)
 # Install the canonical YAML as a build snapshot even with symlink-install:
 # driver admission and generated motion targets advance together on rebuild.
-install(DIRECTORY config docs launch objectives DESTINATION share/${PROJECT_NAME}
+install(DIRECTORY config docs launch objectives leader_objectives DESTINATION share/${PROJECT_NAME}
   PATTERN "*.in" EXCLUDE PATTERN "relax_safe_poses.yaml" EXCLUDE)
 configure_file(config/relax_safe_poses.yaml config/relax_safe_poses.yaml COPYONLY)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/config/relax_safe_poses.yaml
@@ -46,7 +47,11 @@ ament_index_register_resource(packages PACKAGE_NAME ${REBOT_GENERATED_OBJECTIVES
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/objectives/return_rebot_leader_home.xml
   ${CMAKE_CURRENT_BINARY_DIR}/objectives/relax_at_home.xml
   DESTINATION share/${REBOT_GENERATED_OBJECTIVES}/objectives)
-install(PROGRAMS scripts/rebot_thermal_guard.py DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS scripts/rebot_thermal_guard.py
+  scripts/rebot_leader.py scripts/rebot_leader_bridge.py scripts/rebot_leader_tune.py
+  DESTINATION lib/${PROJECT_NAME})
+install(FILES scripts/rebot_leader_state.py scripts/rebot_leader_collision.py
+  DESTINATION lib/${PROJECT_NAME})
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
   ament_add_pytest_test(test_config_contract test/test_config_contract.py TIMEOUT 60)
@@ -54,6 +59,9 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_thermal_guard test/test_thermal_guard.py TIMEOUT 60)
   ament_add_pytest_test(test_thermal_launch test/test_thermal_launch.py TIMEOUT 60)
   ament_add_pytest_test(test_wrist_camera_launch test/test_wrist_camera_launch.py TIMEOUT 60)
+  ament_add_pytest_test(test_rebot_leader test/test_rebot_leader.py TIMEOUT 60)
+  ament_add_pytest_test(test_leader_startup test/test_leader_startup.py TIMEOUT 60)
+  ament_add_pytest_test(test_leader_runtime test/test_leader_runtime.py TIMEOUT 120)
   find_package(ament_cmake_gtest REQUIRED)
   find_package(moveit_pro_test_utils REQUIRED)
   find_package(moveit_pro_behavior REQUIRED)
@@ -66,7 +74,13 @@ if(BUILD_TESTING)
   target_compile_definitions(test_relax_objectives PRIVATE
     HW_SHARE="${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}"
     GENERATED_OBJECTIVES="${CMAKE_INSTALL_PREFIX}/share/${REBOT_GENERATED_OBJECTIVES}/objectives"
+    LEADER_OBJECTIVES="${CMAKE_CURRENT_SOURCE_DIR}/leader_objectives"
     BOSTON_SHARE="${CMAKE_CURRENT_SOURCE_DIR}/../picknik_boston_rebot_b601_rs_hw")
+  ament_add_gtest(test_leader_service test/test_leader_service.cpp)
+  ament_target_dependencies(test_leader_service moveit_pro_test_utils)
+  target_link_libraries(test_leader_service rebot_hardware_behaviors)
+  target_compile_definitions(test_leader_service PRIVATE
+    MIRROR_OBJECTIVE="${CMAKE_CURRENT_SOURCE_DIR}/leader_objectives/mirror_rebot_leader.xml")
   ament_add_gtest(test_set_rebot_motor_gain test/test_set_rebot_motor_gain.cpp)
   ament_target_dependencies(test_set_rebot_motor_gain moveit_pro_test_utils)
   target_link_libraries(test_set_rebot_motor_gain rebot_hardware_behaviors)
@@ -141,7 +155,7 @@ if(BUILD_TESTING)
   target_compile_definitions(test_home_recovery PRIVATE
     TEST_URDF="${TEST_URDF}" STOCK_SHARE="${MOCK_SHARE}" PACKAGE_DIR="${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}"
     GENERATED_OBJECTIVES="${CMAKE_INSTALL_PREFIX}/share/${REBOT_GENERATED_OBJECTIVES}/objectives"
-    BOSTON_SHARE="${CMAKE_CURRENT_SOURCE_DIR}/../picknik_boston_rebot_b601_rs_hw")
+    LEADER_OBJECTIVES="${CMAKE_CURRENT_SOURCE_DIR}/leader_objectives")
   # Keep the physical public contract; the generator overrides only CAN to
   # vcan0. Generation occurs at test time so config inheritance is installed.
   set(TEST_VCAN_URDF ${CMAKE_CURRENT_BINARY_DIR}/vcan.urdf)

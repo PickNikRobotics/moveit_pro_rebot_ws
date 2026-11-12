@@ -1,6 +1,6 @@
 # Copyright 2026 PickNik Inc.
 # SPDX-License-Identifier: BSD-3-Clause
-"""Boston scene/leader helpers plus the inherited stock wrist-camera driver."""
+"""Boston scene camera plus the inherited stock drivers (wrist camera, optional leader)."""
 from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
@@ -33,8 +33,7 @@ def generate_launch_description():
         ]
         + [
             IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(str(office_launch / name))
+                PythonLaunchDescriptionSource(str(office_launch / "cameras.launch.py"))
             )
-            for name in ("cameras.launch.py", "rebot_leader.launch.py")
         ]
     )

@@ -10,4 +10,13 @@
       service.
     </description>
   </class>
+  <class
+    name="rebot_b601_rs_hw::RebotLeaderBehaviorsLoader"
+    type="rebot_b601_rs_hw::RebotLeaderBehaviorsLoader"
+    base_class_type="moveit_pro::behaviors::SharedResourcesNodeLoaderBase"
+  >
+    <description>
+      Optional Star Arm leader bridge calls for Mirror reBot Leader.
+    </description>
+  </class>
 </library>

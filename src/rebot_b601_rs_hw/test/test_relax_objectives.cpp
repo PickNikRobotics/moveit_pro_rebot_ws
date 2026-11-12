@@ -146,8 +146,8 @@ protected:
       <BehaviorTree ID="Move to Named Waypoint"><WaypointMotion/></BehaviorTree>
       <BehaviorTree ID="Move to Waypoint"><WaypointMotion/></BehaviorTree>
       </root>)");
-    factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/rebot_check_leader_idle.xml");
-    factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/rebot_notify_leader_home.xml");
+    factory.registerBehaviorTreeFromFile(LEADER_OBJECTIVES "/rebot_check_leader_idle.xml");
+    factory.registerBehaviorTreeFromFile(LEADER_OBJECTIVES "/rebot_notify_leader_home.xml");
     factory.registerBehaviorTreeFromFile(GENERATED_OBJECTIVES "/relax_at_home.xml");
     factory.registerBehaviorTreeFromFile(HW_SHARE "/objectives/rebot_engage_arm.xml");
     // Physical overrides of the stock Move to Raised/Rest, and the Boston waypoint entry.
@@ -155,7 +155,7 @@ protected:
          { "teleoperate.xml", "move_to_raised.xml", "move_to_rest.xml", "start_gravity_comp.xml" })
       factory.registerBehaviorTreeFromFile(std::string(HW_SHARE "/objectives/") + objective);
     factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/move_rebot_to_waypoint.xml");
-    factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/mirror_rebot_leader.xml");
+    factory.registerBehaviorTreeFromFile(LEADER_OBJECTIVES "/mirror_rebot_leader.xml");
   }
   BT::NodeStatus run(const std::string& name)
   {

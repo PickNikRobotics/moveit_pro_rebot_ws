@@ -427,7 +427,7 @@ protected:
       factory.registerBehaviorTreeFromFile(std::string(PACKAGE_DIR "/objectives/") + objective);
     factory.registerBehaviorTreeFromFile(HW_OBJECTIVES "/rebot_engage_arm.xml");
     factory.registerBehaviorTreeFromFile(STOCK_GENERATED_OBJECTIVES "/return_rebot_leader_home.xml");
-    factory.registerBehaviorTreeFromFile(PACKAGE_DIR "/objectives/rebot_notify_leader_home.xml");
+    factory.registerBehaviorTreeFromFile(STOCK_LEADER_OBJECTIVES "/rebot_notify_leader_home.xml");
   }
 
   BT::NodeStatus run(const std::string& subtree_call, const Positions& commanded)

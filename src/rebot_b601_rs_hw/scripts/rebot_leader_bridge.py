@@ -40,9 +40,10 @@ def objective_goal(name):
 class LeaderBridge:
     """One position-command owner; native FCL checks every target and path."""
 
-    def __init__(self, node, stream):
+    def __init__(self, node, stream, srdf_file):
         self.node = node
         self.stream = stream
+        self.srdf_file = srdf_file
         self.state = LeaderState(
             engage_speed_rad_s=node.declare_parameter("engage_speed_rad_s", 0.05).value,
             engage_jaw_speed_rad_s=node.declare_parameter(
@@ -325,7 +326,7 @@ class LeaderBridge:
         ]
         self.verified = robot.get("name") == "rebot_b601_rs" and plugins in allowed
         if self.verified and self.collider is None:
-            self.collider = LeaderCollision(message.data)
+            self.collider = LeaderCollision(message.data, self.srdf_file)
         if not self.verified:
             self.state.stop("Hardware model is not authorized")
             self.node.get_logger().error("Bridge refuses this hardware model")
@@ -601,6 +602,12 @@ def main():
         required=True,
         help="Configured existing leader calibration",
     )
+    parser.add_argument(
+        "--srdf-file",
+        type=Path,
+        required=True,
+        help="Selected config's installed SRDF for native collision checks",
+    )
     args, ros_args = parser.parse_known_args()
     rclpy.init(args=ros_args, signal_handler_options=SignalHandlerOptions.NO)
 
@@ -631,7 +638,7 @@ def main():
             stdout=subprocess.PIPE,
             start_new_session=True,
         )
-        bridge = LeaderBridge(node, child.stdout)
+        bridge = LeaderBridge(node, child.stdout, args.srdf_file)
         rclpy.spin(node)
     except KeyboardInterrupt:
         # Keep the process alive through its home return; SIGKILL cannot run

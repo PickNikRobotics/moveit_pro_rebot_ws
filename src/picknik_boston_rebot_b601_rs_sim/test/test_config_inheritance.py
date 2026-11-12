@@ -246,16 +246,14 @@ def test_overlay_inherits_same_backend_leader_settings(config):
     import yaml
 
     base = Path(get_package_share_directory("picknik_boston_rebot_b601_rs_hw"))
+    stock = Path(get_package_share_directory("rebot_b601_rs_hw"))
     settings = yaml.safe_load((base / "config/config.yaml").read_text())[
         "ros_global_params"
     ]
     assert config.ros_global_params["rebot_leader_enabled"] is False
-    for name in (
-        "rebot_leader_port",
-        "rebot_leader_calibration_file",
-        "rebot_leader_publish_rate",
-    ):
-        assert config.ros_global_params[name] == settings[name]
+    assert (
+        config.ros_global_params["rebot_leader_port"] == settings["rebot_leader_port"]
+    )
     spec = importlib.util.spec_from_file_location(
         "rebot_sim_drivers_launch",
         str(
@@ -272,4 +270,4 @@ def test_overlay_inherits_same_backend_leader_settings(config):
     ]
     source = include.launch_description_source
     source.get_launch_description(LaunchContext())
-    assert Path(source.location) == base / "launch/rebot_leader.launch.py"
+    assert Path(source.location) == stock / "launch/rebot_leader.launch.py"

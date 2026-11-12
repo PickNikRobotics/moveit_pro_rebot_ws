@@ -45,18 +45,9 @@ source semantics, not a claim that a physical recovery from every sag succeeds.
 The source Xacro thermal cutoff/clear parameters are explicitly 100°C/75°C;
 leaving cutoff unset would disable the driver latch and is not equivalent.
 
-The preserved sequence is: fresh measured pose and healthy enabled motors →
-JTAC active (switched in, deactivating only controllers that claim its command
-interfaces, when Mirror or jog left another owner) →
-nonzero-stamped stationary JTAC anchor → two advancing matching references →
-configured arm kd, then kp, through the existing driver service → cancel →
-release of the guard's own anchor goal (JTAC would stitch HOME onto it) →
-native HOME → fresh stationary HOME verification → torque OFF → cooling.
-Hot startup with all motors OFF stays OFF. It never enables torque. The source
-retains all stage deadlines, repeat-latch handling, fault checks and partial-write
-limitations. A queued gain acknowledgement is not motor readback or an atomic
-whole-arm update. Competing writers and continued hand motion are not covered
-by a physical no-snap guarantee.
+The preserved recovery sequence and its limitations are described in
+[Thermal recovery](../README.md#thermal-recovery). The source retains all stage
+deadlines, repeat-latch handling, fault checks and partial-write limitations.
 
 ## Offline checks
 

@@ -1,7 +1,6 @@
 # Boston reBot B601-RS
 
-Office application source for **MoveIt Pro 10.x / ROS 2 Jazzy**, on the
-`picknik_boston_rebot_b601_rs` branch. Select the matching
+Office application source for **MoveIt Pro 10.x / ROS 2 Jazzy**. Select the matching
 `picknik_boston_rebot_b601_rs_hw` config. It inherits
 `rebot_b601_rs_mock → rebot_b601_rs_sim → rebot_b601_rs_hw` and adds the Boston
 assembly, calibrated placement, OAK-D/Gemini 305, USB leader, collection/fit
@@ -67,103 +66,37 @@ Fitted gravity, scene/camera calibration and fixtures remain office-only.
   hardware use.
 - Optional scene-camera absence warns and skips only that camera. Its launch's
   USB descriptor read is not run during offline tests; tests supply fixture descriptors.
-- The office FashionStar leader uses its retained unit calibration. The reader
-  needs `motorbridge-smart-servo==0.0.4` from `config/leader-requirements.txt`;
-  do not install a training stack or rewrite calibration as part of migration.
+- The office Star Arm leader enables the stock
+  [optional leader](../rebot_b601_rs_hw/README.md#optional-star-arm-leader) with
+  the stock calibration file and engage defaults; this config sets only
+  `rebot_leader_enabled`, the USB port, the leader loader/library and
+  `leader_position_controller`. Do not install a training stack or rewrite
+  calibration.
 
-## Mirror reBot Leader engage
+## Mirror reBot Leader
 
-Mirror still requires fresh leader/follower feedback, the native collision scene,
-a healthy controller handoff and **reBot at HOME**, using the per-joint
-allowances in the stock `relax_safe_poses.yaml`. The Objective calls the driver's
-`engage` Trigger before bridge preparation or a controller switch, then makes
-JTAC the arm owner and runs `reBot Set Spring Gains` (the shared
-`reBot Engage Arm` subtree), so a gravity-comp float (kp=0) never reaches
-following. Move reBot to Waypoint, Execute reBot Joint Trajectory and Collect
-reBot Gravity Data start with the same subtree, so none moves a relaxed arm.
-Start it explicitly; recovered USB, a cleared fault or completed HOME does not
-re-engage it automatically. Do not move reBot by hand to match the leader.
+Mirror, its engage/handoff, Stop → HOME → Relax at HOME sequence and the
+fail-closed `reBot Check Leader Idle` / `reBot Notify Leader Home` subtrees are
+stock pieces, documented in the
+[stock hardware README](../rebot_b601_rs_hw/README.md#mirror-rebot-leader-engage).
+The office config lists `rebot_b601_rs_hw/leader_objectives` after the inherited
+stock library, so those subtrees replace the no-leader ones, and checks leader
+targets against this config's own SRDF (office trim and camera mounts). HOME
+and Relax at HOME come from the stock
+[generated Objective library](../rebot_b601_rs_hw/README.md#generated-objective-library).
+A Boston-derived config with the leader disabled must put the stock
+`objectives/` definitions of both `reBot Check Leader Idle` and
+`reBot Notify Leader Home` in its last Objective library; the YAML enable flag
+alone only controls the device launch.
 
-Engage now seeds its position command from the measured follower pose, clamped
-into the approved joint limits, and eases each joint toward the **live** leader
-target. In `config/config.yaml`,
-`rebot_leader_engage_speed_rad_s` defaults to **0.2 rad/s** for joint1–joint6;
-`rebot_leader_engage_jaw_speed_rad_s` defaults to **1.0 rad/s** for joint7.
-Every candidate step uses the existing per-tick native FCL path check before
-publication. Keep the leader near HOME and still while ease-in catches up.
-Once the published ramp command is within **0.02 rad** on every arm joint and
-**0.05 rad** on the jaw of the current target, the bridge does not jump to the
-leader. The ramp stops there and the bridge records the per-joint handoff
-offset `offset0 = command - leader`. For a fixed **0.5 s** it publishes
-`leader + (1 - a) * offset0`, clamped to the same approved joint limits as the
-seed, with `a` rising linearly from 0 to 1, then switches to the existing
-**direct, uncapped following**. The handoff command therefore moves with the
-live leader plus at most `|offset0| / 0.5 s` (at most 0.04 rad/s on the arm and
-0.10 rad/s on the jaw, within the default engage speeds), with no step at either
-end.
-The handoff always ends after 0.5 s, even with a moving or noisy leader.
-Convergence does not wait on the measured follower, so spring-mode steady-state
-error cannot hold engage open.
-The engage cap is not a normal following-speed limit or a safety-rated motion
-limit.
-
-The old 0.1 rad alignment refusal is replaced by a gross arm mismatch check:
-`rebot_leader_engage_max_offset_rad` defaults to **0.6 rad** per arm joint.
-There is no jaw alignment gate; jaw targets still obey the native limits and
-collision checks. Gross refusal retains the per-joint signed offset and
-leader-only correction instructions. At the earlier 0.05/0.10 rad/s caps,
-handoff-window arm speed measured on a bench unit stayed below 0.026 rad/s in
-two completed engages, with no reported jump. The configured caps are now
-0.2 rad/s arm and 1.0 rad/s jaw; the 0.6 rad gross bound and original unit
-calibration are retained. These settings are not physical acceptance for
-another installation.
-
-The **3 s start limit** applies to starting the ramp, not completing it.
-At engage, the fixed convergence deadline is the largest initial per-joint
-`abs(leader - follower) / engage_speed` plus **5 s**, including the jaw at its
-own speed, and it stays armed until the handoff blend completes. A moving leader
-does not extend that deadline. Timeout, stale data, lost Objective heartbeat,
-collision and Stop/clutch use the existing stopped command / planned HOME
-recovery path. After that HOME succeeds, the bridge clears its recovery state and
-sends **Relax at HOME** once, so ending Mirror finishes relaxed at HOME. That
-Objective's idle, pose, stillness and health checks still apply; any refusal
-or unavailable server is logged and leaves torque on at HOME. A failed HOME
-never requests relax. HOME-before-disable behavior is unchanged.
-If HOME fails, do not disable torque away from HOME; use the supported recovery
-procedure with the operator. After its arm legs, Return reBot Leader Home waits
-0.5 s and runs `reBot Notify Leader Home`. Boston's config-specific override
-calls `/rebot_leader_bridge/home_verified` inside `ForceSuccess`; the stock
-no-leader definition does nothing. The bridge clears its
-failed-HOME latch only while inactive, with fresh arm feedback within 0.08 rad
-of HOME (the values and stillness window come from the shared HOME entry), healthy enabled
-motors and no thermal trip. It never commands motion or re-engages Mirror.
-The Objective then attempts HOME's jaw target, currently nominal zero. Both the optional
-verification call and close are best-effort: neither failure turns a successful
-arm HOME into a recovery failure. Check the jaw before relying on it being
-closed. **Relax at HOME** additionally requires the driver's measured all-seven
-pose/stillness/health/no-motion admission before torque-off; its relax call is
-not best-effort. Relax at HOME refuses a following/prepared/recovering leader
-through `/rebot_leader_bridge/idle` before HOME and again before relax. Finish
-or cancel active and queued trajectories/teleop first; command stillness alone
-cannot establish that prerequisite. A Boston-derived config with the leader
-disabled must override both `reBot Check Leader Idle` and
-`reBot Notify Leader Home` with the stock definitions in its last Objective
-library; the YAML enable flag alone only controls the device launch. HOME and
-Relax at HOME come from the stock [generated Objective library](../rebot_b601_rs_hw/README.md#generated-objective-library),
-which every Runtime start links from the build.
-HOME and adding measured relax-safe poses are documented in the
-[stock hardware README](../rebot_b601_rs_hw/README.md#relax-safe-poses-and-relax-at-home). Explicitly start Mirror again after successful HOME verification.
-There is no auto-HOME before engage, calibration re-zero or reader respawn.
-
-Offline coverage includes the +0.110 rad shoulder-pan rest offset, arm/jaw step
-bounds and the 0.5 s handoff bound with stationary, moving, faster-than-engage
-and one-count flickering leaders, live-target reversals, all-joint convergence,
-gross refusal, jaw startup, timeout-to-HOME and preserved deadman/start checks.
-Fake-SDK startup exercises the actual configured bridge and reader without USB
-or CAN access. Offline or MuJoCo proof does not authorize or certify real-arm
-motion.
+Move reBot to Waypoint, Execute reBot Joint Trajectory and Collect reBot
+Gravity Data start with the same `reBot Engage Arm` subtree as Mirror, so none
+moves a relaxed arm.
 
 ## Objectives and recordings
+
+Print the cubes and place the bench as in [cube-stacking layout](docs/cube-stacking-layout.md)
+before running Stack Blue on Red, Unstack Blue from Red or Stack and Unstack Cycle.
 
 Stock Start/Stop Gravity Comp, native jaw and conference Teleoperate Objectives
 are inherited, not duplicated. Office cube/expert/recorder sources remain under

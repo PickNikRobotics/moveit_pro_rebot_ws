@@ -23,16 +23,11 @@ hardware:
       - wrist_camera_color_optical_xyz: "-0.1040 0.0095 0.1017"
       - wrist_camera_color_optical_rpy: "-2.1069 -0.0041 -1.5720"
 ros_global_params:
-  # This calibrated USB leader is an office device, not a stock product requirement.
+  # The office Star Arm enables the optional stock leader (see the stock README).
+  # The stock driver launch starts its bridge; calibration, publish rate and
+  # engage caps are the stock defaults.
   rebot_leader_enabled: true
   rebot_leader_port: "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0"
-  rebot_leader_calibration_file: "config/leader_calibration/rebot_arm_102_leader.json"
-  rebot_leader_publish_rate: 100.0
-  # Bounded engage only; direct following remains uncapped after convergence.
-  rebot_leader_engage_speed_rad_s: 0.2
-  rebot_leader_engage_jaw_speed_rad_s: 1.0
-  # Gross mismatch gate applies to joint1-joint6 only, never the jaw.
-  rebot_leader_engage_max_offset_rad: 0.6
 ros2_control:
   config:
     package: picknik_boston_rebot_b601_rs_hw
@@ -44,9 +39,16 @@ ros2_control:
     - velocity_force_controller
 objectives:
   behavior_loader_plugins:
+    rebot_leader:
+      - rebot_b601_rs_hw::RebotLeaderBehaviorsLoader
     rebot_bench:
       - rebot_bench_behaviors::RebotBenchBehaviorsLoader
   objective_library_paths:
+    # Mirror plus the fail-closed leader idle/notify subtrees; listed after the
+    # inherited stock library, so they replace its no-leader versions.
+    rebot_leader_objectives:
+      package_name: rebot_b601_rs_hw
+      relative_path: leader_objectives
     boston_objectives:
       package_name: picknik_boston_rebot_b601_rs_hw
       relative_path: objectives

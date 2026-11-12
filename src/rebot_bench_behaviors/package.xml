@@ -12,7 +12,6 @@
   <build_depend>moveit_pro_package</build_depend>
   <depend>moveit_pro_behavior_interface</depend>
   <depend>trajectory_msgs</depend>
-  <depend>std_srvs</depend>
   <depend>pluginlib</depend>
   <depend>cv_bridge</depend>
   <depend>sensor_msgs</depend>

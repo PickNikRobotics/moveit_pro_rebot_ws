@@ -1,10 +1,10 @@
 // Copyright 2026 PickNik Inc.
 // SPDX-License-Identifier: BSD-3-Clause
-#include <rebot_bench_behaviors/call_rebot_leader_service.hpp>
+#include <rebot_b601_rs_hw/call_rebot_leader_service.hpp>
 
 #include <moveit_pro_behavior_interface/metadata_fields.hpp>
 
-namespace rebot_bench_behaviors
+namespace rebot_b601_rs_hw
 {
 namespace
 {
@@ -74,7 +74,7 @@ BT::PortsList CallRebotLeaderService::providedPorts()
 
 BT::KeyValueVector CallRebotLeaderService::metadata()
 {
-  return { { moveit_pro::behaviors::kSubcategoryMetadataKey, "reBot Bench" },
+  return { { moveit_pro::behaviors::kSubcategoryMetadataKey, "reBot" },
            { moveit_pro::behaviors::kDescriptionMetadataKey,
              "Calls the leader bridge and reports its operator instructions as the Objective's failure message." } };
 }
@@ -111,4 +111,4 @@ tl::expected<bool, std::string> CallRebotLeaderService::processResponse(const st
                                  "diagnostics before retrying Mirror reBot Leader." :
                                  response.message);
 }
-}  // namespace rebot_bench_behaviors
+}  // namespace rebot_b601_rs_hw

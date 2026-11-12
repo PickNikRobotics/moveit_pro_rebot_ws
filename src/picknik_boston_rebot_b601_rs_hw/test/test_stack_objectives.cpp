@@ -111,6 +111,8 @@ protected:
     for (const auto& entry : std::filesystem::directory_iterator(PACKAGE_DIR "/objectives"))
       if (entry.path().extension() == ".xml")
         paths.push_back(entry.path());
+    // The office config's leader library: its HOME notification calls the bridge.
+    paths.push_back(STOCK_LEADER_OBJECTIVES "/rebot_notify_leader_home.xml");
     for (const auto& path : paths)
     {
       auto& document = documents.emplace_back();
