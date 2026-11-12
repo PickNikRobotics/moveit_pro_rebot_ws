@@ -19,6 +19,35 @@ recovery checks; offline closure is not a hardware safety certification.
 [Source provenance and limitations](docs/source-provenance.md) distinguish
 migrated functionality from unverified runtime behavior.
 
+## Thermal recovery
+
+The RobStride driver latches a thermal trip when any motor reaches 100°C or
+higher. It refuses new activation and torque-enable requests while latched;
+cooling alone does not clear it. Once all motors report below 75°C, a fresh
+stationary-HOME recovery attestation with all motors OFF is required to clear
+the latch. A trip received while every motor is already OFF remains OFF; the
+guard does not request HOME or enable torque in that case.
+
+For a new latch with fresh healthy feedback from all enabled motors, the guard
+first sends JTAC a nonzero-stamped stationary goal with two identical measured
+seven-joint poses. After two advancing controller-reference samples match that
+pose, it restores the configured `kd` for arm motor IDs 1–6, then their `kp`,
+one acknowledged request at a time through
+`/robstride_hardware_interface/set_data_to_robstride`. The values come from
+the initial `/robot_description` GPIO configuration; the jaw gains and gravity
+compensation are unchanged. JTAC stays active, the stationary goal remains
+observable for up to 10 s while gains are restored, and native HOME supersedes
+it.
+
+Only after that restore does the guard cancel the active Objective and request
+**Return reBot Leader Home**. It waits for success and fresh stationary HOME
+for 0.5 s, then asks the owning driver to turn torque OFF. A failed anchor,
+reference check, gain request, cancellation, HOME, or HOME verification leaves
+the latch set and never disables away from HOME. Gain requests are bounded to
+0.5 s and not retried or rolled back; their acknowledgement means the driver
+queued a write, not that the motor read back an atomic gain update. This
+requires no competing motion or gain writer and is not physical no-snap proof.
+
 ## Before starting hardware
 
 The arm has no brakes. Activation probes positions using Stop frames, which
@@ -162,8 +191,8 @@ configured stillness window plus 0.1 s after the jaw move, then calls
 request, not an idle timer. A failed HOME prevents the
 relax call. A rejected or unavailable relax service fails the Objective; it
 never falls back to unguarded `set_torque false`. The only automatic request is
-the Boston leader bridge's: after Mirror ends and its HOME recovery succeeds, it
-runs Relax at HOME once, with the same checks.
+the [optional leader](#optional-star-arm-leader) bridge's: after Mirror ends and
+its HOME recovery succeeds, it runs Relax at HOME once, with the same checks.
 
 The matching driver must admit torque-off only when **all seven measured
 joints**, including the jaw, match a named relax-safe pose within its own
@@ -183,15 +212,16 @@ Objective wait for engage success before motion. Stock mock/MuJoCo teleop
 remains independent of physical services. The Boston twin inherits the physical
 entries; validation supplies fake Trigger servers, not a second motor owner.
 Relax at HOME checks `reBot Check Leader Idle` before HOME and immediately
-before relax. Boston's override calls `/rebot_leader_bridge/idle` and refuses
-active following, prepared following, or pending HOME recovery without changing
-bridge state. An absent bridge fails closed. The stock definition succeeds
-because the stock config has no leader. A leader-equipped child must provide
-its own idle override. A Boston-derived deployment without a leader must select
-the stock definitions of **both** `reBot Check Leader Idle` and
-`reBot Notify Leader Home` in its last Objective library, following the same
-filename/ID override pattern. Setting `rebot_leader_enabled: false` suppresses
-the device launch only; it does not change inherited Objective definitions.
+before relax. The `objectives/` definition succeeds because a config without a
+leader has no other command producer. The `leader_objectives/` definition, listed
+by leader-enabled configs, calls `/rebot_leader_bridge/idle` and refuses active
+following, prepared following, or pending HOME recovery without changing bridge
+state; an absent bridge fails closed. Setting `rebot_leader_enabled` alone
+controls only the device launch; the Objective library selects which leaf runs
+(see [Optional Star Arm leader](#optional-star-arm-leader)). A config derived
+from a leader-enabled one that drops the leader must therefore also put the
+`objectives/` definitions of **both** `reBot Check Leader Idle` and
+`reBot Notify Leader Home` in its last Objective library.
 Neither no-leader leaf grants permission to relax or replaces powered HOME.
 Other custom motion entry points must engage explicitly after relaxation;
 relaxation does not authorize them to issue motion directly.
@@ -269,6 +299,130 @@ Thermal recovery uses the internal, non-runnable **Return reBot Leader Home
 Under Power** tree after its existing all-enabled health preflight; it must
 not call engage while the thermal latch is set. It retains the original
 cancel → HOME → verified OFF → cooling path.
+
+## Optional Star Arm leader
+
+**Mirror reBot Leader** lets a Seeed Star Arm 102 (FashionStar servos on one USB
+serial port) drive the arm and jaw through `leader_position_controller`. It is
+off by default: no stock config starts the bridge, lists the leader Objectives,
+loads the leader Behavior or spawns the controller, so a robot without a leader
+runs exactly as before.
+
+| Piece | Location |
+| --- | --- |
+| USB reader, bridge, state machine, native FCL path check | `scripts/rebot_leader*.py` |
+| YAML-selected bridge launch | `launch/rebot_leader.launch.py` (included by `launch/rebot_drivers.launch.py`) |
+| Mirror reBot Leader and the fail-closed idle/HOME-notify subtrees | `leader_objectives/` |
+| `CallRebotLeaderService` Behavior | `rebot_b601_rs_hw::RebotLeaderBehaviorsLoader` |
+| `leader_position_controller` (all seven joints, declared, not spawned) | `rebot_b601_rs_mock` control YAML |
+| Seeed stored-origin calibration (all homing offsets zero) | `config/leader_calibration/rebot_arm_102_leader.json` |
+| FashionStar SDK pin, installed by the workspace `Dockerfile` | `config/leader-requirements.txt` |
+| Volatile jaw torque / J4 speed settings, written only by `rebot_leader_tune.py --apply` at HOME with all motors OFF | `config/rebot_leader_tuning.yaml` |
+
+To enable it, add this to a child config of `rebot_b601_rs_hw` (or of
+`rebot_b601_rs_sim` / `rebot_b601_rs_mock`), then rebuild and restart:
+
+```yaml
+ros_global_params:
+  rebot_leader_enabled: true
+  # Optional: rebot_leader_port (default /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0)
+  # and rebot_leader_calibration_file (absolute, or relative to this package's share).
+ros2_control:
+  controllers_inactive_at_startup:  # Replaces the inherited list; keep its entries.
+    - leader_position_controller
+    - joint_velocity_controller
+    - gripper_joint_velocity_controller
+    - velocity_force_controller
+objectives:
+  behavior_loader_plugins:
+    rebot_leader:
+      - rebot_b601_rs_hw::RebotLeaderBehaviorsLoader
+  objective_library_paths:
+    # After the inherited stock library, so these replace its no-leader subtrees.
+    rebot_leader_objectives:
+      package_name: rebot_b601_rs_hw
+      relative_path: leader_objectives
+```
+
+The physical driver launch already includes the leader launch. A mock or MuJoCo
+child has no driver launch, so it also sets `hardware.additional_driver_launch_file`
+to `rebot_b601_rs_hw` / `launch/rebot_leader.launch.py`. Mirror calls the
+driver's `engage` Trigger first, so it runs only on the physical backend.
+
+Other `ros_global_params`, with their defaults: `rebot_leader_publish_rate`
+(100 Hz, 20–100), `rebot_leader_engage_speed_rad_s` (0.2, joint1–joint6),
+`rebot_leader_engage_jaw_speed_rad_s` (1.0, joint7) and
+`rebot_leader_engage_max_offset_rad` (0.6, arm joints only). Any value other than
+YAML `true`/`false` for `rebot_leader_enabled` fails the launch. The bridge
+checks targets against the selected config's own URDF and SRDF. The stock SRDF
+keeps link2/link5 checked: with the arm folded at HOME and J3 or J4 reading
+slightly below zero (for example J3 -0.01 rad), the stock model reports that
+contact and the bridge refuses to engage or follow. The Boston SRDF excludes
+the pair. Excluding it in a child SRDF also changes planning collision checks;
+verify the clearance on the installation first.
+
+### Mirror reBot Leader engage
+
+Mirror still requires fresh leader/follower feedback, the native collision scene,
+a healthy controller handoff and **reBot at HOME**, using the per-joint
+allowances in `config/relax_safe_poses.yaml`. The Objective calls the driver's
+`engage` Trigger before bridge preparation or a controller switch.
+Start it explicitly; recovered USB, a cleared fault or completed HOME does not
+re-engage it automatically. Do not move reBot by hand to match the leader.
+
+Engage seeds its position command from the measured follower pose, clamped
+into the approved joint limits, and eases each joint toward the **live** leader
+target at the engage speeds above. Every candidate step uses the existing
+per-tick native FCL path check before publication. Keep the leader near HOME
+and still while ease-in catches up. Once the published ramp command is within
+**0.02 rad** on every arm joint and **0.05 rad** on the jaw of the current
+target, the bridge does not jump to the leader. The ramp stops there and the
+bridge records the per-joint handoff offset `offset0 = command - leader`. For a
+fixed **0.5 s** it publishes `leader + (1 - a) * offset0`, clamped to the same
+approved joint limits as the seed, with `a` rising linearly from 0 to 1, then
+switches to **direct, uncapped following**. The handoff command therefore moves
+with the live leader plus at most `|offset0| / 0.5 s` (at most 0.04 rad/s on the
+arm and 0.10 rad/s on the jaw), with no step at either end. The handoff always
+ends after 0.5 s, even with a moving or noisy leader. Convergence does not wait
+on the measured follower, so spring-mode steady-state error cannot hold engage
+open. The engage cap is not a normal following-speed limit or a safety-rated
+motion limit.
+
+A gross arm mismatch beyond `rebot_leader_engage_max_offset_rad` refuses with
+the per-joint signed offset and leader-only correction instructions. There is
+no jaw alignment gate; jaw targets still obey the native limits and collision
+checks. At earlier 0.05/0.10 rad/s caps, handoff-window arm speed measured on a
+bench unit stayed below 0.026 rad/s in two completed engages, with no reported
+jump; the 0.2/1.0 rad/s defaults are the caps used on that unit since. These
+settings are not physical acceptance for another installation.
+
+The **3 s start limit** applies to starting the ramp, not completing it.
+At engage, the fixed convergence deadline is the largest initial per-joint
+`abs(leader - follower) / engage_speed` plus **5 s**, including the jaw at its
+own speed, and it stays armed until the handoff blend completes. A moving leader
+does not extend that deadline. Timeout, stale data, lost Objective heartbeat,
+collision and Stop/clutch use the stopped command / planned HOME recovery path.
+After that HOME succeeds, the bridge clears its recovery state and sends
+**Relax at HOME** once, so ending Mirror finishes relaxed at HOME. That
+Objective's idle, pose, stillness and health checks still apply; any refusal or
+unavailable server is logged and leaves torque on at HOME. A failed HOME never
+requests relax. If HOME fails, do not disable torque away from HOME; use the
+supported recovery procedure with the operator. After its arm legs, Return reBot
+Leader Home waits 0.5 s and runs `reBot Notify Leader Home`; the leader version
+calls `/rebot_leader_bridge/home_verified` inside `ForceSuccess`. The bridge
+clears its failed-HOME latch only while inactive, with fresh arm feedback within
+0.08 rad of HOME (values and stillness window from the shared HOME entry),
+healthy enabled motors and no thermal trip. It never commands motion or
+re-engages Mirror. Explicitly start Mirror again after successful HOME
+verification. There is no auto-HOME before engage, calibration re-zero or
+reader respawn.
+
+Offline coverage includes the +0.110 rad shoulder-pan rest offset, arm/jaw step
+bounds and the 0.5 s handoff bound with stationary, moving, faster-than-engage
+and one-count flickering leaders, live-target reversals, all-joint convergence,
+gross refusal, jaw startup, timeout-to-HOME and preserved deadman/start checks.
+Fake-SDK startup exercises the installed bridge and reader without USB or CAN
+access. Offline or MuJoCo proof does not authorize or certify real-arm motion.
 
 ## Stock gravity model
 

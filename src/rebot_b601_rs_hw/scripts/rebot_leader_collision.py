@@ -6,7 +6,6 @@ from pathlib import Path
 import tempfile
 import xml.etree.ElementTree as ET
 
-from ament_index_python.packages import get_package_share_directory
 from moveit_pro_base import (
     collision_detection,
     planning_scene,
@@ -22,11 +21,10 @@ PATH_SPACING = (0.005,) * 6 + (0.05,)
 
 
 class LeaderCollision:
-    def __init__(self, urdf):
+    def __init__(self, urdf, srdf_file):
         self.directory = tempfile.TemporaryDirectory(prefix="rebot-leader-")
         description = Path(self.directory.name) / "robot.urdf"
         description.write_text(urdf)
-        share = Path(get_package_share_directory("picknik_boston_rebot_b601_rs_hw"))
         root = ET.fromstring(urdf)
         self.bounds = [
             (
@@ -35,9 +33,7 @@ class LeaderCollision:
             )
             for name in JOINT_NAMES
         ]
-        self.model = robot_model.RobotModel(
-            str(description), str(share / "config/moveit/rebot.srdf")
-        )
+        self.model = robot_model.RobotModel(str(description), str(srdf_file))
         self.scene = planning_scene.PlanningScene(self.model)
         self.scene.set_link_padding(0.0)
         self.state = robot_state.RobotState(self.model)

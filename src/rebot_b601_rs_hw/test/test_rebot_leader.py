@@ -651,12 +651,19 @@ def collision_checker():
     import xacro
     from rebot_leader_collision import LeaderCollision
 
-    share = Path(get_package_share_directory("picknik_boston_rebot_b601_rs_hw"))
+    # The stock model: the stock URDF and the SRDF the stock configs inherit.
     urdf = xacro.process_file(
-        str(share / "description/rebot.urdf.xacro"),
+        str(
+            Path(get_package_share_directory("rebot_b601_rs_hw"))
+            / "description/rebot.urdf.xacro"
+        ),
         mappings={"hardware_interface": "mock"},
     ).toxml()
-    return LeaderCollision(urdf)
+    return LeaderCollision(
+        urdf,
+        Path(get_package_share_directory("rebot_b601_rs_mock"))
+        / "config/moveit/rebot.srdf",
+    )
 
 
 def test_native_fcl_checks_monitored_world_objects(collision_checker):
@@ -708,7 +715,15 @@ def test_engage_seed_below_a_lower_bound_passes_robot_joint_bounds(collision_che
     assert state.engage(10.0)
     seed = state.next_command(10.0)
     assert seed == [0.0] * 7
-    assert collision_checker.check_path(measured, seed) == ""
+    # The stock SRDF reports folded link2/link5 contact here (see the next test);
+    # a config whose SRDF excludes that pair sees a clear path. The bounds hold either way.
+    acm = collision_checker.scene.allowed_collision_matrix
+    assert collision_checker.check_path(measured, seed) == "Collision: link2 / link5"
+    acm.set_entry("link2", "link5", True)
+    try:
+        assert collision_checker.check_path(measured, seed) == ""
+    finally:
+        acm.set_entry("link2", "link5", False)
 
 
 def test_native_full_jaw_sweep_is_checked_in_fewer_than_a_thousand_poses(
@@ -732,7 +747,12 @@ def test_octomap_refuses_following(collision_checker):
         collision_checker.update_world(scene)
 
 
-def test_folded_link_contact_is_the_allowed_pair(collision_checker):
+def test_stock_srdf_reports_folded_link_contact_as_its_only_collision(
+    collision_checker,
+):
+    # The stock SRDF keeps link2/link5 checked; the office SRDF excludes the pair
+    # (picknik_boston_rebot_b601_rs_hw test_leader_office_model). The bridge uses
+    # whichever SRDF the selected config names.
     checker = collision_checker
     folded = [
         0.080285143927,
@@ -743,12 +763,13 @@ def test_folded_link_contact_is_the_allowed_pair(collision_checker):
         -0.062831851407,
         0.0,
     ]
-    assert checker.check_pose(folded) == ""
-    checker.scene.allowed_collision_matrix.set_entry("link2", "link5", False)
+    assert checker.check_pose([0.0] * 7) == ""
+    assert checker.check_pose(folded) == "Collision: link2 / link5"
+    checker.scene.allowed_collision_matrix.set_entry("link2", "link5", True)
     try:
-        assert checker.check_pose(folded) == "Collision: link2 / link5"
+        assert checker.check_pose(folded) == ""
     finally:
-        checker.scene.allowed_collision_matrix.set_entry("link2", "link5", True)
+        checker.scene.allowed_collision_matrix.set_entry("link2", "link5", False)
 
 
 @pytest.fixture
@@ -1055,7 +1076,7 @@ def test_bridge_refuses_publish_rate_outside_20_to_100_hz(monkeypatch, rate):
     read, write = os.pipe()
     try:
         with pytest.raises(ValueError, match="between 20 and 100"):
-            LeaderBridge(node, SimpleNamespace(fileno=lambda: read))
+            LeaderBridge(node, SimpleNamespace(fileno=lambda: read), "/no.srdf")
     finally:
         os.close(read)
         os.close(write)
@@ -1075,7 +1096,7 @@ def test_bridge_rejects_invalid_engage_setting_before_starting_timer(
         value=math.nan if name == setting else default
     )
     with pytest.raises(ValueError, match=f"{setting} must be finite and positive"):
-        LeaderBridge(node, None)
+        LeaderBridge(node, None, "/no.srdf")
     node.create_timer.assert_not_called()
 
 
@@ -1236,6 +1257,8 @@ def test_repeated_stop_signals_do_not_abort_the_home_return(monkeypatch):
             "/no-usb",
             "--calibration-file",
             "/existing.json",
+            "--srdf-file",
+            "/existing.srdf",
         ],
     )
     child = SimpleNamespace(
@@ -1248,7 +1271,7 @@ def test_repeated_stop_signals_do_not_abort_the_home_return(monkeypatch):
     )
     monkeypatch.setattr(sys, "stdin", SimpleNamespace(buffer=None))
     monkeypatch.setattr(
-        rebot_leader_bridge, "LeaderBridge", lambda node, stream: bridge
+        rebot_leader_bridge, "LeaderBridge", lambda node, stream, srdf: bridge
     )
     monkeypatch.setattr(rebot_leader_bridge.rclpy, "init", lambda **kwargs: None)
     monkeypatch.setattr(
@@ -1294,7 +1317,10 @@ def test_launch_does_not_kill_the_bridge_during_its_home_return():
         },
         hardware=SimpleNamespace(
             robot_description=SimpleNamespace(
-                urdf_params=[{"hardware_interface": "mock"}]
+                urdf_params=[{"hardware_interface": "mock"}],
+                srdf=SimpleNamespace(
+                    package="rebot_b601_rs_mock", path="config/moveit/rebot.srdf"
+                ),
             )
         ),
     )
@@ -1709,6 +1735,8 @@ def test_bridge_initialization_failure_reaps_its_reader(monkeypatch):
             "/no-usb",
             "--calibration-file",
             "/existing.json",
+            "--srdf-file",
+            "/existing.srdf",
         ],
     )
     monkeypatch.setattr(rebot_leader_bridge.rclpy, "init", lambda **kw: None)

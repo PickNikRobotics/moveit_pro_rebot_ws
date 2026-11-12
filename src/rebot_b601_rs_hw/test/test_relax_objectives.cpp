@@ -129,11 +129,11 @@ protected:
       <BehaviorTree ID="Return reBot Leader Home Under Power"><HomeMotion/></BehaviorTree>
       <BehaviorTree ID="Request Teleoperation"><TeleopEntry/></BehaviorTree>
       </root>)");
-    factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/rebot_check_leader_idle.xml");
-    factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/rebot_notify_leader_home.xml");
+    factory.registerBehaviorTreeFromFile(LEADER_OBJECTIVES "/rebot_check_leader_idle.xml");
+    factory.registerBehaviorTreeFromFile(LEADER_OBJECTIVES "/rebot_notify_leader_home.xml");
     factory.registerBehaviorTreeFromFile(GENERATED_OBJECTIVES "/relax_at_home.xml");
     factory.registerBehaviorTreeFromFile(HW_SHARE "/objectives/teleoperate.xml");
-    factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/mirror_rebot_leader.xml");
+    factory.registerBehaviorTreeFromFile(LEADER_OBJECTIVES "/mirror_rebot_leader.xml");
   }
   BT::NodeStatus run(const std::string& name)
   {

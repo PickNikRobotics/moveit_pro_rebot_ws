@@ -7,7 +7,7 @@
 #include <moveit_pro_behavior_interface/shared_resources_node_loader.hpp>
 #include <moveit_pro_test_utils/ros_test.hpp>
 #include <pluginlib/class_loader.hpp>
-#include <rebot_bench_behaviors/call_rebot_leader_service.hpp>
+#include <rebot_b601_rs_hw/call_rebot_leader_service.hpp>
 #include <thread>
 
 using namespace std::chrono_literals;
@@ -65,8 +65,7 @@ protected:
   {
     auto client = std::make_unique<TestClient>();
     fake = client.get();
-    behavior =
-        std::make_unique<rebot_bench_behaviors::CallRebotLeaderService>("Mirror", config, context, std::move(client));
+    behavior = std::make_unique<rebot_b601_rs_hw::CallRebotLeaderService>("Mirror", config, context, std::move(client));
   }
   BT::NodeStatus run()
   {
@@ -82,7 +81,7 @@ protected:
   BT::NodeConfiguration config;
   std::shared_ptr<moveit_pro::behaviors::BehaviorContext> context;
   TestClient* fake = nullptr;
-  std::unique_ptr<rebot_bench_behaviors::CallRebotLeaderService> behavior;
+  std::unique_ptr<rebot_b601_rs_hw::CallRebotLeaderService> behavior;
 };
 TEST_F(LeaderServiceTest, RefusalReachesObjectiveFailureBufferVerbatim)
 {
@@ -158,9 +157,14 @@ TEST_F(LeaderServiceTest, ConfiguredPluginLoaderInstantiatesLeaderService)
 {
   pluginlib::ClassLoader<moveit_pro::behaviors::SharedResourcesNodeLoaderBase> loader(
       "moveit_pro_behavior_interface", "moveit_pro::behaviors::SharedResourcesNodeLoaderBase");
-  auto plugin = loader.createSharedInstance("rebot_bench_behaviors::RebotBenchBehaviorsLoader");
+  auto plugin = loader.createSharedInstance("rebot_b601_rs_hw::RebotLeaderBehaviorsLoader");
   BT::BehaviorTreeFactory factory;
   plugin->registerBehaviors(factory, context);
+  // Mirror engages through the stock CallTriggerService first; only its ports matter here.
+  factory.registerSimpleAction("CallTriggerService", [](BT::TreeNode&) { return BT::NodeStatus::SUCCESS; },
+                               { BT::InputPort<std::string>("service_name"),
+                                 BT::InputPort<double>("wait_for_server_available_timeout"),
+                                 BT::InputPort<double>("response_timeout") });
   factory.registerSimpleAction("SwitchController", [](BT::TreeNode&) { return BT::NodeStatus::SUCCESS; },
                                { BT::InputPort<std::string>("activate_controllers"),
                                  BT::InputPort<bool>("automatic_deactivation"), BT::InputPort<int>("strictness") });

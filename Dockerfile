@@ -77,7 +77,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 # Install the optional FashionStar SDK into the same Python used by ROS.
 # No user-managed interpreter or environment is needed when enabling it in YAML.
-COPY src/picknik_boston_rebot_b601_rs_hw/config/leader-requirements.txt /tmp/rebot-leader-requirements.txt
+COPY src/rebot_b601_rs_hw/config/leader-requirements.txt /tmp/rebot-leader-requirements.txt
 RUN python3 -m pip install --break-system-packages --no-cache-dir \
     -r /tmp/rebot-leader-requirements.txt
 

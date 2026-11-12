@@ -426,7 +426,7 @@ protected:
       factory.registerBehaviorTreeFromFile(std::string(PACKAGE_DIR "/objectives/") + objective);
     for (const auto* objective : { "return_rebot_leader_home.xml", "relax_at_home.xml" })
       factory.registerBehaviorTreeFromFile(std::string(GENERATED_OBJECTIVES "/") + objective);
-    factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/rebot_notify_leader_home.xml");
+    factory.registerBehaviorTreeFromFile(LEADER_OBJECTIVES "/rebot_notify_leader_home.xml");
   }
 
   void useNoLeaderNotification()
@@ -678,7 +678,7 @@ TEST_F(HomeRecovery, RelaxWithoutLeaderDoesNotSwallowRelaxRefusal)
 
 TEST_F(HomeRecovery, RelaxWithLeaderStillNotifiesAndChecksIdleTwice)
 {
-  factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/rebot_check_leader_idle.xml");
+  factory.registerBehaviorTreeFromFile(LEADER_OBJECTIVES "/rebot_check_leader_idle.xml");
   measured = withJaw(kHomePose, 2.0);
   EXPECT_EQ(run(R"(<SubTree ID="Relax at HOME"/>)"), BT::NodeStatus::SUCCESS);
   EXPECT_EQ(home_tail, (std::vector<std::string>{ "settle", "verify", "close", "dwell", "relax" }));
@@ -687,7 +687,7 @@ TEST_F(HomeRecovery, RelaxWithLeaderStillNotifiesAndChecksIdleTwice)
 
 TEST_F(HomeRecovery, RefusedOptionalNotificationCannotSwallowGuardedRelaxRefusal)
 {
-  factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/rebot_check_leader_idle.xml");
+  factory.registerBehaviorTreeFromFile(LEADER_OBJECTIVES "/rebot_check_leader_idle.xml");
   measured = withJaw(kHomePose, 2.0);
   verification_refuses = true;
   relax_refuses = true;
@@ -698,7 +698,7 @@ TEST_F(HomeRecovery, RefusedOptionalNotificationCannotSwallowGuardedRelaxRefusal
 
 TEST_F(HomeRecovery, LeaderIdleRefusalNeverEngagesMovesNotifiesOrRelaxes)
 {
-  factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/rebot_check_leader_idle.xml");
+  factory.registerBehaviorTreeFromFile(LEADER_OBJECTIVES "/rebot_check_leader_idle.xml");
   measured = withJaw(kDeepSag, 2.0);
   idle_refuses = true;
   EXPECT_EQ(run(R"(<SubTree ID="Relax at HOME"/>)"), BT::NodeStatus::FAILURE);
