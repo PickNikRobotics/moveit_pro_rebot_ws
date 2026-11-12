@@ -432,7 +432,8 @@ protected:
     });
     factory.registerBehaviorTreeFromText(R"(<root BTCPP_format="4">
       <BehaviorTree ID="reBot Set Spring Gains"><Action ID="SpringRestore"/></BehaviorTree></root>)");
-    for (const auto* objective : { "rebot_move_to_arm_waypoint.xml", "rebot_check_leader_idle.xml" })
+    for (const auto* objective :
+         { "rebot_move_to_arm_waypoint.xml", "rebot_check_leader_idle.xml", "rebot_engage_arm.xml" })
       factory.registerBehaviorTreeFromFile(std::string(PACKAGE_DIR "/objectives/") + objective);
     for (const auto* objective : { "return_rebot_leader_home.xml", "relax_at_home.xml" })
       factory.registerBehaviorTreeFromFile(std::string(GENERATED_OBJECTIVES "/") + objective);

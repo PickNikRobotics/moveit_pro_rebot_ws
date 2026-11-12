@@ -182,10 +182,17 @@ safety-rated protective stop or power isolation.
 `/robstride_hardware_interface/engage` is also `std_srvs/Trigger`: enable torque
 only after the driver's measured-bounds and health checks, re-seed the hold at
 the measured pose without a step, and report elapsed milliseconds and maximum
-step. Return Home, Mirror's prepare entry, and the physical Teleoperate
-Objective wait for engage success before motion. Each then makes JTAC the arm
-owner and runs `reBot Set Spring Gains`: engage while torque is on keeps the
-runtime gains, so this ends any gravity-comp float (kp=0) at the measured pose.
+step. Every top-level physical arm motion entry starts with the shared
+`reBot Engage Arm` subtree: engage, make JTAC the arm owner, then run
+`reBot Set Spring Gains`. It covers Return Home, Mirror's prepare entry,
+Teleoperate, the physical Move to Raised/Move to Rest overrides, and Boston's
+Move reBot to Waypoint, Execute reBot Joint Trajectory and Collect reBot Gravity
+Data. A refused engage fails before any switch or motion, so nothing moves a
+relaxed arm. Engage while torque is on keeps the runtime gains, so the spring
+step ends any gravity-comp float (kp=0) at the measured pose; the anchor holds
+the jaw where it measures. Start Gravity Comp engages before its float gains.
+The stack family is not wrapped: those Objectives nest each other, and a
+mid-task anchor would release a held cube's squeeze.
 The thermal guard calls the internal Under Power tree and restores its own gains.
 Stock mock/MuJoCo teleop
 remains independent of physical services. The Boston twin inherits the physical

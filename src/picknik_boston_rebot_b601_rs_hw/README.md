@@ -77,8 +77,10 @@ Mirror still requires fresh leader/follower feedback, the native collision scene
 a healthy controller handoff and **reBot at HOME**, using the per-joint
 allowances in the stock `relax_safe_poses.yaml`. The Objective calls the driver's
 `engage` Trigger before bridge preparation or a controller switch, then makes
-JTAC the arm owner and runs `reBot Set Spring Gains`, so a gravity-comp float
-(kp=0) never reaches following.
+JTAC the arm owner and runs `reBot Set Spring Gains` (the shared
+`reBot Engage Arm` subtree), so a gravity-comp float (kp=0) never reaches
+following. Move reBot to Waypoint, Execute reBot Joint Trajectory and Collect
+reBot Gravity Data start with the same subtree, so none moves a relaxed arm.
 Start it explicitly; recovered USB, a cleared fault or completed HOME does not
 re-engage it automatically. Do not move reBot by hand to match the leader.
 

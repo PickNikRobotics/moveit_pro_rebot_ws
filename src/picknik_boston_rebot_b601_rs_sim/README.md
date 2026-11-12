@@ -204,9 +204,10 @@ override wins. Hardware-only Start/Stop Gravity Comp and gravity collection are
 non-runnable refusal overrides here: they cannot be used to tune simulation or
 collect motor-identification data.
 
-The engage-first Objectives (Teleoperate, Mirror reBot Leader, Return reBot
-Leader Home) call the RobStride driver's engage service and then restore the
-spring gains. A **SIM-ONLY** node, `scripts/sim_torque_services.py`, answers
+The engage-first Objectives (those starting with `reBot Engage Arm`:
+Teleoperate, Mirror reBot Leader, Return reBot Leader Home, Move to Raised/Rest,
+Move reBot to Waypoint, Execute reBot Joint Trajectory) call the RobStride
+driver's engage service and then restore the spring gains. A **SIM-ONLY** node, `scripts/sim_torque_services.py`, answers
 `/robstride_hardware_interface/engage` with success and no torque transition,
 since MuJoCo actuators are always powered, and refuses
 `/robstride_hardware_interface/relax`, since the twin cannot turn torque off, so

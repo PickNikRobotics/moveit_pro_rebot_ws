@@ -105,6 +105,14 @@ protected:
       receipt.record("teleop");
       return BT::NodeStatus::SUCCESS;
     });
+    factory.registerSimpleAction("WaypointMotion", [this](BT::TreeNode&) {
+      receipt.record("waypoint");
+      return BT::NodeStatus::SUCCESS;
+    });
+    factory.registerSimpleAction("FloatGains", [this](BT::TreeNode&) {
+      receipt.record("float");
+      return BT::NodeStatus::SUCCESS;
+    });
     factory.registerSimpleAction("CallRebotLeaderService",
                                  [this](BT::TreeNode& node) {
                                    receipt.record(node.getInput<std::string>("service_name").value());
@@ -134,11 +142,19 @@ protected:
       <BehaviorTree ID="Return reBot Leader Home Under Power"><HomeMotion/></BehaviorTree>
       <BehaviorTree ID="Request Teleoperation"><TeleopEntry/></BehaviorTree>
       <BehaviorTree ID="reBot Set Spring Gains"><SpringGains/></BehaviorTree>
+      <BehaviorTree ID="reBot Set Float Gains"><FloatGains/></BehaviorTree>
+      <BehaviorTree ID="Move to Named Waypoint"><WaypointMotion/></BehaviorTree>
+      <BehaviorTree ID="Move to Waypoint"><WaypointMotion/></BehaviorTree>
       </root>)");
     factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/rebot_check_leader_idle.xml");
     factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/rebot_notify_leader_home.xml");
     factory.registerBehaviorTreeFromFile(GENERATED_OBJECTIVES "/relax_at_home.xml");
-    factory.registerBehaviorTreeFromFile(HW_SHARE "/objectives/teleoperate.xml");
+    factory.registerBehaviorTreeFromFile(HW_SHARE "/objectives/rebot_engage_arm.xml");
+    // Physical overrides of the stock Move to Raised/Rest, and the Boston waypoint entry.
+    for (const auto* objective :
+         { "teleoperate.xml", "move_to_raised.xml", "move_to_rest.xml", "start_gravity_comp.xml" })
+      factory.registerBehaviorTreeFromFile(std::string(HW_SHARE "/objectives/") + objective);
+    factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/move_rebot_to_waypoint.xml");
     factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/mirror_rebot_leader.xml");
   }
   BT::NodeStatus run(const std::string& name)
@@ -278,6 +294,48 @@ TEST_F(RelaxObjectives, TeleopRefusedEngageNeverEnters)
 {
   receipt.refused = kEngage;
   EXPECT_EQ(run("Teleoperate"), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kEngage }));
+}
+// After Relax at HOME torque is off: every arm motion entry engages, owns JTAC
+// and restores spring gains before it moves, and never moves on a refused engage.
+class EngageFirstMotion : public RelaxObjectives, public testing::WithParamInterface<const char*>
+{
+};
+TEST_P(EngageFirstMotion, EngagesSwitchesAndRestoresSpringBeforeMotion)
+{
+  EXPECT_EQ(run(GetParam()), BT::NodeStatus::SUCCESS);
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kEngage, "switch", "spring", "waypoint" }));
+}
+TEST_P(EngageFirstMotion, RefusedEngageNeverMoves)
+{
+  receipt.refused = kEngage;
+  EXPECT_EQ(run(GetParam()), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kEngage }));
+}
+TEST_P(EngageFirstMotion, MissingEngageNeverMoves)
+{
+  receipt.unavailable = kEngage;
+  EXPECT_EQ(run(GetParam()), BT::NodeStatus::FAILURE);
+  EXPECT_TRUE(receipt.events.empty());
+}
+TEST_P(EngageFirstMotion, FailedSpringRestoreNeverMoves)
+{
+  receipt.spring_fails = true;
+  EXPECT_EQ(run(GetParam()), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kEngage, "switch", "spring" }));
+}
+INSTANTIATE_TEST_SUITE_P(Waypoints, EngageFirstMotion,
+                         testing::Values("Move to Raised", "Move to Rest", "Move reBot to Waypoint"));
+
+TEST_F(RelaxObjectives, StartGravityCompEngagesBeforeFloat)
+{
+  EXPECT_EQ(run("Start Gravity Comp"), BT::NodeStatus::SUCCESS);
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kEngage, "switch", "float" }));
+}
+TEST_F(RelaxObjectives, StartGravityCompRefusedEngageNeverFloats)
+{
+  receipt.refused = kEngage;
+  EXPECT_EQ(run("Start Gravity Comp"), BT::NodeStatus::FAILURE);
   EXPECT_EQ(receipt.events, (std::vector<std::string>{ kEngage }));
 }
 }  // namespace

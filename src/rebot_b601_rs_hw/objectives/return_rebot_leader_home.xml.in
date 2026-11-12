@@ -7,22 +7,8 @@
     _description="Engage torque with a measured-pose hold and restore configured spring gains (ending any gravity-comp float) before returning HOME. Return retains torque; use Relax at HOME for guarded torque-off."
   >
     <Sequence name="EngageThenHome">
-      <Action
-        ID="CallTriggerService"
-        service_name="/robstride_hardware_interface/engage"
-        wait_for_server_available_timeout="3.0"
-        response_timeout="3.0"
-      />
-      <!-- The thermal guard calls Under Power directly and restores gains itself.
-           Engage while already ON keeps runtime gains: end any gravity-comp
-           float (kp=0) at the measured pose before anything else moves. -->
-      <Action
-        ID="SwitchController"
-        activate_controllers="joint_trajectory_admittance_controller"
-        automatic_deactivation="true"
-        strictness="2"
-      />
-      <SubTree ID="reBot Set Spring Gains" _collapsed="true" />
+      <!-- The thermal guard calls Under Power directly and restores gains itself. -->
+      <SubTree ID="reBot Engage Arm" _collapsed="true" />
       <SubTree ID="Return reBot Leader Home Under Power" _collapsed="true" />
     </Sequence>
   </BehaviorTree>
