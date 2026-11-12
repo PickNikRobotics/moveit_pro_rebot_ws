@@ -516,19 +516,20 @@ TEST_F(StackObjectives, OpeningBelowTheJawConfirmationThresholdFails)
   EXPECT_EQ(run(kPick), BT::NodeStatus::FAILURE);
 }
 
-TEST_F(StackObjectives, PreparationRetriesShortOpeningAndConfirmsTheJaw)
+const std::string kOpenJaw = R"(<SubTree ID="reBot Open Jaw" gripper_velocity_scale_factor="0.05" )"
+                             R"(gripper_acceleration_scale_factor="0.06" />)";
+
+TEST_F(StackObjectives, OpenJawRetriesShortOpeningAndConfirmsTheJaw)
 {
   measured_jaw = { 2.8, 5.2 };
-  EXPECT_EQ(run(R"(<SubTree ID="Prepare reBot Stack" blue_top="{blue_top}" red_top="{red_top}" />)"),
-            BT::NodeStatus::SUCCESS);
+  EXPECT_EQ(run(kOpenJaw), BT::NodeStatus::SUCCESS);
   EXPECT_EQ(motions(), (std::vector<std::string>{ kOpen, "jaw short", kOpen, "jaw open" }));
 }
 
-TEST_F(StackObjectives, PreparationFailsAfterTwoShortOpenings)
+TEST_F(StackObjectives, OpenJawFailsAfterTwoShortOpenings)
 {
   measured_jaw = { 2.8, 2.8 };
-  EXPECT_EQ(run(R"(<SubTree ID="Prepare reBot Stack" blue_top="{blue_top}" red_top="{red_top}" />)"),
-            BT::NodeStatus::FAILURE);
+  EXPECT_EQ(run(kOpenJaw), BT::NodeStatus::FAILURE);
   EXPECT_EQ(motions(), (std::vector<std::string>{ kOpen, "jaw short", kOpen, "jaw short" }));
 }
 
