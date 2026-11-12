@@ -48,6 +48,14 @@ host SocketCAN network interface; see
 can enable torque and is a separate commissioning step.
 
 The root config owns the shared URDF/SRDF, controllers and waypoints.
+
+## Leader-follower and calibration guides
+
+- [Star Arm leader-follower demo](src/rebot_b601_rs_hw/docs/leader-follower-demo.md)
+- [Behavior reference](src/rebot_b601_rs_hw/docs/rebot-behaviors.md)
+- [Calibrating your installation](src/picknik_boston_rebot_b601_rs_hw/docs/calibration.md)
+  and the [cube-stacking layout](src/picknik_boston_rebot_b601_rs_hw/docs/cube-stacking-layout.md)
+
 `Open Gripper` / `Close Gripper` provide the standard teleoperation overrides.
 `Move to Rest` / `Move to Raised` use the core waypoint Objective with 0.10
 velocity and acceleration scales. These poses are reference configurations;

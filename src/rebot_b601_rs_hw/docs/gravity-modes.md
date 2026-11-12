@@ -50,8 +50,7 @@ snapshot, not continuous tracking. No competing Objective, jog, leader or
 manual gain/trajectory writer may command during floating or switching.
 Cancelling an already-completed Start does not restore stiffness: run Stop.
 Every top-level arm motion entry (Teleoperate, Mirror, Return reBot Leader Home
-and so Relax at HOME, Move to Raised/Rest, Move reBot to Waypoint, Execute reBot
-Joint Trajectory, Collect reBot Gravity Data) runs `reBot Engage Arm`, which
+and so Relax at HOME, Move to Raised/Rest, Collect reBot Gravity Data) runs `reBot Engage Arm`, which
 ends with the spring subtree, so it ends the float. The stack family does not.
 
 `SetRebotMotorGain` allows only arm IDs1–6 and kp/kd, validates protocol bounds,

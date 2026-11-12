@@ -66,19 +66,12 @@ skip_objectives: set[str] = {
     "Collect reBot Gravity Data",  # Hardware measurement/Trainer workflow, not a simulation fit.
     "Marker Visualization Example",  # GetTextFromUser server unavailable headless.
     "Clear Snapshot",  # No octomap: the reBot configs define no 3D sensors.
-    # Each test starts from the Zeroed Rest keyframe. With joint2's and
-    # joint3's former 0 rad lower limits the plan's time-optimal profile dipped
-    # below them and was rejected; not rechecked against the current limits.
-    # Both run from Raised (README).
-    "Plan reBot Joint Move",
-    "Execute reBot Joint Trajectory",  # Executes what Plan reBot Joint Move saved.
     # The pick-and-stack entry points segment the cubes with SAM3, which needs
     # the moveit_pro_sam3 model package the CI image does not ship; Clear reBot
     # Stack Scene removes the geometry only they add. Covered by regressions;
     # docs/stack_validation holds Stack Blue on Red twin runs, and the README
     # describes the unstack and cycle twin runs.
     "Locate reBot Cubes",
-    "Prepare reBot Stack",
     "Pick Blue Cube",
     "Stack Blue on Red",
     "Unstack Blue from Red",  # Needs blue stacked on red.

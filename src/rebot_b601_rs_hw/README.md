@@ -217,8 +217,7 @@ step. Every top-level physical arm motion entry starts with the shared
 `reBot Engage Arm` subtree: engage, make JTAC the arm owner, then run
 `reBot Set Spring Gains`. It covers Return Home, Mirror's prepare entry,
 Teleoperate, the physical Move to Raised/Move to Rest overrides, and Boston's
-Move reBot to Waypoint, Execute reBot Joint Trajectory and Collect reBot Gravity
-Data. A refused engage fails before any switch or motion, so nothing moves a
+Collect reBot Gravity Data. A refused engage fails before any switch or motion, so nothing moves a
 relaxed arm. Engage while torque is on keeps the runtime gains, so the spring
 step ends any gravity-comp float (kp=0) at the measured pose; the anchor holds
 the jaw where it measures. Start Gravity Comp engages before its float gains.
@@ -318,6 +317,9 @@ not call engage while the thermal latch is set. It retains the original
 cancel → HOME → verified OFF → cooling path.
 
 ## Optional Star Arm leader
+
+Guides: [Star Arm leader-follower demo](docs/leader-follower-demo.md) and
+[behavior reference](docs/rebot-behaviors.md).
 
 **Mirror reBot Leader** lets a Seeed Star Arm 102 (FashionStar servos on one USB
 serial port) drive the arm and jaw through `leader_position_controller`. It is
