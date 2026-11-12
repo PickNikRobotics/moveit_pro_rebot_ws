@@ -715,15 +715,17 @@ def test_engage_seed_below_a_lower_bound_passes_robot_joint_bounds(collision_che
     assert state.engage(10.0)
     seed = state.next_command(10.0)
     assert seed == [0.0] * 7
-    # The stock SRDF reports folded link2/link5 contact here (see the next test);
-    # a config whose SRDF excludes that pair sees a clear path. The bounds hold either way.
+    # The stock SRDF excludes link2/link5, so this folded path is clear; with the
+    # pair checked the model reports that contact. The bounds hold either way.
     acm = collision_checker.scene.allowed_collision_matrix
-    assert collision_checker.check_path(measured, seed) == "Collision: link2 / link5"
-    acm.set_entry("link2", "link5", True)
+    assert collision_checker.check_path(measured, seed) == ""
+    acm.set_entry("link2", "link5", False)
     try:
-        assert collision_checker.check_path(measured, seed) == ""
+        assert (
+            collision_checker.check_path(measured, seed) == "Collision: link2 / link5"
+        )
     finally:
-        acm.set_entry("link2", "link5", False)
+        acm.set_entry("link2", "link5", True)
 
 
 def test_native_full_jaw_sweep_is_checked_in_fewer_than_a_thousand_poses(
@@ -747,10 +749,10 @@ def test_octomap_refuses_following(collision_checker):
         collision_checker.update_world(scene)
 
 
-def test_stock_srdf_reports_folded_link_contact_as_its_only_collision(
+def test_stock_srdf_allows_folded_link2_link5_contact_as_its_only_collision(
     collision_checker,
 ):
-    # The stock SRDF keeps link2/link5 checked; the office SRDF excludes the pair
+    # The stock SRDF excludes link2/link5, as the office SRDF does
     # (picknik_boston_rebot_b601_rs_hw test_leader_office_model). The bridge uses
     # whichever SRDF the selected config names.
     checker = collision_checker
@@ -764,12 +766,12 @@ def test_stock_srdf_reports_folded_link_contact_as_its_only_collision(
         0.0,
     ]
     assert checker.check_pose([0.0] * 7) == ""
-    assert checker.check_pose(folded) == "Collision: link2 / link5"
-    checker.scene.allowed_collision_matrix.set_entry("link2", "link5", True)
+    assert checker.check_pose(folded) == ""
+    checker.scene.allowed_collision_matrix.set_entry("link2", "link5", False)
     try:
-        assert checker.check_pose(folded) == ""
+        assert checker.check_pose(folded) == "Collision: link2 / link5"
     finally:
-        checker.scene.allowed_collision_matrix.set_entry("link2", "link5", False)
+        checker.scene.allowed_collision_matrix.set_entry("link2", "link5", True)
 
 
 @pytest.fixture
