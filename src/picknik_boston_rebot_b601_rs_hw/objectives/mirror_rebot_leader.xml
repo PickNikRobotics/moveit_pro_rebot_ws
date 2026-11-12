@@ -2,7 +2,7 @@
 <root BTCPP_format="4" main_tree_to_execute="Mirror reBot Leader">
   <BehaviorTree
     ID="Mirror reBot Leader"
-    _description="Mirror calibrated FashionStar positions with native FCL collision checks. Stop returns HOME, restores the normal trajectory controller, then runs Relax at HOME; a refused relax keeps torque on at HOME."
+    _description="Engage, end any gravity-comp float (JTAC re-anchors at the measured pose and the configured spring gains return), then mirror calibrated FashionStar positions with native FCL collision checks. Stop returns HOME, restores the normal trajectory controller, then runs Relax at HOME; a refused relax keeps torque on at HOME."
   >
     <Sequence name="EngagePrepareThenMirror">
       <Action
@@ -11,6 +11,15 @@
         wait_for_server_available_timeout="3.0"
         response_timeout="3.0"
       />
+      <!-- Engage while already ON keeps runtime gains: end any gravity-comp
+           float (kp=0) at the measured pose before anything else moves. -->
+      <Action
+        ID="SwitchController"
+        activate_controllers="joint_trajectory_admittance_controller"
+        automatic_deactivation="true"
+        strictness="2"
+      />
+      <SubTree ID="reBot Set Spring Gains" _collapsed="true" />
       <Action
         ID="CallRebotLeaderService"
         service_name="/rebot_leader_bridge/prepare"

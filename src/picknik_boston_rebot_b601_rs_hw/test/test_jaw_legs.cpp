@@ -419,7 +419,8 @@ protected:
     factory.registerBehaviorTreeFromText(R"(<root BTCPP_format="4">
       <BehaviorTree ID="Move to Joint State"><Action ID="CloseJaw"
         target_joint_state="{target_joint_state}" joint_group_name="{joint_group_name}"/></BehaviorTree>
-      <BehaviorTree ID="Move to Named Waypoint"><AlwaysSuccess/></BehaviorTree></root>)");
+      <BehaviorTree ID="Move to Named Waypoint"><AlwaysSuccess/></BehaviorTree>
+      <BehaviorTree ID="reBot Set Spring Gains"><AlwaysSuccess/></BehaviorTree></root>)");
     factory.registerBehaviorTreeFromFile(STOCK_SHARE "/objectives/close_gripper.xml");
     for (const auto* objective :
          { "move_rebot_gripper.xml", "rebot_open_jaw.xml", "rebot_move_to_arm_waypoint.xml", "rebot_move_to_pose.xml" })

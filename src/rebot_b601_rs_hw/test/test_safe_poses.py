@@ -231,9 +231,15 @@ def test_motion_entries_engage_before_any_motion_or_prepare():
         mirror,
     ):
         root = ET.parse(path).getroot()
-        first = list(root.find("BehaviorTree/Sequence"))[0]
+        first, switch, spring = list(root.find("BehaviorTree/Sequence"))[:3]
         assert first.get("ID") == "CallTriggerService"
         assert first.get("service_name") == "/robstride_hardware_interface/engage"
+        # Engage while ON keeps runtime gains, so end any gravity-comp float next.
+        assert switch.get("ID") == "SwitchController"
+        assert switch.get("activate_controllers") == (
+            "joint_trajectory_admittance_controller"
+        )
+        assert spring.get("ID") == "reBot Set Spring Gains"
     # Native nonhardware teleop remains usable without a fake driver server.
     assert (
         ET.parse(share("rebot_b601_rs_mock") / "objectives/teleoperate.xml").find(
