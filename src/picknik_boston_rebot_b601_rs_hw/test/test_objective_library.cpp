@@ -54,7 +54,7 @@ TEST_F(BostonObjectiveLibrary, NativeServerLoadsOfficeAndSharedHelpersWithoutDup
   const auto urdf = urdf::parseURDF(readFile(TEST_URDF));
   ASSERT_TRUE(urdf);
   auto srdf = std::make_shared<srdf::Model>();
-  ASSERT_TRUE(srdf->initString(*urdf, readFile(PACKAGE_DIR "/config/moveit/rebot.srdf")));
+  ASSERT_TRUE(srdf->initString(*urdf, readFile(TEST_SRDF)));
   auto node = std::make_shared<rclcpp::Node>("test_boston_objective_library");
   auto context = std::make_shared<moveit_pro::behaviors::BehaviorContext>(node, false);
   context->robot_model = std::make_shared<moveit_pro::base::RobotModel>(urdf, srdf);

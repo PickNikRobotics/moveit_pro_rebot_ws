@@ -29,6 +29,14 @@ from rebot_leader_state import LeaderState, joint_label, operator_fault
 from rebot_leader_collision import LeaderCollision
 
 
+def objective_goal(name):
+    goal = DoObjectiveSequence.Goal()
+    goal.objective_name = name
+    goal.caller.type = goal.caller.SCRIPT
+    goal.caller.name = "rebot_leader_bridge"
+    return goal
+
+
 class LeaderBridge:
     """One position-command owner; native FCL checks every target and path."""
 
@@ -97,6 +105,7 @@ class LeaderBridge:
         node.create_service(Trigger, "~/mirror", self.mirror)
         node.create_service(Trigger, "~/clutch", self.clutch)
         node.create_service(Trigger, "~/home_verified", self.home_verified)
+        node.create_service(Trigger, "~/idle", self.idle)
         os.set_blocking(stream.fileno(), False)
         publish_rate = float(node.declare_parameter("publish_rate", 100.0).value)
         if not math.isfinite(publish_rate) or not 20.0 <= publish_rate <= 100.0:
@@ -204,7 +213,7 @@ class LeaderBridge:
             off_home = [
                 f"{joint_label(i)} {math.degrees(q):+.1f} deg ({q:+.3f} rad)"
                 for i, q in enumerate(self.state.measured[:6])
-                if abs(q) > 0.08
+                if abs(q - self.state.home.positions[i]) > self.state.home.tolerances[i]
             ]
             if off_home:
                 return (
@@ -228,23 +237,22 @@ class LeaderBridge:
         if self.state.measured_time == now:
             window = getattr(self, "home_window", [])
             window.append((now, list(self.state.measured)))
-            self.home_window = [(t, q) for t, q in window if now - t <= 0.6]
+            # Retain the sample preceding the window boundary so regular 100 Hz
+            # sampling can prove a full window despite timestamp rounding.
+            while len(window) > 2 and now - window[1][0] >= self.state.home.window_s:
+                window.pop(0)
+            self.home_window = window
 
     def verified_home(self, now):
-        """Fresh, healthy, stationary arm within 0.08 rad of HOME on joint1-joint6."""
-        window = [(t, q) for t, q in getattr(self, "home_window", []) if now - t <= 0.6]
+        """Fresh healthy arm in the shared HOME box and stillness window."""
+        home = self.state.home
+        window = getattr(self, "home_window", [])
         if (
-            self.state.measured is None
-            or not 0 <= now - self.state.measured_time < self.state.sample_timeout
-            or any(abs(q) > 0.08 for q in self.state.measured[:6])
-            or len(window) < 2
-            or window[-1][0] - window[0][0] < 0.3
+            not 0 <= now - self.state.measured_time < self.state.sample_timeout
+            or not home.matches(self.state.measured, arm_only=True)
         ):
             return False
-        stationary = all(
-            max(q[j] for _, q in window) - min(q[j] for _, q in window) < 0.005
-            for j in range(6)
-        )
+        stationary = home.stationary(window, now, arm_only=True)
         healthy = not self.real_hardware or self.hardware_healthy(now)
         return stationary and healthy and not self.thermal_tripped
 
@@ -266,6 +274,31 @@ class LeaderBridge:
             if response.success
             else "Failed-HOME latch kept: the arm is not verified stationary at HOME "
             "with healthy motors"
+        )
+        return response
+
+    def idle(self, request, response):
+        """Read-only relax gate: no following, pending preparation or HOME recovery.
+
+        Objective sequencing owns trajectories/teleop; command stillness in the
+        driver cannot prove that a leader has no later command queued.
+        """
+        del request
+        response.success = (
+            not self.state.active
+            and not self.state.engaging
+            and self.prepared_at is None
+            and not self.state.recover
+            and self.recovery_started is None
+            and self.recovery_future is None
+            and self.recovery_result is None
+            and not self.home_failed
+            and not self.thermal_tripped
+        )
+        response.message = (
+            "Leader idle; no prepared following or HOME recovery"
+            if response.success
+            else "Relax refused: leader following, preparation, recovery or a safety latch is active"
         )
         return response
 
@@ -488,11 +521,9 @@ class LeaderBridge:
                 if now - self.recovery_started > 3.0:
                     self.fail_home("Objective server unavailable; torque stays on")
                 return
-            goal = DoObjectiveSequence.Goal()
-            goal.objective_name = "Return reBot Leader Home"
-            goal.caller.type = goal.caller.SCRIPT
-            goal.caller.name = "rebot_leader_bridge"
-            self.recovery_future = self.home_client.send_goal_async(goal)
+            self.recovery_future = self.home_client.send_goal_async(
+                objective_goal("Return reBot Leader Home")
+            )
         elif self.recovery_future.done() and self.recovery_result is None:
             handle = self.recovery_future.result()
             if handle is None or not handle.accepted:
@@ -510,9 +541,49 @@ class LeaderBridge:
                 return
             self.state.recover = False
             self.node.get_logger().info(
-                "Native HOME recovery succeeded; normal controller ready, torque retained; restart Mirror to re-engage"
+                "Native HOME recovery succeeded; requesting Relax at HOME; restart Mirror to re-engage"
             )
             self.recovery_started = self.recovery_future = self.recovery_result = None
+            self.request_relax()
+
+    def request_relax(self):
+        """Ending Mirror finishes relaxed at HOME through the stock Objective.
+
+        Sent only after the recovery state clears, so its idle checks see an
+        idle bridge. The driver still owns pose/stillness/health admission; any
+        refusal leaves torque on at HOME.
+        """
+        if not self.home_client.server_is_ready():
+            self.node.get_logger().warn(
+                "Relax at HOME not requested: Objective server unavailable; torque stays on at HOME"
+            )
+            return
+        future = self.home_client.send_goal_async(objective_goal("Relax at HOME"))
+        future.add_done_callback(self.relax_accepted)
+
+    def relax_accepted(self, future):
+        handle = future.result()
+        if handle is None or not handle.accepted:
+            self.node.get_logger().warn(
+                "Relax at HOME goal rejected; torque stays on at HOME"
+            )
+            return
+        handle.get_result_async().add_done_callback(self.relax_finished)
+
+    def relax_finished(self, future):
+        result = future.result()
+        if (
+            result is not None
+            and result.status == 4
+            and result.result.error_code.val == 1
+        ):
+            self.node.get_logger().info(
+                "Relax at HOME succeeded: torque off at HOME; Mirror engages again on start"
+            )
+        else:
+            self.node.get_logger().warn(
+                "Relax at HOME did not relax; torque stays on at HOME"
+            )
 
     def fail_home(self, reason):
         self.home_failed = True

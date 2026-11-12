@@ -2,9 +2,15 @@
 <root BTCPP_format="4" main_tree_to_execute="Mirror reBot Leader">
   <BehaviorTree
     ID="Mirror reBot Leader"
-    _description="Mirror calibrated FashionStar positions with native FCL collision checks. Stop returns HOME, restores the normal trajectory controller, and retains motor torque for other Objectives."
+    _description="Mirror calibrated FashionStar positions with native FCL collision checks. Stop returns HOME, restores the normal trajectory controller, then runs Relax at HOME; a refused relax keeps torque on at HOME."
   >
-    <Sequence>
+    <Sequence name="EngagePrepareThenMirror">
+      <Action
+        ID="CallTriggerService"
+        service_name="/robstride_hardware_interface/engage"
+        wait_for_server_available_timeout="3.0"
+        response_timeout="3.0"
+      />
       <Action
         ID="CallRebotLeaderService"
         service_name="/rebot_leader_bridge/prepare"

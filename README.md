@@ -122,6 +122,19 @@ by default when the camera is attached and can be disabled; see the
 [hardware camera setup](src/rebot_b601_rs_hw/README.md#gemini-305-wrist-camera)
 for its 1280×800 MJPG/10 Hz contract, host udev rule and nominal-mount limits.
 
+## Relax at HOME
+
+The physical configs provide **Relax at HOME**: complete the shared HOME return,
+verify the leader is idle, then request guarded torque-off without stopping the
+driver. Return Home, Mirror prepare and physical teleoperation call engage
+first. HOME targets, per-joint tolerances and stillness live only in the
+[stock relax-safe pose configuration](src/rebot_b601_rs_hw/config/relax_safe_poses.yaml);
+waypoints and HOME XML are derived at build time. Each additional pose needs its
+own measured torque-off settle test before admission. See the
+[service contract and pose runbook](src/rebot_b601_rs_hw/README.md#relax-safe-poses-and-relax-at-home).
+Do not call relax during an active or queued motion/teleop session. Mock/twin
+proof with fake services is not physical commissioning or torque-off evidence.
+
 ## Minimal simulation
 
 The simulator generates its body tree from the same expanded stock URDF.
@@ -146,13 +159,16 @@ The gitlink, rather than a floating branch name, fixes each revision.
 
 | Repository | Commit | Purpose |
 | --- | --- | --- |
-| [PickNikRobotics/robstride_hardware_interface](https://github.com/PickNikRobotics/robstride_hardware_interface) | `a0533258a10783dca4293b5d195adf7728c8ff5f` | Torque retention, thermal handoff and bounded feedforward |
+| [PickNikRobotics/robstride_hardware_interface](https://github.com/PickNikRobotics/robstride_hardware_interface) | `f72b2d2b52bed069a68254a16b5ece2351bc3b47` | Safe relax, measured-pose engage, soft limits and thermal handoff |
 | [PickNikRobotics/RobstrideSDK](https://github.com/PickNikRobotics/RobstrideSDK) | `9d070193758b4d88d065f1b8add815c0f540cebc` | Fault-frame routing, decoding and temperature freshness |
 | [kmj060703/robstride_interfaces](https://github.com/kmj060703/robstride_interfaces) | `8278bb1bf3d8f1fb07803459e1de4e14e10b8fc0` | Driver messages/services |
 | [Seeed-Projects/reBot-DevArm](https://github.com/Seeed-Projects/reBot-DevArm) | `58f9e433deec2ba118c5c22d60c07b9897e92acc` | Stock description and editable mechanical sources |
 
-The driver and SDK revisions above are integration topic commits, not merged
-fork defaults; their publication is a prerequisite for publishing these gitlinks.
+The driver pin is `main` with the merged
+[safe-relax change](https://github.com/PickNikRobotics/robstride_hardware_interface/pull/4)
+and [joint-coordinate/soft-limit change](https://github.com/PickNikRobotics/robstride_hardware_interface/pull/3).
+The SDK revision above is an integration topic commit, not a merged fork
+default. Publication of topic revisions is a prerequisite for publishing these gitlinks.
 
 The upstream description has no ROS package. The small `rebot_description`
 ament adapter installs its unmodified RS mesh directory and exact license

@@ -225,7 +225,7 @@ protected:
     const auto urdf = urdf::parseURDF(readFile(TEST_URDF));
     ASSERT_TRUE(urdf);
     auto srdf = std::make_shared<srdf::Model>();
-    ASSERT_TRUE(srdf->initString(*urdf, readFile(PACKAGE_DIR "/config/moveit/rebot.srdf")));
+    ASSERT_TRUE(srdf->initString(*urdf, readFile(TEST_SRDF)));
     context->robot_model = std::make_shared<moveit_pro::base::RobotModel>(urdf, srdf);
     // The stock planning limits the inherited runtime applies over the URDF.
     for (const auto& entry : YAML::LoadFile(STOCK_SHARE "/config/moveit/joint_limits.yaml")["joint_limits"])
@@ -406,23 +406,26 @@ protected:
                                    BT::InputPort<double>("response_timeout") });
     factory.registerSimpleAction("CloseJaw",
                                  [this](BT::TreeNode& node) {
-                                   EXPECT_EQ(node.getInput<std::string>("waypoint_name").value(), "Gripper Closed");
                                    EXPECT_EQ(node.getInput<std::string>("joint_group_name").value(), "gripper");
+                                   const auto goal = node.getInput<RobotState>("target_joint_state").value();
+                                   EXPECT_EQ(goal.joint_state.name, (std::vector<std::string>{ "joint7" }));
                                    for (const auto& joint : kArm)
                                      EXPECT_LE(std::abs(measured.at(joint)), 0.08);
-                                   measured["joint7"] = 0.0;
+                                   measured["joint7"] = goal.joint_state.position.at(0);
                                    return BT::NodeStatus::SUCCESS;
                                  },
-                                 { BT::InputPort<std::string>("waypoint_name"),
+                                 { BT::InputPort<RobotState>("target_joint_state"),
                                    BT::InputPort<std::string>("joint_group_name") });
     factory.registerBehaviorTreeFromText(R"(<root BTCPP_format="4">
-      <BehaviorTree ID="Move to Named Waypoint"><Action ID="CloseJaw"
-        waypoint_name="{waypoint_name}" joint_group_name="{joint_group_name}"/></BehaviorTree></root>)");
+      <BehaviorTree ID="Move to Joint State"><Action ID="CloseJaw"
+        target_joint_state="{target_joint_state}" joint_group_name="{joint_group_name}"/></BehaviorTree>
+      <BehaviorTree ID="Move to Named Waypoint"><AlwaysSuccess/></BehaviorTree></root>)");
     factory.registerBehaviorTreeFromFile(STOCK_SHARE "/objectives/close_gripper.xml");
     for (const auto* objective :
          { "move_rebot_gripper.xml", "rebot_open_jaw.xml", "rebot_move_to_arm_waypoint.xml", "rebot_move_to_pose.xml" })
       factory.registerBehaviorTreeFromFile(std::string(PACKAGE_DIR "/objectives/") + objective);
-    factory.registerBehaviorTreeFromFile(STOCK_HW_SHARE "/objectives/return_rebot_leader_home.xml");
+    factory.registerBehaviorTreeFromFile(STOCK_GENERATED_OBJECTIVES "/return_rebot_leader_home.xml");
+    factory.registerBehaviorTreeFromFile(PACKAGE_DIR "/objectives/rebot_notify_leader_home.xml");
   }
 
   BT::NodeStatus run(const std::string& subtree_call, const Positions& commanded)

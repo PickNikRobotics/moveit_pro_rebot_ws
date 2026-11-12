@@ -1,7 +1,19 @@
 cmake_minimum_required(VERSION 3.22)
 project(picknik_boston_rebot_b601_rs_hw)
 find_package(ament_cmake REQUIRED)
-install(DIRECTORY config description docs launch objectives waypoints DESTINATION share/${PROJECT_NAME})
+include(${CMAKE_CURRENT_SOURCE_DIR}/../rebot_b601_rs_hw/cmake/generate_home.cmake)
+rebot_generate_home(waypoints
+  ${CMAKE_CURRENT_SOURCE_DIR}/waypoints/rebot_waypoints.yaml.in
+  ${CMAKE_CURRENT_BINARY_DIR}/waypoints/rebot_waypoints.yaml)
+rebot_generate_home(srdf
+  ${CMAKE_CURRENT_SOURCE_DIR}/config/moveit/rebot.srdf.in
+  ${CMAKE_CURRENT_BINARY_DIR}/config/moveit/rebot.srdf)
+install(DIRECTORY config description docs launch objectives DESTINATION share/${PROJECT_NAME}
+  PATTERN "*.in" EXCLUDE)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/config/moveit/rebot.srdf
+  DESTINATION share/${PROJECT_NAME}/config/moveit)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/waypoints/rebot_waypoints.yaml
+  DESTINATION share/${PROJECT_NAME}/waypoints)
 install(FILES README.md LICENSE DESTINATION share/${PROJECT_NAME})
 install(PROGRAMS scripts/scale_depth.py scripts/fit_gravity.py
   scripts/rebot_leader.py scripts/rebot_leader_bridge.py scripts/rebot_leader_tune.py
@@ -38,7 +50,7 @@ if(BUILD_TESTING)
   set(STOCK_SHARE ${rebot_b601_rs_mock_DIR}/..)
   target_compile_definitions(test_stack_objectives PRIVATE PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
     STOCK_OBJECTIVES_DIR="${STOCK_SHARE}/objectives"
-    STOCK_HW_SHARE="${rebot_b601_rs_hw_DIR}/..")
+    STOCK_GENERATED_OBJECTIVES="${rebot_b601_rs_hw_DIR}/../../rebot_b601_rs_hw_generated_objectives/objectives")
   set(TEST_URDF ${CMAKE_CURRENT_BINARY_DIR}/test_rebot.urdf)
   add_custom_command(
     OUTPUT ${TEST_URDF}
@@ -53,6 +65,7 @@ if(BUILD_TESTING)
   target_link_libraries(test_joint_limits yaml-cpp::yaml-cpp)
   target_compile_definitions(test_joint_limits PRIVATE
     TEST_URDF="${TEST_URDF}" PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    TEST_SRDF="${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/config/moveit/rebot.srdf"
     STOCK_SHARE="${STOCK_SHARE}")
   # The jaw, waypoint and leader HOME legs with the real reBot Behaviors and robot model.
   ament_add_gtest(test_jaw_legs test/test_jaw_legs.cpp)
@@ -63,7 +76,9 @@ if(BUILD_TESTING)
     motion_recovery_behaviors::motion_recovery_behaviors)
   target_compile_definitions(test_jaw_legs PRIVATE
     TEST_URDF="${TEST_URDF}" PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
-    STOCK_SHARE="${STOCK_SHARE}" STOCK_HW_SHARE="${rebot_b601_rs_hw_DIR}/..")
+    TEST_SRDF="${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/config/moveit/rebot.srdf"
+    STOCK_SHARE="${STOCK_SHARE}"
+    STOCK_GENERATED_OBJECTIVES="${rebot_b601_rs_hw_DIR}/../../rebot_b601_rs_hw_generated_objectives/objectives")
   find_package(moveit_studio_agent REQUIRED)
   find_package(moveit_pro_test_utils REQUIRED)
   ament_add_gtest(test_objective_library test/test_objective_library.cpp TIMEOUT 60)
@@ -72,7 +87,8 @@ if(BUILD_TESTING)
   target_link_libraries(test_objective_library moveit_studio_agent::objective_server yaml-cpp::yaml-cpp)
   ament_target_dependencies(test_objective_library moveit_pro_test_utils)
   target_compile_definitions(test_objective_library PRIVATE
-    TEST_URDF="${TEST_URDF}" PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    TEST_URDF="${TEST_URDF}" PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    TEST_SRDF="${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/config/moveit/rebot.srdf")
   find_package(ament_cmake_pytest REQUIRED)
   ament_add_pytest_test(test_stack_legs test/test_stack_legs.py TIMEOUT 60)
   ament_add_pytest_test(test_scale_depth test/test_scale_depth.py TIMEOUT 60)

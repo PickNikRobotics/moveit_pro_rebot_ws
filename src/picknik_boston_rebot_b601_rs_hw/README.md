@@ -74,7 +74,9 @@ Fitted gravity, scene/camera calibration and fixtures remain office-only.
 ## Mirror reBot Leader engage
 
 Mirror still requires fresh leader/follower feedback, the native collision scene,
-a healthy controller handoff and **reBot at HOME** (arm joints within 0.08 rad).
+a healthy controller handoff and **reBot at HOME**, using the per-joint
+allowances in the stock `relax_safe_poses.yaml`. The Objective calls the driver's
+`engage` Trigger before bridge preparation or a controller switch.
 Start it explicitly; recovered USB, a cleared fault or completed HOME does not
 re-engage it automatically. Do not move reBot by hand to match the leader.
 
@@ -118,17 +120,35 @@ At engage, the fixed convergence deadline is the largest initial per-joint
 own speed, and it stays armed until the handoff blend completes. A moving leader
 does not extend that deadline. Timeout, stale data, lost Objective heartbeat,
 collision and Stop/clutch use the existing stopped command / planned HOME
-recovery path. HOME-before-disable behavior is unchanged.
+recovery path. After that HOME succeeds, the bridge clears its recovery state and
+sends **Relax at HOME** once, so ending Mirror finishes relaxed at HOME. That
+Objective's idle, pose, stillness and health checks still apply; any refusal
+or unavailable server is logged and leaves torque on at HOME. A failed HOME
+never requests relax. HOME-before-disable behavior is unchanged.
 If HOME fails, do not disable torque away from HOME; use the supported recovery
 procedure with the operator. After its arm legs, Return reBot Leader Home waits
-0.5 s and calls `/rebot_leader_bridge/home_verified`. The bridge clears its
+0.5 s and runs `reBot Notify Leader Home`. Boston's config-specific override
+calls `/rebot_leader_bridge/home_verified` inside `ForceSuccess`; the stock
+no-leader definition does nothing. The bridge clears its
 failed-HOME latch only while inactive, with fresh arm feedback within 0.08 rad
-of HOME, less than 0.005 rad movement over at least 0.3 s, healthy enabled
+of HOME (the values and stillness window come from the shared HOME entry), healthy enabled
 motors and no thermal trip. It never commands motion or re-engages Mirror.
-The Objective then attempts Close Gripper at nominal zero. Both the optional
+The Objective then attempts HOME's jaw target, currently nominal zero. Both the optional
 verification call and close are best-effort: neither failure turns a successful
 arm HOME into a recovery failure. Check the jaw before relying on it being
-closed. Explicitly start Mirror again after successful HOME verification.
+closed. **Relax at HOME** additionally requires the driver's measured all-seven
+pose/stillness/health/no-motion admission before torque-off; its relax call is
+not best-effort. Relax at HOME refuses a following/prepared/recovering leader
+through `/rebot_leader_bridge/idle` before HOME and again before relax. Finish
+or cancel active and queued trajectories/teleop first; command stillness alone
+cannot establish that prerequisite. A Boston-derived config with the leader
+disabled must override both `reBot Check Leader Idle` and
+`reBot Notify Leader Home` with the stock definitions in its last Objective
+library; the YAML enable flag alone only controls the device launch. HOME and
+Relax at HOME come from the stock [generated Objective library](../rebot_b601_rs_hw/README.md#generated-objective-library),
+which every Runtime start links from the build.
+HOME and adding measured relax-safe poses are documented in the
+[stock hardware README](../rebot_b601_rs_hw/README.md#relax-safe-poses-and-relax-at-home). Explicitly start Mirror again after successful HOME verification.
 There is no auto-HOME before engage, calibration re-zero or reader respawn.
 
 Offline coverage includes the +0.110 rad shoulder-pan rest offset, arm/jaw step

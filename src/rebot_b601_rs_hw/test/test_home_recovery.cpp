@@ -352,17 +352,48 @@ protected:
                                  { BT::InputPort<std::vector<std::string>>("joint_names"),
                                    BT::InputPort<std::vector<double>>("positions"),
                                    BT::OutputPort<RobotState>("joint_state_msg") });
-    factory.registerSimpleAction("WaitForDuration",
-                                 [this](BT::TreeNode& node) {
-                                   EXPECT_DOUBLE_EQ(node.getInput<double>("delay_duration").value(), 0.5);
-                                   home_tail.push_back("settle");
-                                   return BT::NodeStatus::SUCCESS;
-                                 },
-                                 { BT::InputPort<double>("delay_duration") });
+    factory.registerSimpleAction(
+        "WaitForDuration",
+        [this](BT::TreeNode& node) {
+          const auto duration = node.getInput<double>("delay_duration").value();
+          if (duration == 0.5)
+            home_tail.push_back("settle");
+          else
+          {
+            const auto poses = YAML::LoadFile(PACKAGE_DIR "/config/relax_safe_poses.yaml");
+            EXPECT_DOUBLE_EQ(duration, poses["relax_safe_poses"][0]["stillness"]["window_s"].as<double>() + 0.1);
+            EXPECT_DOUBLE_EQ(measured.at("joint7"), 0.0);
+            home_tail.push_back("dwell");
+          }
+          return BT::NodeStatus::SUCCESS;
+        },
+        { BT::InputPort<double>("delay_duration") });
     factory.registerSimpleAction(
         "CallTriggerService",
         [this](BT::TreeNode& node) {
-          EXPECT_EQ(node.getInput<std::string>("service_name").value(), "/rebot_leader_bridge/home_verified");
+          const auto service = node.getInput<std::string>("service_name").value();
+          if (service == "/robstride_hardware_interface/engage")
+          {
+            EXPECT_DOUBLE_EQ(node.getInput<double>("wait_for_server_available_timeout").value(), 3.0);
+            EXPECT_DOUBLE_EQ(node.getInput<double>("response_timeout").value(), 3.0);
+            ++engages;
+            return engage_refuses ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
+          }
+          if (service == "/robstride_hardware_interface/relax")
+          {
+            EXPECT_DOUBLE_EQ(node.getInput<double>("wait_for_server_available_timeout").value(), 3.0);
+            EXPECT_DOUBLE_EQ(node.getInput<double>("response_timeout").value(), 3.0);
+            home_tail.push_back("relax");
+            return relax_refuses ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
+          }
+          if (service == "/rebot_leader_bridge/idle")
+          {
+            EXPECT_DOUBLE_EQ(node.getInput<double>("wait_for_server_available_timeout").value(), 1.0);
+            EXPECT_DOUBLE_EQ(node.getInput<double>("response_timeout").value(), 1.0);
+            ++idle_checks;
+            return idle_refuses ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
+          }
+          EXPECT_EQ(service, "/rebot_leader_bridge/home_verified");
           EXPECT_DOUBLE_EQ(node.getInput<double>("wait_for_server_available_timeout").value(), 1.0);
           EXPECT_DOUBLE_EQ(node.getInput<double>("response_timeout").value(), 1.0);
           for (const auto& joint : kArm)
@@ -374,25 +405,33 @@ protected:
           BT::InputPort<double>("response_timeout") });
     factory.registerSimpleAction("CloseJaw",
                                  [this](BT::TreeNode& node) {
-                                   EXPECT_EQ(node.getInput<std::string>("waypoint_name").value(), "Gripper Closed");
                                    EXPECT_EQ(node.getInput<std::string>("joint_group_name").value(), "gripper");
+                                   const auto goal = node.getInput<RobotState>("target_joint_state").value();
+                                   EXPECT_EQ(goal.joint_state.name, (std::vector<std::string>{ "joint7" }));
                                    for (const auto& joint : kArm)
                                      EXPECT_LE(std::abs(measured.at(joint)), 0.08);
                                    home_tail.push_back("close");
                                    if (close_refuses)
                                      return BT::NodeStatus::FAILURE;
-                                   measured["joint7"] = 0.0;
+                                   measured["joint7"] = goal.joint_state.position.at(0);
                                    return BT::NodeStatus::SUCCESS;
                                  },
-                                 { BT::InputPort<std::string>("waypoint_name"),
+                                 { BT::InputPort<RobotState>("target_joint_state"),
                                    BT::InputPort<std::string>("joint_group_name") });
     // Keep the shipped Close Gripper tree; only its external motion leaf is a seam.
     factory.registerBehaviorTreeFromText(R"(<root BTCPP_format="4">
-      <BehaviorTree ID="Move to Named Waypoint"><Action ID="CloseJaw"
-        waypoint_name="{waypoint_name}" joint_group_name="{joint_group_name}"/></BehaviorTree></root>)");
-    factory.registerBehaviorTreeFromFile(STOCK_SHARE "/objectives/close_gripper.xml");
-    for (const auto* objective : { "rebot_move_to_arm_waypoint.xml", "return_rebot_leader_home.xml" })
+      <BehaviorTree ID="Move to Joint State"><Action ID="CloseJaw"
+        target_joint_state="{target_joint_state}" joint_group_name="{joint_group_name}"/></BehaviorTree></root>)");
+    for (const auto* objective : { "rebot_move_to_arm_waypoint.xml", "rebot_check_leader_idle.xml" })
       factory.registerBehaviorTreeFromFile(std::string(PACKAGE_DIR "/objectives/") + objective);
+    for (const auto* objective : { "return_rebot_leader_home.xml", "relax_at_home.xml" })
+      factory.registerBehaviorTreeFromFile(std::string(GENERATED_OBJECTIVES "/") + objective);
+    factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/rebot_notify_leader_home.xml");
+  }
+
+  void useNoLeaderNotification()
+  {
+    factory.registerBehaviorTreeFromFile(PACKAGE_DIR "/objectives/rebot_notify_leader_home.xml");
   }
 
   BT::NodeStatus run(const std::string& subtree_call, const Positions& commanded = {})
@@ -455,7 +494,9 @@ protected:
   std::vector<JointTrajectory> executed;
   int validations = 0, refused_validation = -1, plans = 0, fallbacks = 0, switches = 0;
   bool planner_refuses_start = false, execution_refuses = false;
-  bool verification_refuses = false, close_refuses = false;
+  bool verification_refuses = false, close_refuses = false, engage_refuses = false;
+  int engages = 0, idle_checks = 0;
+  bool relax_refuses = false, idle_refuses = false;
   std::vector<std::string> home_tail;
 };
 
@@ -553,6 +594,27 @@ TEST_F(HomeRecovery, EntireInclusiveHomeBoxSkipsArmMotionAndClosesJaw)
   EXPECT_DOUBLE_EQ(measured.at("joint7"), 0.0);
 }
 
+TEST_F(HomeRecovery, FailedEngageNeverSwitchesPlansExecutesOrCloses)
+{
+  measured = withJaw(kDeepSag, 2.0);
+  engage_refuses = true;
+  EXPECT_EQ(run(kReturn), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(engages, 1);
+  EXPECT_EQ(switches, 0);
+  EXPECT_EQ(plans, 0);
+  EXPECT_TRUE(executed.empty());
+  EXPECT_TRUE(home_tail.empty());
+}
+
+TEST_F(HomeRecovery, ThermalUnderPowerRecoveryDoesNotTryToEngage)
+{
+  measured = withJaw(kHomePose, 2.0);
+  engage_refuses = true;
+  EXPECT_EQ(run(R"(<SubTree ID="Return reBot Leader Home Under Power"/>)"), BT::NodeStatus::SUCCESS);
+  EXPECT_EQ(engages, 0);
+  EXPECT_EQ(switches, 1);
+}
+
 TEST_F(HomeRecovery, AtHomeSettlesVerifiesThenClosesAtNominalZero)
 {
   measured = withJaw(kHomePose, 2.0);
@@ -560,6 +622,90 @@ TEST_F(HomeRecovery, AtHomeSettlesVerifiesThenClosesAtNominalZero)
   EXPECT_TRUE(executed.empty());
   EXPECT_EQ(home_tail, (std::vector<std::string>{ "settle", "verify", "close" }));
   EXPECT_DOUBLE_EQ(measured.at("joint7"), 0.0);
+}
+
+TEST_F(HomeRecovery, NoLeaderNotificationDoesNotCallLeaderAndKeepsHomeThenJaw)
+{
+  useNoLeaderNotification();
+  measured = withJaw(kDeepSag, 2.0);
+  EXPECT_EQ(run(kReturn), BT::NodeStatus::SUCCESS);
+  ASSERT_EQ(executed.size(), 2U);
+  EXPECT_EQ(measured, withJaw(kHomePose, 0.0));
+  EXPECT_EQ(home_tail, (std::vector<std::string>{ "settle", "close" }));
+}
+
+TEST_F(HomeRecovery, NoLeaderNotificationDoesNotSwallowHomeFailure)
+{
+  useNoLeaderNotification();
+  measured = withJaw(kDeepSag, 2.0);
+  execution_refuses = true;
+  EXPECT_EQ(run(kReturn), BT::NodeStatus::FAILURE);
+  EXPECT_TRUE(home_tail.empty());
+  EXPECT_EQ(measured, withJaw(kDeepSag, 2.0));
+}
+
+TEST_F(HomeRecovery, RelaxWithoutLeaderKeepsArmHomeJawDwellThenGuardedRelax)
+{
+  useNoLeaderNotification();
+  measured = withJaw(kDeepSag, 2.0);
+  EXPECT_EQ(run(R"(<SubTree ID="Relax at HOME"/>)"), BT::NodeStatus::SUCCESS);
+  ASSERT_EQ(executed.size(), 2U);
+  EXPECT_EQ(measured, withJaw(kHomePose, 0.0));
+  EXPECT_EQ(home_tail, (std::vector<std::string>{ "settle", "close", "dwell", "relax" }));
+  EXPECT_EQ(idle_checks, 0);  // Stock no-leader idle leaf calls no service.
+}
+
+TEST_F(HomeRecovery, RelaxWithoutLeaderHomeFailureNeverClosesDwellsOrRelaxes)
+{
+  useNoLeaderNotification();
+  measured = withJaw(kDeepSag, 2.0);
+  execution_refuses = true;
+  EXPECT_EQ(run(R"(<SubTree ID="Relax at HOME"/>)"), BT::NodeStatus::FAILURE);
+  EXPECT_TRUE(home_tail.empty());
+  EXPECT_EQ(measured, withJaw(kDeepSag, 2.0));
+  EXPECT_EQ(idle_checks, 0);
+}
+
+TEST_F(HomeRecovery, RelaxWithoutLeaderDoesNotSwallowRelaxRefusal)
+{
+  useNoLeaderNotification();
+  measured = withJaw(kHomePose, 2.0);
+  relax_refuses = true;
+  EXPECT_EQ(run(R"(<SubTree ID="Relax at HOME"/>)"), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(home_tail, (std::vector<std::string>{ "settle", "close", "dwell", "relax" }));
+  EXPECT_EQ(idle_checks, 0);
+}
+
+TEST_F(HomeRecovery, RelaxWithLeaderStillNotifiesAndChecksIdleTwice)
+{
+  factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/rebot_check_leader_idle.xml");
+  measured = withJaw(kHomePose, 2.0);
+  EXPECT_EQ(run(R"(<SubTree ID="Relax at HOME"/>)"), BT::NodeStatus::SUCCESS);
+  EXPECT_EQ(home_tail, (std::vector<std::string>{ "settle", "verify", "close", "dwell", "relax" }));
+  EXPECT_EQ(idle_checks, 2);
+}
+
+TEST_F(HomeRecovery, RefusedOptionalNotificationCannotSwallowGuardedRelaxRefusal)
+{
+  factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/rebot_check_leader_idle.xml");
+  measured = withJaw(kHomePose, 2.0);
+  verification_refuses = true;
+  relax_refuses = true;
+  EXPECT_EQ(run(R"(<SubTree ID="Relax at HOME"/>)"), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(home_tail, (std::vector<std::string>{ "settle", "verify", "close", "dwell", "relax" }));
+  EXPECT_EQ(idle_checks, 2);
+}
+
+TEST_F(HomeRecovery, LeaderIdleRefusalNeverEngagesMovesNotifiesOrRelaxes)
+{
+  factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/rebot_check_leader_idle.xml");
+  measured = withJaw(kDeepSag, 2.0);
+  idle_refuses = true;
+  EXPECT_EQ(run(R"(<SubTree ID="Relax at HOME"/>)"), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(idle_checks, 1);
+  EXPECT_EQ(engages, 0);
+  EXPECT_TRUE(executed.empty());
+  EXPECT_TRUE(home_tail.empty());
 }
 
 TEST_F(HomeRecovery, MissingOrRejectedVerificationStillClosesAfterHome)

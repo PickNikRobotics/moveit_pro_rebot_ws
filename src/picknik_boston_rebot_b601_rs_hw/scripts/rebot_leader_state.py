@@ -4,6 +4,7 @@
 import math
 
 from rebot_leader import DIRECTIONS, JOINT_NAMES, LEADER_NAMES, LIMITS_DEG
+from rebot_safe_poses import load_home
 
 UNPLUGGED = (
     "The reader does not reopen its port: if the Star Arm USB was unplugged, reconnect it and, "
@@ -101,6 +102,7 @@ class LeaderState:
         engage_speed_rad_s=0.05,
         engage_jaw_speed_rad_s=0.10,
         engage_max_offset_rad=0.6,
+        home=None,
     ):
         for name, value in (
             ("engage_speed_rad_s", engage_speed_rad_s),
@@ -113,6 +115,7 @@ class LeaderState:
                 or value <= 0
             ):
                 raise ValueError(f"{name} must be finite and positive")
+        self.home = load_home() if home is None else home
         self.engage_speeds = (engage_speed_rad_s,) * 6 + (engage_jaw_speed_rad_s,)
         self.engage_max_offset_rad = engage_max_offset_rad
         self.engaging = False
@@ -273,7 +276,7 @@ class LeaderState:
         if (
             self.recover
             or self.measured is None
-            or any(abs(q) > 0.08 for q in self.measured[:6])
+            or not self.home.matches(self.measured, arm_only=True)
         ):
             return False
         self.fault = ""

@@ -14,6 +14,7 @@ from ament_index_python.packages import get_package_share_directory
 from robstride_interfaces.msg import RobstrideState
 from robstride_interfaces.srv import SetDataToRobstride
 from sensor_msgs.msg import JointState
+from rebot_safe_poses import load_home
 
 
 def settings(path):
@@ -36,7 +37,7 @@ def settings(path):
     ]
 
 
-def safe_home(health, joint, now):
+def safe_home(health, joint, now, home=None):
     if (
         health is None
         or joint is None
@@ -53,10 +54,8 @@ def safe_home(health, joint, now):
         and len(h.fault_bits) == 7
         and not any(h.fault_bits)
         and h.comm_state == 0
-        and all(
-            math.isfinite(positions.get(f"joint{i}", math.nan))
-            and abs(positions[f"joint{i}"]) <= 0.08
-            for i in range(1, 7)
+        and (load_home() if home is None else home).matches(
+            [positions.get(f"joint{i}", math.nan) for i in range(1, 8)], arm_only=True
         )
     )
 
@@ -76,6 +75,7 @@ def main():
     )
     args = parser.parse_args()
     writes = settings(args.config)
+    home = load_home()
     print(
         json.dumps({"writes": writes, "apply": args.apply, "persistent_save": False}),
         flush=True,
@@ -106,12 +106,12 @@ def main():
             raise RuntimeError("Motor tuning service unavailable; no writes")
         deadline = time.monotonic() + 3
         while time.monotonic() < deadline and not safe_home(
-            latest["health"], latest["joint"], time.monotonic()
+            latest["health"], latest["joint"], time.monotonic(), home
         ):
             rclpy.spin_once(node, timeout_sec=0.02)
         for motor, item, value in writes:
             rclpy.spin_once(node, timeout_sec=0.01)
-            if not safe_home(latest["health"], latest["joint"], time.monotonic()):
+            if not safe_home(latest["health"], latest["joint"], time.monotonic(), home):
                 raise RuntimeError(
                     "Fresh healthy HOME/all OFF required; remaining writes refused"
                 )

@@ -1307,22 +1307,108 @@ def test_launch_does_not_kill_the_bridge_during_its_home_return():
     assert sigkill_after > 125
 
 
-def test_successful_home_requires_explicit_reengagement(home_bridge):
-    bridge = home_bridge
+def finished(status=4, code=1):
+    return SimpleNamespace(
+        done=lambda: True,
+        result=lambda: SimpleNamespace(
+            status=status, result=SimpleNamespace(error_code=SimpleNamespace(val=code))
+        ),
+    )
+
+
+class ObjectiveClient:
+    """Records goals; each future completes immediately with the given outcome."""
+
+    def __init__(self, ready=True, accepted=True, status=4, code=1):
+        self.ready, self.accepted = ready, accepted
+        self.status, self.code = status, code
+        self.goals, self.idle_at_send = [], []
+        self.bridge = None
+
+    def server_is_ready(self):
+        return self.ready
+
+    def send_goal_async(self, goal):
+        self.goals.append(goal.objective_name)
+        self.idle_at_send.append(
+            self.bridge.idle(None, SimpleNamespace()).success if self.bridge else None
+        )
+        result = finished(self.status, self.code)
+        handle = SimpleNamespace(
+            accepted=self.accepted,
+            get_result_async=lambda: SimpleNamespace(
+                add_done_callback=lambda callback: callback(result)
+            ),
+        )
+        return SimpleNamespace(
+            done=lambda: True,
+            result=lambda: handle,
+            add_done_callback=lambda callback: callback(
+                SimpleNamespace(result=lambda: handle)
+            ),
+        )
+
+
+def recovered_bridge(bridge, client):
+    client.bridge = bridge
+    bridge.home_client = client
+    bridge.prepared_at = None
     bridge.state.recover = True
     bridge.state.fault = "Clutched"
     bridge.recovery_started = 9.0
     bridge.recovery_future = SimpleNamespace(done=lambda: True)
-    bridge.recovery_result = SimpleNamespace(
-        done=lambda: True,
-        result=lambda: SimpleNamespace(
-            status=4, result=SimpleNamespace(error_code=SimpleNamespace(val=1))
-        ),
-    )
+    bridge.recovery_result = finished()
+    return bridge
+
+
+def test_successful_home_requires_explicit_reengagement(home_bridge):
+    client = ObjectiveClient()
+    bridge = recovered_bridge(home_bridge, client)
     bridge.recover_home(10.01)
     assert not bridge.state.recover
     assert not bridge.state.active
     assert bridge.state.fault == "Clutched"
+    # Ending Mirror finishes with the stock guarded relax, never a re-engage.
+    assert client.goals == ["Relax at HOME"]
+
+
+def test_relax_after_mirror_is_requested_only_once_the_bridge_is_idle(home_bridge):
+    client = ObjectiveClient()
+    bridge = recovered_bridge(home_bridge, client)
+    bridge.recover_home(10.01)
+    # Relax at HOME checks /rebot_leader_bridge/idle before HOME and relax.
+    assert client.idle_at_send == [True]
+    bridge.recover_home(10.02)
+    assert client.goals == ["Relax at HOME"]  # One request per completed recovery.
+
+
+@pytest.mark.parametrize(
+    "client, log",
+    [
+        (ObjectiveClient(ready=False), "Objective server unavailable"),
+        (ObjectiveClient(accepted=False), "goal rejected"),
+        (ObjectiveClient(code=99999), "did not relax"),
+    ],
+)
+def test_unavailable_or_refused_relax_keeps_torque_on_at_home(home_bridge, client, log):
+    logs = []
+    home_bridge.node = SimpleNamespace(
+        get_logger=lambda: SimpleNamespace(
+            info=logs.append, warn=logs.append, error=logs.append
+        )
+    )
+    bridge = recovered_bridge(home_bridge, client)
+    bridge.recover_home(10.01)
+    assert any(log in line and "torque stays on at HOME" in line for line in logs)
+    assert not bridge.home_failed and not bridge.state.recover
+
+
+def test_failed_home_never_requests_relax(home_bridge):
+    client = ObjectiveClient()
+    bridge = recovered_bridge(home_bridge, client)
+    bridge.recovery_result = finished(status=6, code=99999)
+    bridge.recover_home(10.01)
+    assert bridge.home_failed and client.goals == []
 
 
 def test_warmup_reference_does_not_follow_feedback_drift(monkeypatch):
@@ -1884,6 +1970,68 @@ def test_home_verification_keeps_latch_when_a_safety_gate_is_missing(
         bridge.home_window = bridge.home_window[-2:]
     response = bridge.home_verified(None, SimpleNamespace())
     assert not response.success and bridge.home_failed and bridge.state.recover
+
+
+@pytest.mark.parametrize(
+    "condition",
+    [
+        "active",
+        "engaging",
+        "prepared",
+        "recover",
+        "recovery_started",
+        "recovery_future",
+        "recovery_result",
+        "home_failed",
+        "thermal_trip",
+    ],
+)
+def test_relax_idle_check_refuses_a_live_or_pending_leader_without_changing_it(
+    monkeypatch, condition
+):
+    bridge, _ = latched_home_bridge(monkeypatch)
+    bridge.home_failed = False
+    bridge.state.recover = False
+    bridge.prepared_at = None
+    if condition == "active":
+        bridge.state.active = True
+    elif condition == "engaging":
+        bridge.state.engaging = True
+    elif condition == "prepared":
+        bridge.prepared_at = 10.0
+    elif condition == "recover":
+        bridge.state.recover = True
+    elif condition == "home_failed":
+        bridge.home_failed = True
+    elif condition == "thermal_trip":
+        bridge.thermal_tripped = True
+    else:
+        setattr(bridge, condition, SimpleNamespace())
+    before = (
+        bridge.state.active,
+        bridge.state.recover,
+        bridge.prepared_at,
+        bridge.home_failed,
+    )
+    response = bridge.idle(None, SimpleNamespace())
+    assert not response.success and "Relax refused" in response.message
+    assert before == (
+        bridge.state.active,
+        bridge.state.recover,
+        bridge.prepared_at,
+        bridge.home_failed,
+    )
+
+
+def test_relax_idle_check_succeeds_without_leader_input_or_motor_commands(monkeypatch):
+    bridge, _ = latched_home_bridge(monkeypatch)
+    bridge.home_failed = False
+    bridge.state.recover = False
+    bridge.prepared_at = None
+    bridge.state.target = None
+    bridge.hardware_state = None
+    assert bridge.idle(None, SimpleNamespace()).success
+    assert not bridge.state.active and bridge.prepared_at is None
 
 
 def test_home_verified_without_a_latch_reports_success_and_changes_nothing(monkeypatch):
