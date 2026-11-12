@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<!-- Source rebot_bench_sim sensor/backend contract. Included by the generated
+     nominal office description; no second ros2_control system is instantiated. -->
+<robot name="rebot_b601_rs" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:arg name="mujoco_model" default="description/scene.xml" />
+  <xacro:arg name="mujoco_model_package" default="picknik_boston_rebot_b601_rs_sim" />
+  <xacro:arg name="mujoco_keyframe" default="default" />
+  <xacro:arg name="mujoco_viewer" default="false" />
+  <xacro:arg name="hardware_interface" default="mujoco" />
+  <xacro:arg name="boston_gravity_fit" default="false" />
+  <xacro:if value="$(arg boston_gravity_fit)">
+    ${xacro.fatal('Gravity-equivalent Boston inertials are not simulation dynamics')}
+  </xacro:if>
+  <!-- The generated geometry is simulation-only, never a physical selector. -->
+  <xacro:if value="${'$(arg hardware_interface)' != 'mujoco'}">
+    ${xacro.fatal("The Boston twin requires hardware_interface=mujoco, not '$(arg hardware_interface)'")}
+  </xacro:if>
+
+  <!-- Interfaces come from the MJCF actuators (rebot_assets.xml), one position
+       actuator per motor joint, so no <joint> entries are declared here. -->
+  <ros2_control name="RebotMujocoSystem" type="system">
+    <hardware>
+      <plugin>picknik_mujoco_ros/MujocoSystem</plugin>
+      <param name="mujoco_model">$(arg mujoco_model)</param>
+      <param name="mujoco_model_package">$(arg mujoco_model_package)</param>
+      <param name="mujoco_keyframe">$(arg mujoco_keyframe)</param>
+      <param name="mujoco_viewer">$(arg mujoco_viewer)</param>
+      <param name="render_publish_rate">30</param>
+      <!-- The episode cycle confirms a stack from the scene camera's aligned
+           point cloud, as on the bench (scene_aligned_depth). -->
+      <param name="point_cloud_publish_rate">5</param>
+      <param name="tf_publish_rate">60</param>
+    </hardware>
+    <!-- The real cameras' topics. Image frames are the MJCF camera name plus
+         "_optical_frame", so the cameras are named after the real frames. -->
+    <sensor name="d435_color">
+      <param name="rgb_topic">/wrist_mounted_camera/color/image_raw</param>
+      <param name="camera_info_topic">/wrist_mounted_camera/color/camera_info</param>
+      <param name="depth_topic">/wrist_mounted_camera/depth/image_rect_raw</param>
+      <param name="points_topic">/wrist_mounted_camera/depth/color/points</param>
+    </sensor>
+    <sensor name="scene_camera_color">
+      <param name="rgb_topic">/scene_camera/color/image_raw</param>
+      <param name="camera_info_topic">/scene_camera/color/camera_info</param>
+      <param name="depth_topic">/scene_camera/depth/image_rect_raw</param>
+      <param name="points_topic">/scene_camera/depth/color/points</param>
+    </sensor>
+  </ros2_control>
+</robot>

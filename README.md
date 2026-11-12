@@ -12,7 +12,12 @@ B601-RS arm and supplied native jaw. The backend chain is:
 `main` contains the product configuration, with identity `world` → `base_link`
 placement and a stock Orbbec Gemini 305 wrist camera. The separate public
 `picknik_boston_rebot_b601_rs` branch is reserved for the complete office
-application, fixtures and per-unit calibration.
+application, its cameras, fixtures and per-unit calibration. On this office
+branch, select
+[`picknik_boston_rebot_b601_rs_hw`](src/picknik_boston_rebot_b601_rs_hw/README.md),
+[`picknik_boston_rebot_b601_rs_sim`](src/picknik_boston_rebot_b601_rs_sim/README.md),
+or the [frozen peg twin](src/picknik_boston_rebot_b601_rs_peg_sim/README.md).
+The optional twins are office overlays, not product defaults or insertion proof.
 The standalone `rebot_bench_sim` example remains in
 [moveit_pro_example_ws](https://github.com/PickNikRobotics/moveit_pro_example_ws).
 Copy and rename these configurations when creating a different robot or cell.
@@ -58,31 +63,38 @@ group is `manipulator` (base_link → gripper_end). `gripper` commands J7 and
 includes the two passive native-jaw sliders, coupled at **0.008 m/rad**.
 `manipulator_and_gripper` combines the seven motor coordinates.
 
-### Closed-jaw feedback allowance
+### Jaw feedback allowance
 
-J7's motor-coordinate range is **-0.15 to 5.410520681182422 rad**; the open
-bound (310°), gains and dynamic/effort limits are unchanged. Closed feedback
-measured on a bench unit was about **-0.01055 rad** at rest and reached
-**-0.120 rad** during fast Mirror closes with brief contact effort. This is
-not a constant zero offset. The -0.15 lower bound adds **0.03 rad** beyond the
-measured dynamic minimum. Both passive fingers inherit the allowance at
-0.008 m/rad: **-0.0012 m** each. This models contact compliance, not additional
+J7's motor-coordinate range is **-0.15 to 6.10 rad**; the nominal Open
+Gripper target remains 5.410520681182422 rad (310°), while gains and
+dynamic/effort limits are unchanged. Measured on a bench unit, a closed jaw at
+rest reads about **-0.0105 rad**. While Mirror follows a fast trigger close,
+feedback briefly measured **-0.042 to -0.120 rad** for 40–100 ms; a fast open
+reached **5.72 rad**. The -0.15/6.10 bounds leave margin around those
+transients and keep the driver's one-turn wrap window unambiguous: it is
+centered at 2.975 rad with edges near -0.167 and 6.117 rad. Both passive
+fingers inherit the same allowance at 0.008 m/rad: **-0.0012 to 0.0488 m** each. This models contact compliance, not additional
 useful jaw travel.
 
-`gripper_closed`, `Gripper Closed` / `Close Gripper`, mock initial state and
-the simulator's default keyframe still target **zero**. Do not command the
-negative allowance to increase squeeze. URDF, MoveIt and generated MuJoCo
-joint/actuator limits agree; raw driver feedback is neither clamped nor
-re-zeroed. The pinned driver still refuses activation/torque enable more than
-one Type-2 feedback quantum beyond each joint's own URDF bound; no arm-joint
-limit or tolerance is relaxed.
+J3's upper bound is **4.181336912266 rad**, a 0.01-rad feedback allowance for
+measured bench overshoot. All other arm-joint limits are unchanged.
 
-Readings below **-0.15 rad**, unexplained static offsets and full-open
-overshoot still require verification of that installation's zero and mechanics.
-The 310° upper bound is deliberately unchanged here; this allowance does not
-fix feedback wrapping at the open stop or add driver soft limits. This software
-change does not calibrate or certify a real arm; physical verification requires
-a separately authorized commissioning check.
+`gripper_closed`, `Gripper Closed` / `Close Gripper`, mock initial state and
+the simulator's default keyframe still target **zero**; `gripper_open` and
+`Gripper Open` still target the nominal **5.410520681182422 rad**. Do not
+command the feedback allowances to increase squeeze or opening. URDF, MoveIt
+and generated MuJoCo joint/actuator limits agree; raw driver feedback is
+neither clamped nor re-zeroed. The pinned driver still refuses
+activation/torque enable more than one Type-2 feedback quantum beyond each
+joint's own URDF bound.
+
+Historical larger negative closed readings occurred across calibration and
+power-cycle changes; later explicit jaw re-zeroing returned contact readings
+to near zero. A reading below **-0.15 rad** or above **6.10 rad** remains out
+of bounds: verify that installation's zero and mechanics rather than widening
+this stock allowance. This software change does not calibrate or certify a
+real arm; physical verification requires a separately authorized commissioning
+check.
 
 The trajectory controller owns all seven position interfaces and accepts partial
 arm/jaw goals. Arm and jaw velocity controllers and the Cartesian controller
@@ -110,6 +122,19 @@ by default when the camera is attached and can be disabled; see the
 [hardware camera setup](src/rebot_b601_rs_hw/README.md#gemini-305-wrist-camera)
 for its 1280×800 MJPG/10 Hz contract, host udev rule and nominal-mount limits.
 
+## Relax at HOME
+
+The physical configs provide **Relax at HOME**: complete the shared HOME return,
+verify the leader is idle, then request guarded torque-off without stopping the
+driver. Return Home, Mirror prepare and physical teleoperation call engage
+first. HOME targets, per-joint tolerances and stillness live only in the
+[stock relax-safe pose configuration](src/rebot_b601_rs_hw/config/relax_safe_poses.yaml);
+waypoints and HOME XML are derived at build time. Each additional pose needs its
+own measured torque-off settle test before admission. See the
+[service contract and pose runbook](src/rebot_b601_rs_hw/README.md#relax-safe-poses-and-relax-at-home).
+Do not call relax during an active or queued motion/teleop session. Mock/twin
+proof with fake services is not physical commissioning or torque-off evidence.
+
 ## Minimal simulation
 
 The simulator generates its body tree from the same expanded stock URDF.
@@ -134,13 +159,16 @@ The gitlink, rather than a floating branch name, fixes each revision.
 
 | Repository | Commit | Purpose |
 | --- | --- | --- |
-| [PickNikRobotics/robstride_hardware_interface](https://github.com/PickNikRobotics/robstride_hardware_interface) | `a0533258a10783dca4293b5d195adf7728c8ff5f` | Torque retention, thermal handoff and bounded feedforward |
+| [PickNikRobotics/robstride_hardware_interface](https://github.com/PickNikRobotics/robstride_hardware_interface) | `f72b2d2b52bed069a68254a16b5ece2351bc3b47` | Safe relax, measured-pose engage, soft limits and thermal handoff |
 | [PickNikRobotics/RobstrideSDK](https://github.com/PickNikRobotics/RobstrideSDK) | `9d070193758b4d88d065f1b8add815c0f540cebc` | Fault-frame routing, decoding and temperature freshness |
 | [kmj060703/robstride_interfaces](https://github.com/kmj060703/robstride_interfaces) | `8278bb1bf3d8f1fb07803459e1de4e14e10b8fc0` | Driver messages/services |
 | [Seeed-Projects/reBot-DevArm](https://github.com/Seeed-Projects/reBot-DevArm) | `58f9e433deec2ba118c5c22d60c07b9897e92acc` | Stock description and editable mechanical sources |
 
-The driver and SDK revisions above are integration topic commits, not merged
-fork defaults; their publication is a prerequisite for publishing these gitlinks.
+The driver pin is `main` with the merged
+[safe-relax change](https://github.com/PickNikRobotics/robstride_hardware_interface/pull/4)
+and [joint-coordinate/soft-limit change](https://github.com/PickNikRobotics/robstride_hardware_interface/pull/3).
+The SDK revision above is an integration topic commit, not a merged fork
+default. Publication of topic revisions is a prerequisite for publishing these gitlinks.
 
 The upstream description has no ROS package. The small `rebot_description`
 ament adapter installs its unmodified RS mesh directory and exact license

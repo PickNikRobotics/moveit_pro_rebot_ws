@@ -61,9 +61,9 @@ def test_joint_and_actuator_contract():
 
 
 @pytest.mark.parametrize(
-    "jaw", [-0.001, -0.0032596, -0.010545730590820312, -0.042, -0.120]
+    "jaw", [-0.001, -0.0032596, -0.010545730590820312, -0.042, -0.120, 5.72]
 )
-def test_measured_closed_feedback_is_inside_compiled_jaw_limits(jaw):
+def test_measured_jaw_feedback_is_inside_compiled_jaw_limits(jaw):
     m = model()
     data = mujoco.MjData(m)
     mujoco.mj_resetDataKeyframe(m, data, m.key("default").id)
@@ -76,7 +76,7 @@ def test_measured_closed_feedback_is_inside_compiled_jaw_limits(jaw):
     for name in ("joint7", "gripper_joint1", "gripper_joint2"):
         value = data.joint(name).qpos[0]
         assert m.joint(name).range[0] <= value <= m.joint(name).range[1]
-    np.testing.assert_allclose(m.joint("joint7").range, [-0.15, 5.410520681182422])
+    np.testing.assert_allclose(m.joint("joint7").range, [-0.15, 6.10])
     np.testing.assert_allclose(m.actuator("joint7").ctrlrange, m.joint("joint7").range)
     step(m, data, 1000)
     assert abs(data.joint("joint7").qpos[0] - jaw) < 1e-6

@@ -1,0 +1,55 @@
+# Boston office source layer. Not commissioned by this migration; see README.
+based_on_package: rebot_b601_rs_hw
+hardware:
+  additional_driver_launch_file:
+    package: picknik_boston_rebot_b601_rs_hw
+    path: launch/rebot_drivers.launch.py
+  robot_description:
+    urdf:
+      package: picknik_boston_rebot_b601_rs_hw
+      path: description/rebot.urdf.xacro
+    srdf:
+      package: picknik_boston_rebot_b601_rs_hw
+      path: config/moveit/rebot.srdf
+    urdf_params:
+      - hardware_interface: real
+      - boston_gravity_fit: true
+      - world_to_base_xyz: "0.7259 0.0216 -0.003"
+      - world_to_base_rpy: "0 0 3.1380"
+      - scene_camera_xyz: "-0.075 0.069 0.565"
+      - scene_camera_rpy: "0.169 0.975 0.246"
+      # Override the stock nominal mount for Gemini 305 serial CV2F861000FP:
+      # hand-eye calibrated for this unit, not eye-measured.
+      - wrist_camera_color_optical_xyz: "-0.1040 0.0095 0.1017"
+      - wrist_camera_color_optical_rpy: "-2.1069 -0.0041 -1.5720"
+ros_global_params:
+  # This calibrated USB leader is an office device, not a stock product requirement.
+  rebot_leader_enabled: true
+  rebot_leader_port: "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0"
+  rebot_leader_calibration_file: "config/leader_calibration/rebot_arm_102_leader.json"
+  rebot_leader_publish_rate: 100.0
+  # Bounded engage only; direct following remains uncapped after convergence.
+  rebot_leader_engage_speed_rad_s: 0.2
+  rebot_leader_engage_jaw_speed_rad_s: 1.0
+  # Gross mismatch gate applies to joint1-joint6 only, never the jaw.
+  rebot_leader_engage_max_offset_rad: 0.6
+ros2_control:
+  config:
+    package: picknik_boston_rebot_b601_rs_hw
+    path: config/control/rebot.ros2_control.yaml
+  controllers_inactive_at_startup:
+    - leader_position_controller
+    - joint_velocity_controller
+    - gripper_joint_velocity_controller
+    - velocity_force_controller
+objectives:
+  behavior_loader_plugins:
+    rebot_bench:
+      - rebot_bench_behaviors::RebotBenchBehaviorsLoader
+  objective_library_paths:
+    boston_objectives:
+      package_name: picknik_boston_rebot_b601_rs_hw
+      relative_path: objectives
+  waypoints_file:
+    package_name: picknik_boston_rebot_b601_rs_hw
+    relative_path: waypoints/rebot_waypoints.yaml

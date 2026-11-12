@@ -227,6 +227,7 @@ def test_enabled_camera_uses_stock_color_only_factory_contract(
         "color_height": 800,
         "color_fps": 10,
         "color_format": "MJPG",
+        "ae_mode": "colorbased",
         "enable_depth": False,
         "enable_left_ir": False,
         "enable_right_ir": False,
@@ -240,6 +241,14 @@ def test_enabled_camera_uses_stock_color_only_factory_contract(
     )
 
 
+def test_auto_exposure_meters_the_enabled_color_stream(wrist_camera_launch):
+    parameters = wrist_camera_launch.wrist_camera_parameters(context())
+    assert parameters["enable_color"] is True
+    assert parameters["enable_depth"] is False
+    assert parameters["ae_mode"] == "colorbased"
+    assert not any("roi" in name for name in parameters)
+
+
 def test_serial_can_select_a_specific_camera_without_changing_stream_contract(
     wrist_camera_launch,
 ):
@@ -251,6 +260,7 @@ def test_serial_can_select_a_specific_camera_without_changing_stream_contract(
     assert parameters["color_height"] == 800
     assert parameters["color_fps"] == 10
     assert parameters["color_format"] == "MJPG"
+    assert parameters["ae_mode"] == "colorbased"
 
 
 def test_usb_probe_ignores_interface_entries_and_accepts_gemini305(

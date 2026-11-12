@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root BTCPP_format="4" main_tree_to_execute="Relax at HOME">
+  <BehaviorTree
+    ID="Relax at HOME"
+    _description="Complete Return HOME under power, verify the leader is idle, then request guarded torque-off from the running driver. The driver verifies the named pose, health and measured/commanded stillness; the Objective/caller must quiesce active and queued motion. A failed HOME, idle check or relax request fails this Objective; it never bypasses the guard."
+  >
+    <Sequence name="HomeThenRelax">
+      <SubTree ID="reBot Check Leader Idle" _collapsed="true" />
+      <SubTree ID="Return reBot Leader Home" _collapsed="true" />
+      <!-- HOME closes the jaw last. Allow a complete stillness window after it;
+           the driver still owns measured admission and may refuse the request. -->
+      <Action ID="WaitForDuration" delay_duration="@HOME_SETTLE@" />
+      <SubTree ID="reBot Check Leader Idle" _collapsed="true" />
+      <Action
+        ID="CallTriggerService"
+        service_name="/robstride_hardware_interface/relax"
+        wait_for_server_available_timeout="3.0"
+        response_timeout="3.0"
+      />
+    </Sequence>
+  </BehaviorTree>
+  <TreeNodesModel>
+    <SubTree ID="Relax at HOME">
+      <MetadataFields>
+        <Metadata runnable="true" />
+        <Metadata subcategory="reBot" />
+      </MetadataFields>
+    </SubTree>
+  </TreeNodesModel>
+</root>

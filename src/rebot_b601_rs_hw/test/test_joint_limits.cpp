@@ -16,6 +16,7 @@
 #include <fstream>
 #include <iterator>
 #include <limits>
+#include <numbers>
 #include <string>
 
 namespace
@@ -47,22 +48,23 @@ protected:
   hardware_interface::HardwareInfo hardware;
 };
 
-TEST_F(JointLimits, ClosedJawFeedbackIsInsideDriverActivationBounds)
+TEST_F(JointLimits, MeasuredJawFeedbackIsInsideDriverActivationBounds)
 {
   const auto& jaw = hardware.limits.at("joint7");
   EXPECT_DOUBLE_EQ(jaw.min_position, -0.15);
-  EXPECT_DOUBLE_EQ(jaw.max_position, 5.410520681182422);
+  EXPECT_DOUBLE_EQ(jaw.max_position, 6.10);
   EXPECT_DOUBLE_EQ(jaw.max_velocity, 3.0);
-  // At-rest and fast-close feedback measured on a bench unit, not closure targets.
-  for (const double position : { -0.001, -0.0032596, -0.010545730590820312, -0.042, -0.120 })
+  // At-rest samples and fast Mirror extrema measured on a bench unit, not relabeled as targets.
+  for (const double position : { -0.001, -0.0032596, -0.010545730590820312, -0.042, -0.120, 5.72 })
   {
     EXPECT_TRUE(WithinBounds("joint7", position)) << position;
     EXPECT_NEAR(robstride_hardware_interface::JointToMotorTarget(position, position, 0, 1, false), position, 1e-14);
   }
 }
 
-TEST_F(JointLimits, JawStillRejectsOvertravelPastItsFeedbackAllowance)
+TEST_F(JointLimits, JawStillRejectsPastLimitAndLargeCalibrationOffsets)
 {
+  const auto& jaw = hardware.limits.at("joint7");
   const double quantum =
       2.0 * robstride_sdk::GetActuatorLimits(robstride_sdk::ActuatorType::RS00).position_max / 65535.0;
   EXPECT_TRUE(WithinBounds("joint7", -0.15));
@@ -70,8 +72,22 @@ TEST_F(JointLimits, JawStillRejectsOvertravelPastItsFeedbackAllowance)
   EXPECT_FALSE(WithinBounds("joint7", -0.15 - 1.1 * quantum));
   EXPECT_FALSE(WithinBounds("joint7", -0.151));
   EXPECT_FALSE(WithinBounds("joint7", -0.17));
-  EXPECT_TRUE(WithinBounds("joint7", 5.410520681182422));
-  EXPECT_FALSE(WithinBounds("joint7", 5.410520681182422 + 1.1 * quantum));
+  EXPECT_TRUE(WithinBounds("joint7", 6.10));
+  EXPECT_TRUE(WithinBounds("joint7", 6.10 + 0.9 * quantum));
+  EXPECT_FALSE(WithinBounds("joint7", 6.10 + 1.1 * quantum));
+  EXPECT_FALSE(WithinBounds("joint7", 6.11));
+  const double center = 0.5 * (jaw.min_position + jaw.max_position);
+  EXPECT_DOUBLE_EQ(center, 2.975);
+  const double lower_edge = center - std::numbers::pi;
+  const double upper_edge = center + std::numbers::pi;
+  EXPECT_NEAR(lower_edge, -0.166592653589793, 1e-12);
+  EXPECT_NEAR(upper_edge, 6.116592653589793, 1e-12);
+  EXPECT_LT(lower_edge, jaw.min_position);
+  EXPECT_GT(upper_edge, jaw.max_position);
+  EXPECT_NEAR(robstride_hardware_interface::WrapToWindow(lower_edge, center), lower_edge, 1e-12);
+  EXPECT_NEAR(robstride_hardware_interface::WrapToWindow(upper_edge - 0.001, center), upper_edge - 0.001, 1e-12);
+  EXPECT_FALSE(WithinBounds("joint7", lower_edge));
+  EXPECT_FALSE(WithinBounds("joint7", upper_edge));
   EXPECT_FALSE(WithinBounds("joint7", std::numeric_limits<double>::quiet_NaN()));
 }
 
@@ -90,8 +106,7 @@ TEST_F(JointLimits, MoveItAcceptsMeasuredContactAndRejectsTrueJawOvertravelWitho
   ASSERT_TRUE(srdf->initString(*urdf, srdf_text));
   auto model = std::make_shared<moveit_pro::base::RobotModel>(urdf, srdf);
   moveit_pro::base::RobotState state(model);
-  for (const double position :
-       { -0.15, -0.120, -0.042, -0.001, -0.0032596, -0.010545730590820312, 0.0, 5.410520681182422 })
+  for (const double position : { -0.15, -0.120, -0.042, -0.001, -0.0032596, -0.010545730590820312, 0.0, 5.72, 6.10 })
   {
     state.setVariablePosition("joint7", position);
     state.update();
@@ -103,7 +118,7 @@ TEST_F(JointLimits, MoveItAcceptsMeasuredContactAndRejectsTrueJawOvertravelWitho
       EXPECT_DOUBLE_EQ(state.getVariablePosition(finger), 0.008 * position);
     }
   }
-  for (const double position : { -0.1501, -0.151, 5.410620681182422 })
+  for (const double position : { -0.1501, -0.151, 6.1001, 6.11 })
   {
     state.setVariablePosition("joint7", position);
     EXPECT_FALSE(state.satisfiesBounds(model->getJointModelGroup("gripper"), 0.0)) << position;
@@ -111,12 +126,12 @@ TEST_F(JointLimits, MoveItAcceptsMeasuredContactAndRejectsTrueJawOvertravelWitho
   }
 }
 
-TEST_F(JointLimits, AllSixArmLimitsAndTheirFeedbackToleranceAreUnchanged)
+TEST_F(JointLimits, ArmLimitsAndFeedbackToleranceMatchConfiguredBounds)
 {
   const std::array<std::array<double, 2>, 6> bounds{ {
       { -2.530727415392, 2.530727415392 },
       { -0.02, 3.543018381548 },
-      { -0.01, 4.171336912266 },
+      { -0.01, 4.181336912266 },
       { -1.850049007114, 1.500983156715 },
       { -1.762782544514, 1.884955592154 },
       { -3.054326190990, 3.054326190990 },

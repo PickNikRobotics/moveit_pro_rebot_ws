@@ -1,0 +1,19 @@
+# Torque-off admission poses, in motor-frame radians. HOME is the sole source
+# for the installed Zeroed Rest waypoint and HOME recovery goal/tolerances.
+# A new entry requires its own measured, authorized torque-off settle test;
+# a collision-free waypoint or a MuJoCo result is not that evidence.
+version: 1
+relax_safe_poses:
+  - name: HOME
+    joints:
+      joint1: {position_rad: 0.0, tolerance_rad: 0.08}
+      joint2: {position_rad: 0.0, tolerance_rad: 0.08}
+      joint3: {position_rad: 0.0, tolerance_rad: 0.08}
+      joint4: {position_rad: 0.0, tolerance_rad: 0.08}
+      joint5: {position_rad: 0.0, tolerance_rad: 0.08}
+      joint6: {position_rad: 0.0, tolerance_rad: 0.08}
+      joint7: {position_rad: 0.0, tolerance_rad: 0.08}
+    stillness:
+      window_s: 0.3
+      max_span_rad: 0.005
+      max_abs_velocity_rad_s: 0.01

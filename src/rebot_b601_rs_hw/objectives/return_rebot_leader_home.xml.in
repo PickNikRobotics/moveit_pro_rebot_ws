@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Generated at build time from config/relax_safe_poses.yaml. HOME numeric
+     targets and per-joint skip tolerances must not be duplicated here. -->
+<root BTCPP_format="4" main_tree_to_execute="Return reBot Leader Home">
+  <BehaviorTree
+    ID="Return reBot Leader Home"
+    _description="Engage torque with a measured-pose hold before returning HOME. Return retains torque; use Relax at HOME for guarded torque-off."
+  >
+    <Sequence name="EngageThenHome">
+      <Action
+        ID="CallTriggerService"
+        service_name="/robstride_hardware_interface/engage"
+        wait_for_server_available_timeout="3.0"
+        response_timeout="3.0"
+      />
+      <SubTree ID="Return reBot Leader Home Under Power" _collapsed="true" />
+    </Sequence>
+  </BehaviorTree>
+  <BehaviorTree
+    ID="Return reBot Leader Home Under Power"
+    _description="Internal powered recovery: yaw then HOME from the bounded measured arm at 0.05 rad/s maximum; the HOME box and yaw target come from the relax-safe HOME entry. Retain torque on failure. The thermal guard owns the under-power preflight and must not enable a thermally latched motor."
+  >
+    <Sequence name="PoweredHomeRecovery">
+      <Action
+        ID="SwitchController"
+        activate_controllers="joint_trajectory_admittance_controller"
+        automatic_deactivation="true"
+        strictness="2"
+      />
+      <Action ID="GetCurrentPlanningScene" planning_scene_msg="{yaw_scene}" />
+      <Action
+        ID="GetJointState"
+        planning_scene="{yaw_scene}"
+        planning_group_name="manipulator"
+        joint_state="{yaw_state}"
+        robot_joint_state="{arm_state}"
+      />
+      <Action
+        ID="UnpackJointStateMessage"
+        joint_state="{yaw_state}"
+        position="{yaw_positions}"
+      />
+      <Action
+        ID="GetElementOfVector"
+        vector_in="{yaw_positions}"
+        index="4"
+        element="{yaw_position}"
+      />
+      <Action
+        ID="GetElementOfVector"
+        vector_in="{yaw_positions}"
+        index="0"
+        element="{home_joint1}"
+      />
+      <Action
+        ID="GetElementOfVector"
+        vector_in="{yaw_positions}"
+        index="1"
+        element="{home_joint2}"
+      />
+      <Action
+        ID="GetElementOfVector"
+        vector_in="{yaw_positions}"
+        index="2"
+        element="{home_joint3}"
+      />
+      <Action
+        ID="GetElementOfVector"
+        vector_in="{yaw_positions}"
+        index="3"
+        element="{home_joint4}"
+      />
+      <Action
+        ID="GetElementOfVector"
+        vector_in="{yaw_positions}"
+        index="4"
+        element="{home_joint5}"
+      />
+      <Action
+        ID="GetElementOfVector"
+        vector_in="{yaw_positions}"
+        index="5"
+        element="{home_joint6}"
+      />
+      <Sequence name="MoveArmUnlessHome" _skipIf="@HOME_ARM_SKIP@">
+        <!-- Plan both legs from the measured arm clamped into its bounds: a
+           joint can sag past a limit, and a plan from there starts past it,
+           or is refused once the sag reaches self-collision. Each leg is
+           anchored to that clamped command. -->
+        <Action
+          ID="ClampRobotStateToBounds"
+          robot_state="{arm_state}"
+          bounded_state="{commanded_state}"
+        />
+        <!-- Centre yaw while preserving the raised wrist, then lower the arm. -->
+        <Sequence name="CentreYaw" _skipIf="@HOME_YAW_SKIP@">
+          <Action
+            ID="CreateRobotState"
+            joint_names="joint5"
+            positions="@HOME_YAW@"
+            joint_state_msg="{yaw_goal}"
+          />
+          <Action
+            ID="PlanToJointGoalFromBoundedStart"
+            joint_goal="{yaw_goal}"
+            planning_group_name="manipulator"
+            velocity_scale_factor="0.0833333333"
+            acceleration_scale_factor="0.0833333333"
+            collision_check_params="[{override_scene_link_padding: true, link_padding: 0.0}]"
+            joint_trajectory_msg="{yaw_trajectory}"
+          />
+          <Action
+            ID="GetJointState"
+            planning_scene="{yaw_scene}"
+            planning_group_name="manipulator_and_gripper"
+            robot_joint_state="{measured_state}"
+          />
+          <Action
+            ID="AnchorTrajectoryToCommand"
+            measured_state="{measured_state}"
+            joint_trajectory="{yaw_trajectory}"
+            commanded_state="{commanded_state}"
+            fade_out="true"
+            anchored_trajectory="{yaw_anchored}"
+            end_state="{yaw_endpoint}"
+          />
+          <Action
+            ID="ExecuteTrajectory"
+            joint_trajectory_msg="{yaw_anchored}"
+            execution_pipeline="jtac"
+            controller_action_name="/joint_trajectory_admittance_controller/follow_joint_trajectory"
+            goal_duration_tolerance="-1"
+          />
+          <Action ID="Script" code="commanded_state := yaw_endpoint" />
+        </Sequence>
+        <SubTree
+          ID="reBot Move to Arm Waypoint"
+          waypoint_name="Zeroed Rest"
+          velocity_scale_factor="0.0833333333"
+          acceleration_scale_factor="0.0833333333"
+          commanded_state="{commanded_state}"
+        />
+      </Sequence>
+      <!-- The jaw HOME target comes from the same entry as the arm, never the
+           negative feedback allowance. Let the arm settle, then notify the
+           leader only in a config with that optional device. The stock leaf
+           does nothing; the Boston notification is best-effort and never moves
+           anything or grants permission to relax. -->
+      <Action ID="WaitForDuration" delay_duration="0.5" />
+      <SubTree ID="reBot Notify Leader Home" _collapsed="true" />
+      <!-- A failed jaw move must not turn a successful arm HOME into a recovery
+           failure (the Mirror bridge latches home_failed on that). Relax still
+           requires the driver's measured all-seven-joint pose check afterward. -->
+      <Decorator ID="ForceSuccess">
+        <Sequence name="JawHome">
+          <Action
+            ID="CreateRobotState"
+            joint_names="joint7"
+            positions="@HOME_JAW@"
+            joint_state_msg="{jaw_home}"
+          />
+          <SubTree
+            ID="Move to Joint State"
+            _collapsed="true"
+            target_joint_state="{jaw_home}"
+            joint_group_name="gripper"
+            velocity_scale_factor="1.0"
+            acceleration_scale_factor="1.0"
+            controller_names="joint_trajectory_admittance_controller"
+            controller_action_server="/joint_trajectory_admittance_controller/follow_joint_trajectory"
+            collision_check_params="[{override_scene_link_padding: true, link_padding: 0.0}]"
+            execution_pipeline="jtac"
+          />
+        </Sequence>
+      </Decorator>
+    </Sequence>
+  </BehaviorTree>
+  <TreeNodesModel>
+    <SubTree ID="Return reBot Leader Home">
+      <MetadataFields>
+        <Metadata runnable="true" />
+        <Metadata subcategory="reBot" />
+      </MetadataFields>
+    </SubTree>
+    <SubTree ID="Return reBot Leader Home Under Power">
+      <MetadataFields>
+        <Metadata runnable="false" />
+        <Metadata subcategory="reBot" />
+      </MetadataFields>
+    </SubTree>
+  </TreeNodesModel>
+</root>

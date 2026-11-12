@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root BTCPP_format="4" main_tree_to_execute="Start Gravity Comp">
+  <BehaviorTree
+    ID="Start Gravity Comp"
+    _description="Hardware-only gain writes are unavailable in the Boston twin. MuJoCo supplies gravity compensation; this override fails without commanding anything."
+  >
+    <AlwaysFailure />
+  </BehaviorTree>
+  <TreeNodesModel>
+    <SubTree ID="Start Gravity Comp">
+      <MetadataFields>
+        <Metadata runnable="false" />
+        <Metadata subcategory="reBot" />
+      </MetadataFields>
+    </SubTree>
+  </TreeNodesModel>
+</root>

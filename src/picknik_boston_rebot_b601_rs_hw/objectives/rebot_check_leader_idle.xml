@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root BTCPP_format="4" main_tree_to_execute="reBot Check Leader Idle">
+  <BehaviorTree
+    ID="reBot Check Leader Idle"
+    _description="Refuse relax while the Boston leader bridge is following, prepared to follow, or recovering HOME. Missing bridge service fails closed; the twin proof supplies a fake idle service."
+  >
+    <Action
+      ID="CallTriggerService"
+      service_name="/rebot_leader_bridge/idle"
+      wait_for_server_available_timeout="1.0"
+      response_timeout="1.0"
+    />
+  </BehaviorTree>
+  <TreeNodesModel>
+    <SubTree ID="reBot Check Leader Idle">
+      <MetadataFields>
+        <Metadata runnable="false" />
+        <Metadata subcategory="reBot Bench" />
+      </MetadataFields>
+    </SubTree>
+  </TreeNodesModel>
+</root>

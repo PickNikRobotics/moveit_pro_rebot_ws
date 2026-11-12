@@ -35,6 +35,11 @@ objectives:
     rebot_sim_objectives:
       package_name: rebot_b601_rs_hw
       relative_path: objectives
+    # Built HOME and Relax at HOME XML. It has no source package, so Runtime
+    # startup links the built files, never the .xml.in templates. Read-only.
+    rebot_hw_generated_objectives:
+      package_name: rebot_b601_rs_hw_generated_objectives
+      relative_path: objectives
     rebot_hw_objectives:
       package_name: rebot_b601_rs_hw
       relative_path: objectives

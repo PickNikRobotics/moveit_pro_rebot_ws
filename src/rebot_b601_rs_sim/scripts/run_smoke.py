@@ -33,6 +33,7 @@ from sensor_msgs.msg import JointState
 
 
 JOINTS = [f"joint{i}" for i in range(1, 8)]
+NOMINAL_OPEN_JAW = 5.410520681182422
 TRAJECTORY = "joint_trajectory_admittance_controller"
 # The Objective layer reports BT execution failure as FAILURE, not CONTROL_FAILED.
 OBJECTIVE_FAILURE = 99999
@@ -318,7 +319,7 @@ class Smoke(Node):
         self.jog(pose=True)
         self.phase = "open_gripper"
         self.run("Open Gripper")
-        assert abs(self.state()[6] - self.model.joint("joint7").range[1]) < 0.02
+        assert abs(self.state()[6] - NOMINAL_OPEN_JAW) < 0.02
         self.phase = "close_gripper"
         self.run("Close Gripper")
         assert abs(self.state()[6]) < 0.02
@@ -360,7 +361,7 @@ class Smoke(Node):
         self.result["contact_geometry_replay_pairs"] = pairs
         self.phase = "contact_open"
         self.run("Open Gripper")
-        assert abs(self.state()[6] - self.model.joint("joint7").range[1]) < 0.02
+        assert abs(self.state()[6] - NOMINAL_OPEN_JAW) < 0.02
         self.phase = "final_reset"
         self.reset()
         # A snapped-back reset holds the pre-reset pose, so alternate keyframes

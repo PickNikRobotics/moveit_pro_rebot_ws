@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root BTCPP_format="4" main_tree_to_execute="Collect reBot Gravity Data">
+  <BehaviorTree
+    ID="Collect reBot Gravity Data"
+    _description="The Boston twin is not a source of measured motor gravity-identification data. This override fails without motion or recording; use the hardware collection contract only with separate authorization."
+  >
+    <AlwaysFailure />
+  </BehaviorTree>
+  <TreeNodesModel>
+    <SubTree ID="Collect reBot Gravity Data">
+      <MetadataFields>
+        <Metadata runnable="false" />
+        <Metadata subcategory="reBot Gravity Identification" />
+      </MetadataFields>
+      <input_port
+        name="dataset_name"
+        default="rebot_gravity_raw"
+        type="std::string"
+      />
+      <input_port
+        name="training_config"
+        default="rebot_bench_jpeg"
+        type="std::string"
+      />
+      <input_port name="settle_seconds" default="1.5" type="double" />
+      <input_port name="sample_seconds" default="2.1" type="double" />
+    </SubTree>
+  </TreeNodesModel>
+</root>
