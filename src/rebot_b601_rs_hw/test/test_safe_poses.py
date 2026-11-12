@@ -331,7 +331,13 @@ def test_every_source_runtime_start_links_built_home_and_relax_xml(
 def test_relax_follows_successful_home_and_is_not_best_effort():
     sequence = ET.parse(generated("relax_at_home.xml")).find("BehaviorTree/Sequence")
     assert sequence[0].get("ID") == "reBot Check Leader Idle"
-    assert sequence[1].get("ID") == "Return reBot Leader Home"
+    # Float ends before HOME: engage, own JTAC, re-anchor and restore spring gains.
+    assert sequence[1].get("service_name") == "/robstride_hardware_interface/engage"
+    assert sequence[2].get("activate_controllers") == (
+        "joint_trajectory_admittance_controller"
+    )
+    assert sequence[3].get("ID") == "reBot Set Spring Gains"
+    assert sequence[4].get("ID") == "Return reBot Leader Home"
     assert sequence[-2].get("ID") == "reBot Check Leader Idle"
     assert sequence[-1].get("ID") == "CallTriggerService"
     assert sequence[-1].get("service_name") == "/robstride_hardware_interface/relax"

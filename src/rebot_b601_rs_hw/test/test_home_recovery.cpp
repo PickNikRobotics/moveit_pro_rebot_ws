@@ -51,6 +51,7 @@
 #include <iterator>
 #include <map>
 #include <string>
+#include <tuple>
 #include <vector>
 
 namespace
@@ -422,6 +423,14 @@ protected:
     factory.registerBehaviorTreeFromText(R"(<root BTCPP_format="4">
       <BehaviorTree ID="Move to Joint State"><Action ID="CloseJaw"
         target_joint_state="{target_joint_state}" joint_group_name="{joint_group_name}"/></BehaviorTree></root>)");
+    // The gain subtree is exercised by test_gravity_mode_execution and vcan; here
+    // only its place in Relax at HOME (after engage and the switch, before HOME).
+    factory.registerSimpleAction("SpringRestore", [this](BT::TreeNode&) {
+      spring_restores.push_back({ engages, switches, executed.size() });
+      return BT::NodeStatus::SUCCESS;
+    });
+    factory.registerBehaviorTreeFromText(R"(<root BTCPP_format="4">
+      <BehaviorTree ID="reBot Set Spring Gains"><Action ID="SpringRestore"/></BehaviorTree></root>)");
     for (const auto* objective : { "rebot_move_to_arm_waypoint.xml", "rebot_check_leader_idle.xml" })
       factory.registerBehaviorTreeFromFile(std::string(PACKAGE_DIR "/objectives/") + objective);
     for (const auto* objective : { "return_rebot_leader_home.xml", "relax_at_home.xml" })
@@ -496,6 +505,8 @@ protected:
   bool planner_refuses_start = false, execution_refuses = false;
   bool verification_refuses = false, close_refuses = false, engage_refuses = false;
   int engages = 0, idle_checks = 0;
+  // engages, switches and executed trajectories seen when the spring gains were restored.
+  std::vector<std::tuple<int, int, std::size_t>> spring_restores;
   bool relax_refuses = false, idle_refuses = false;
   std::vector<std::string> home_tail;
 };
@@ -655,6 +666,19 @@ TEST_F(HomeRecovery, RelaxWithoutLeaderKeepsArmHomeJawDwellThenGuardedRelax)
   EXPECT_EQ(idle_checks, 0);  // Stock no-leader idle leaf calls no service.
 }
 
+TEST_F(HomeRecovery, RelaxEndsFloatBeforeHomeMotion)
+{
+  // A floating arm sags out of the HOME box; spring gains return before HOME plans.
+  useNoLeaderNotification();
+  measured = withJaw(kDeepSag, 2.0);
+  EXPECT_EQ(run(R"(<SubTree ID="Relax at HOME"/>)"), BT::NodeStatus::SUCCESS);
+  ASSERT_EQ(spring_restores.size(), 1U);
+  EXPECT_EQ(spring_restores.front(), std::make_tuple(1, 1, std::size_t{ 0 }));
+  EXPECT_EQ(engages, 2);  // HOME's own engage is the idempotent already-ON path.
+  EXPECT_EQ(measured, withJaw(kHomePose, 0.0));
+  EXPECT_EQ(home_tail, (std::vector<std::string>{ "settle", "close", "dwell", "relax" }));
+}
+
 TEST_F(HomeRecovery, RelaxWithoutLeaderHomeFailureNeverClosesDwellsOrRelaxes)
 {
   useNoLeaderNotification();
@@ -704,6 +728,7 @@ TEST_F(HomeRecovery, LeaderIdleRefusalNeverEngagesMovesNotifiesOrRelaxes)
   EXPECT_EQ(run(R"(<SubTree ID="Relax at HOME"/>)"), BT::NodeStatus::FAILURE);
   EXPECT_EQ(idle_checks, 1);
   EXPECT_EQ(engages, 0);
+  EXPECT_TRUE(spring_restores.empty());
   EXPECT_TRUE(executed.empty());
   EXPECT_TRUE(home_tail.empty());
 }

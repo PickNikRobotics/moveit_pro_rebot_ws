@@ -26,6 +26,7 @@ struct Receipt
   std::string refused;
   std::string unavailable;
   bool home_fails = false;
+  bool spring_fails = false;
   std::mutex mutex;
 
   void record(const std::string& event)
@@ -96,6 +97,10 @@ protected:
       receipt.record("HOME");
       return receipt.home_fails ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
     });
+    factory.registerSimpleAction("SpringGains", [this](BT::TreeNode&) {
+      receipt.record("spring");
+      return receipt.spring_fails ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
+    });
     factory.registerSimpleAction("TeleopEntry", [this](BT::TreeNode&) {
       receipt.record("teleop");
       return BT::NodeStatus::SUCCESS;
@@ -128,6 +133,7 @@ protected:
     factory.registerBehaviorTreeFromText(R"(<root BTCPP_format="4">
       <BehaviorTree ID="Return reBot Leader Home Under Power"><HomeMotion/></BehaviorTree>
       <BehaviorTree ID="Request Teleoperation"><TeleopEntry/></BehaviorTree>
+      <BehaviorTree ID="reBot Set Spring Gains"><SpringGains/></BehaviorTree>
       </root>)");
     factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/rebot_check_leader_idle.xml");
     factory.registerBehaviorTreeFromFile(BOSTON_SHARE "/objectives/rebot_notify_leader_home.xml");
@@ -177,7 +183,14 @@ TEST_F(RelaxObjectives, StockHomeNotificationMakesNoServiceCall)
 TEST_F(RelaxObjectives, HomeBeforeRelaxUsesRealTriggerSuccess)
 {
   EXPECT_EQ(run("Relax at HOME"), BT::NodeStatus::SUCCESS);
-  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kIdle, kEngage, "HOME", kIdle, kRelax }));
+  EXPECT_EQ(receipt.events,
+            (std::vector<std::string>{ kIdle, kEngage, "switch", "spring", kEngage, "HOME", kIdle, kRelax }));
+}
+TEST_F(RelaxObjectives, FailedSpringRestoreNeverMovesOrRelaxes)
+{
+  receipt.spring_fails = true;
+  EXPECT_EQ(run("Relax at HOME"), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kIdle, kEngage, "switch", "spring" }));
 }
 TEST_F(RelaxObjectives, RefusedEngageNeverMovesOrRelaxes)
 {
@@ -189,13 +202,14 @@ TEST_F(RelaxObjectives, FailedHomeNeverCallsRelax)
 {
   receipt.home_fails = true;
   EXPECT_EQ(run("Relax at HOME"), BT::NodeStatus::FAILURE);
-  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kIdle, kEngage, "HOME" }));
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kIdle, kEngage, "switch", "spring", kEngage, "HOME" }));
 }
 TEST_F(RelaxObjectives, RefusedRelaxIsFailureNotBestEffort)
 {
   receipt.refused = kRelax;
   EXPECT_EQ(run("Relax at HOME"), BT::NodeStatus::FAILURE);
-  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kIdle, kEngage, "HOME", kIdle, kRelax }));
+  EXPECT_EQ(receipt.events,
+            (std::vector<std::string>{ kIdle, kEngage, "switch", "spring", kEngage, "HOME", kIdle, kRelax }));
 }
 TEST_F(RelaxObjectives, MissingEngageNeverMoves)
 {
