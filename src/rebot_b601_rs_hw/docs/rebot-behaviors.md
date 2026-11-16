@@ -108,10 +108,6 @@ requires fresh leader/follower feedback, a ready collision scene, healthy
 motors, and reBot at HOME. It will not auto-start after USB recovery, a cleared
 fault, or HOME.
 
-With the stock SRDF, a folded rest reading such as J3 `-0.01 rad` is reported as
-link2/link5 contact and refused; see the
-[stock leader notes](../README.md#optional-star-arm-leader).
-
 A Stop, clutch, stale sample, collision refusal, or engage timeout stops
 following, returns HOME under power, and requests `Relax at HOME` once HOME
 succeeds. Failed HOME or refused relax leaves torque on; do not disable torque

@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root BTCPP_format="4" main_tree_to_execute="Record reBot Motion">
+  <BehaviorTree
+    ID="Record reBot Motion"
+    _description="Record a hand-guided reBot arm motion to recordings_folder/motion_name.yaml. Checks the name and folder first, then engages with spring gains. Press Start recording to float the arm (gravity compensated) and record J1-J7; press Stop recording to restore spring gains where the arm is released and save. Discard, a refused step or a failed save also restores spring gains and saves nothing. Use Stop recording or Discard, not the Objective Stop button: a stopped Objective leaves the float on until the next reBot motion Objective engages. Replay it with Replay reBot Motion."
+  >
+    <Control ID="Sequence" name="record_rebot_motion">
+      <!-- Fail before anything moves on a missing name, folder or a taken name.
+           An empty run-time string input reaches the tree as 'null'. -->
+      <Control ID="Fallback" name="require_name_and_folder">
+        <Action
+          ID="ScriptCondition"
+          code="motion_name != '' &amp;&amp; motion_name != 'null' &amp;&amp; recordings_folder != '' &amp;&amp; recordings_folder != 'null'"
+        />
+        <Control ID="Sequence">
+          <Action
+            ID="LogMessage"
+            message="Enter recordings_folder and motion_name."
+            log_level="error"
+          />
+          <Action ID="AlwaysFailure" />
+        </Control>
+      </Control>
+      <Action
+        ID="GetFilenamesFromDirectory"
+        directory_path="{recordings_folder}"
+        file_type=".yaml"
+        result="{existing_recordings}"
+      />
+      <Action
+        ID="Script"
+        code="recording_path := recordings_folder .. '/' .. motion_name .. '.yaml'"
+      />
+      <Decorator ID="Precondition" if="overwrite != 'true'" else="SUCCESS">
+        <Control ID="Fallback" name="require_new_name">
+          <Decorator ID="SuppressChildErrors">
+            <Decorator ID="Inverter">
+              <Action
+                ID="LoadJointTrajectoryFromYaml"
+                file_path="{recording_path}"
+                output="{existing_recording}"
+              />
+            </Decorator>
+          </Decorator>
+          <Control ID="Sequence">
+            <Action
+              ID="Script"
+              code="taken := recording_path .. ' already exists. Pick another motion_name or set overwrite to true.'"
+            />
+            <Action ID="LogMessage" message="{taken}" log_level="error" />
+            <Action ID="AlwaysFailure" />
+          </Control>
+        </Control>
+      </Decorator>
+      <SubTree ID="reBot Engage Arm" _collapsed="true" />
+      <Control ID="Fallback" name="wait_for_start">
+        <Action
+          ID="WaitForUserDecision"
+          prompt="Hold the arm, then press Start recording. The arm floats (gravity compensated) until you press Stop recording."
+          approve_label="Start recording"
+          reject_label="Cancel"
+        />
+        <Control ID="Sequence">
+          <Action
+            ID="LogMessage"
+            message="Recording cancelled before it started. Nothing was saved."
+            log_level="error"
+          />
+          <Action ID="AlwaysFailure" />
+        </Control>
+      </Control>
+      <Control ID="Fallback" name="record_or_restore_spring">
+        <Control ID="Sequence" name="record_and_save">
+          <SubTree ID="Start Gravity Comp" _collapsed="true" />
+          <!-- The recorder sets recording only after the stop call, so the save runs once both children succeed. -->
+          <Control ID="Parallel" failure_count="1" success_count="2">
+            <Action
+              ID="RecordJointTrajectory"
+              joint_state_topic="/joint_states"
+              joint_trajectory_message="{recording}"
+              planning_group_name="manipulator_and_gripper"
+              start_recording_service="/record_rebot_motion/start"
+              stop_recording_service="/record_rebot_motion/stop"
+              timeout_sec="5.0"
+              joint_space_step="{joint_space_step}"
+            />
+            <Control ID="Sequence">
+              <Action
+                ID="CallTriggerService"
+                service_name="/record_rebot_motion/start"
+                response_timeout="3.0"
+                wait_for_server_available_timeout="3.0"
+              />
+              <Action
+                ID="WaitForUserDecision"
+                prompt="Recording. Guide the arm, then press Stop recording."
+                approve_label="Stop recording"
+                reject_label="Discard"
+                timeout_sec="{max_recording_seconds}"
+              />
+              <Action
+                ID="CallTriggerService"
+                service_name="/record_rebot_motion/stop"
+                response_timeout="3.0"
+                wait_for_server_available_timeout="3.0"
+              />
+            </Control>
+          </Control>
+          <SubTree ID="Stop Gravity Comp" _collapsed="true" />
+          <Action
+            ID="SaveJointTrajectoryToYaml"
+            message="{recording}"
+            yaml_filename="{recording_path}"
+            overwrite="{overwrite}"
+          />
+        </Control>
+        <!-- Discard, a refused step or a failed save: end the float, save nothing. -->
+        <Control ID="Sequence" name="restore_spring_and_fail">
+          <Decorator ID="ForceSuccess">
+            <SubTree ID="Stop Gravity Comp" _collapsed="true" />
+          </Decorator>
+          <Action
+            ID="LogMessage"
+            message="Recording discarded or failed. Nothing was saved; spring gains are restored where the arm was released."
+            log_level="error"
+          />
+          <Action ID="AlwaysFailure" />
+        </Control>
+      </Control>
+    </Control>
+  </BehaviorTree>
+  <TreeNodesModel>
+    <SubTree ID="Record reBot Motion">
+      <MetadataFields>
+        <Metadata runnable="true" />
+        <Metadata subcategory="reBot" />
+      </MetadataFields>
+      <input_port name="recordings_folder" default="" type="std::string">
+        Existing folder for recordings, as an absolute path inside the Runtime
+        container, e.g. a folder under the MoveIt Pro data directory. Not '~'
+        or '$HOME'.
+      </input_port>
+      <input_port name="motion_name" default="" type="std::string">
+        Recording name; saved as motion_name.yaml in recordings_folder.
+      </input_port>
+      <input_port name="overwrite" default="false" type="bool">
+        Replace an existing recording of the same name. If false, a taken name
+        fails before the arm floats.
+      </input_port>
+      <input_port name="joint_space_step" default="0.01" type="double">
+        Keep a sample only after the arm has moved this far (L1 norm of the
+        joint change, rad) since the last kept one; 0 keeps every sample.
+      </input_port>
+      <input_port name="max_recording_seconds" default="600.0" type="double">
+        Longest recording. Past it the recording is discarded and spring gains
+        are restored.
+      </input_port>
+    </SubTree>
+  </TreeNodesModel>
+</root>
