@@ -373,12 +373,9 @@ Other `ros_global_params`, with their defaults: `rebot_leader_publish_rate`
 `rebot_leader_engage_jaw_speed_rad_s` (1.0, joint7) and
 `rebot_leader_engage_max_offset_rad` (0.6, arm joints only). Any value other than
 YAML `true`/`false` for `rebot_leader_enabled` fails the launch. The bridge
-checks targets against the selected config's own URDF and SRDF. The stock SRDF
-keeps link2/link5 checked: with the arm folded at HOME and J3 or J4 reading
-slightly below zero (for example J3 -0.01 rad), the stock model reports that
-contact and the bridge refuses to engage or follow. The Boston SRDF excludes
-the pair. Excluding it in a child SRDF also changes planning collision checks;
-verify the clearance on the installation first.
+checks targets against the selected config's own URDF and SRDF. Like the
+Boston SRDF, the stock SRDF excludes link2/link5, so a folded rest reading
+slightly off HOME (for example J3 -0.01 rad) is not reported as contact.
 
 ### Mirror reBot Leader engage
 
