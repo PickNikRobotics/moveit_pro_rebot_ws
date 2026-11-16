@@ -1,16 +1,152 @@
 # KDL gravity compensation controller
 
-A ros2_control **chainable** downstream controller for a URDF serial chain.
-It reads measured joint positions and writes, per joint:
+**Let gravity feedforward carry the predictable load, not the position error.**
+This ros2_control chainable controller adds model-based gravity effort to an
+upstream effort command. With no upstream controller, it runs gravity-only.
+
+## 1. Why does a soft spring sag?
+
+In spring/impedance mode, a joint must deflect to produce spring torque. At rest,
+damping contributes nothing: without feedforward, position error carries the
+weight. More stiffness reduces sag, but also makes the joint less compliant.
+
+<picture>
+  <source media="(prefers-color-scheme: dark) and (max-width: 600px)" srcset="docs/figures/spring-sag-dark-mobile.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/figures/spring-sag-dark.svg">
+  <source media="(max-width: 600px)" srcset="docs/figures/spring-sag-light-mobile.svg">
+  <img alt="Spring and damping motor law: without feedforward, the measured joint angle sags below its dashed desired angle to generate holding torque." src="docs/figures/spring-sag-light.svg" width="560">
+</picture>
+
+*At a stationary target, q\* is the desired angle and q is the measured angle.
+The sag sketch is illustrative: a local, unsaturated equilibrium, not a measurement.*
+
+## 2. Where does the gravity controller sit?
+
+Two controllers cannot both claim hardware `joint/effort`. Instead, the upstream
+effort controller writes **gravity's reference**; gravity adds its contribution
+and is the **only hardware effort writer**. Controller manager runs upstream
+before gravity, with no topic round-trip between them.
+
+<picture>
+  <source media="(prefers-color-scheme: dark) and (max-width: 600px)" srcset="docs/figures/effort-chain-dark-mobile.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/figures/effort-chain-dark.svg">
+  <source media="(max-width: 600px)" srcset="docs/figures/effort-chain-light-mobile.svg">
+  <img alt="An upstream effort controller writes gravity's reference. Gravity adds the KDL torque from measured positions and alone writes hardware effort. A position controller uses a separate target path to the unchanged driver." src="docs/figures/effort-chain-light.svg" width="560">
+</picture>
+
+*Orange: effort. Purple: gravity model. Green: measured position. Dashed blue:
+separate position target, only on hardware that supports both command types.*
+
+Per joint, the [controller](src/gravity_compensation_controller.cpp) writes:
 
 ```text
 hardware effort = upstream effort + gains[i] * gravity(q)[i] + offsets[i]
 ```
 
-Gravity comes from KDL `ChainDynParam::JntToGravity`. Gains and offsets apply
-only to the gravity contribution, never to upstream effort. The controller
-adds gravity once per update; it does not accumulate commands or change the
-driver, motor gains, torque limits, or motion policy.
+The model uses **measured q**, the URDF chain, mounting gravity and optional
+payload. Gains never scale upstream effort; do not add the same gravity term
+again upstream. Keeping the model here makes its parameters, lifecycle and
+fake-hardware tests independent of the driver. A position-only jog or trajectory
+controller is **not** an upstream effort producer.
+
+## 3. What does feedforward take off the spring?
+
+It supplies the **predicted gravity load**, reducing the torque the spring must
+create through position error. It does not remove model error, friction,
+contact forces or the need for damping.
+
+<picture>
+  <source media="(prefers-color-scheme: dark) and (max-width: 600px)" srcset="docs/figures/feedforward-benefit-dark-mobile.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/figures/feedforward-benefit-dark.svg">
+  <source media="(max-width: 600px)" srcset="docs/figures/feedforward-benefit-light-mobile.svg">
+  <img alt="For the same load and stiffness, gravity feedforward supplies the predicted share of holding torque; the spring still carries a striped residual load. Bar proportions are illustrative, not measured." src="docs/figures/feedforward-benefit-light.svg" width="560">
+</picture>
+
+*Equal bars: the same required holding torque. Orange is feedforward; hatching
+is the spring's remaining job. Proportions are illustrative, not measured.*
+
+Locally at rest, with positive stiffness and no saturation:
+**q\* − q ≈ (τ<sub>load</sub> − τ<sub>ff</sub>) / k<sub>p</sub>**.
+A better gravity estimate can reduce sag without increasing stiffness; it is
+not a guarantee of physical balance or safe hold.
+
+### What stays in the driver?
+
+In reBot motion mode, the unchanged [driver](https://github.com/PickNikRobotics/robstride_hardware_interface/blob/d46eecd608632e832e39a53c930de4026c2d1cfc/src/robstride_hardware_interface.cpp)
+maps the summed effort to motor sign. The SDK
+[encodes](https://github.com/PickNikRobotics/RobstrideSDK/blob/9d070193758b4d88d065f1b8add815c0f540cebc/include/robstride_sdk/robstride_motor.hpp)
+and [clamps](https://github.com/PickNikRobotics/RobstrideSDK/blob/9d070193758b4d88d065f1b8add815c0f540cebc/include/robstride_sdk/robstride_protocol.hpp)
+feedforward to its motor-model wire range. Existing freeze/fault handling can
+suppress commands; CSP uses a separate position-target path.
+
+**This controller adds no clamp.** The reBot physical config caps J2
+feedforward at 18 Nm with `max_feedforward_effort`; the other motors keep their
+driver defaults. Wire ranges
+are not continuous-hold ratings and do not bound total spring + damping +
+feedforward torque. `~/commanded_effort` is the **pre-limit request**, not
+measured motor torque.
+
+The reBot mock and MuJoCo configs expose no arm effort command interfaces, so
+gravity does not run there. The [physical config](../rebot_b601_rs_hw/config/config.yaml)
+selects real motion mode with effort commands and **activates gravity at
+startup** with unit gains and zero offsets. Nothing here enables motors or
+changes gains, limits or motion policy.
+
+## Which path do reBot's motion controllers use?
+
+In the current [reBot B601-RS controller configuration](../rebot_b601_rs_mock/config/control/rebot.ros2_control.yaml),
+all three controllers below write **position**, not gravity's effort references.
+The gravity path shown alongside each exists only on the physical config, where
+standalone gravity is **active at startup** and owns the motion-mode effort interfaces.
+These are parallel commands to the driver, not effort-reference chains.
+
+### Planned motion and Interactive Marker — trajectory controller
+
+`joint_trajectory_admittance_controller` receives the planned trajectory at
+`/joint_trajectory_admittance_controller/follow_joint_trajectory`. It writes
+J1–J7 position setpoints; selecting an Interactive Marker alone is not execution.
+
+<picture>
+  <source media="(prefers-color-scheme: dark) and (max-width: 600px)" srcset="docs/figures/trajectory-position-path-dark-mobile.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/figures/trajectory-position-path-dark.svg">
+  <source media="(max-width: 600px)" srcset="docs/figures/trajectory-position-path-light-mobile.svg">
+  <img alt="Planned motion and Interactive Marker execution send a trajectory action to joint_trajectory_admittance_controller. Its position commands and independently active gravity effort reach the driver in parallel, not through an effort-reference chain." src="docs/figures/trajectory-position-path-light.svg" width="560">
+</picture>
+
+*JTAC commands position; no force/torque sensor is configured for admittance here.*
+
+### Joint Jog — joint velocity controller
+
+`joint_velocity_controller` receives joint velocity requests at
+`/joint_velocity_controller/command`, but integrates them into **position
+setpoints** on J1–J6. Velocity in the input name does not mean a velocity or
+effort hardware command.
+
+<picture>
+  <source media="(prefers-color-scheme: dark) and (max-width: 600px)" srcset="docs/figures/joint-jog-position-path-dark-mobile.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/figures/joint-jog-position-path-dark.svg">
+  <source media="(max-width: 600px)" srcset="docs/figures/joint-jog-position-path-light-mobile.svg">
+  <img alt="Joint Jog sends joint velocities to joint_velocity_controller, which generates J1–J6 position setpoints. Separately active gravity writes effort; both go to the unchanged driver and motor, not gravity reference interfaces." src="docs/figures/joint-jog-position-path-light.svg" width="560">
+</picture>
+
+*Arm Joint Jog uses JVC. Gripper jog uses its separate J7 position controller.*
+
+### Pose Jog — velocity force controller
+
+`velocity_force_controller` receives Cartesian velocity requests at
+`/velocity_force_controller/command` and generates J1–J6 **position setpoints**.
+The reBot configuration has no force/torque sensor; the controller's name does
+not make its output effort.
+
+<picture>
+  <source media="(prefers-color-scheme: dark) and (max-width: 600px)" srcset="docs/figures/pose-jog-position-path-dark-mobile.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/figures/pose-jog-position-path-dark.svg">
+  <source media="(max-width: 600px)" srcset="docs/figures/pose-jog-position-path-light-mobile.svg">
+  <img alt="Pose Jog sends Cartesian velocity requests to velocity_force_controller, which generates J1–J6 position setpoints. Standalone gravity, active at startup on the physical config, uses a parallel effort command path to the driver; VFC does not feed the gravity references." src="docs/figures/pose-jog-position-path-light.svg" width="560">
+</picture>
+
+*VFC's configured output is position. None of these three controllers supplies
+upstream effort to KDL in this configuration.*
 
 ## Interfaces and ownership
 
@@ -41,7 +177,19 @@ and effort commands. An effort-only driver needs only the downstream effort
 claim. This controller does not turn a position-only driver into an effort
 driver, and it does not provide position holding, damping or trajectory control.
 
-## Standalone gravity-only setup
+## Standalone versus chained operation
+
+- **Standalone:** upstream effort is zero; references are ignored. No input topic
+  is needed. Output is `gain * G(q) + offset`.
+- **Chained:** a synchronous upstream producer writes gravity's references each
+  cycle. Output is `upstream + gain * G(q) + offset`.
+
+Gravity has the same hardware claims in both modes. Controller manager selects
+chained mode when an upstream controller claims references; deactivating that
+producer returns gravity to standalone. Lifecycle/mode changes clear references.
+**Zero effort is not a loaded arm's safe hold.**
+
+### Standalone gravity-only setup
 
 Add the plugin type and parameters to a controller manager's configuration:
 
@@ -86,7 +234,7 @@ nonzero gravity requires deliberate configuration and commissioning. The
 library preserves the original parameter default of unit gains when `gains`
 is omitted, so **do not omit gains to disable gravity**.
 
-## Chaining an upstream effort controller
+### Chaining an upstream effort controller
 
 Configure the upstream controller's command interface names to use the exported
 references. For example, the standard `forward_command_controller` can forward
@@ -122,10 +270,10 @@ on update; activation order within a switch request is not update order.
 **Producers must write every claimed reference on every gravity cycle**,
 synchronously at gravity's update rate. Each update consumes the references and
 clears them to NaN, so a skipped cycle contributes zero effort, not the last
-value; asynchronous/multi-rate producers are not supported. A trajectory or spring-mass-damper controller must likewise
-support separate command-interface names; adding another direct hardware
-`effort` claimant is not chaining. No production upstream controller is added
-by this package.
+value; asynchronous/multi-rate producers are not supported. A trajectory or
+spring-mass-damper controller must likewise support separate command-interface
+names; adding another direct hardware `effort` claimant is not chaining. No
+production upstream controller is added by this package.
 
 The forward controller is only an interface example, not a safe motion
 controller: it holds its last array and provides no command timeout, damping,
@@ -133,13 +281,24 @@ position/velocity limits or collision checking. Commands above are for fake
 hardware only. Use a commissioned effort producer and hardware-specific safety
 procedures on a real robot.
 
+## Every cycle consumes and clears its input
+
+**Write → read once → clear to NaN → add gravity.** References are single-cycle
+inputs, not a hold-last-command buffer. NaN means **no input this cycle**, so
+that joint gets zero upstream effort while its gravity contribution remains.
+Unreadable or infinite input is an error, not a missing command.
+
+Clearing also happens on failed updates. A six-joint producer replaced by a
+three-joint producer leaves no old effort on the released joints. Every claimed
+reference must be rewritten each cycle; asynchronous/multi-rate producers are
+unsupported. This prevents stale **reference** reuse, not stale data inside a
+producer that keeps rewriting its last value.
+
 ## Lifecycle, missing data and diagnostics
 
 - Reference handles start as NaN, the standard ros2_control "no command"
-  value. Every update reads each reference once and clears it to NaN;
-  activation, deactivation and chained-mode switches clear them too. A NaN
-  reference (unclaimed, released, or not written this cycle) contributes zero,
-  so gravity-only output continues. Standalone ignores references entirely.
+  value. Activation, deactivation and chained-mode switches clear them too.
+  Standalone clears and ignores all upstream references on every update.
 - Controller manager performs mode switches while gravity is inactive. To
   return to standalone, deactivate the upstream controller through controller
   manager; to stop the chain, deactivate upstream and gravity together. It
@@ -150,8 +309,8 @@ procedures on a real robot.
 - Activation requires finite measured positions and complete, correctly named
   double interfaces. Missing/non-finite positions, unreadable or infinite
   references, solver errors, non-finite output (including arithmetic
-  overflow), and failed command writes return `ERROR`. Invalid updates attempt to zero **all** hardware efforts and
-  do not publish a successful output. A failed zero write is still an error,
+  overflow), and failed command writes return `ERROR`. Invalid updates attempt
+  to zero **all** hardware efforts and do not publish a successful output. A failed zero write is still an error,
   not evidence that hardware reached zero. Controller manager handles error
   deactivation of the chain.
 - Deactivation and shutdown attempt to zero effort. **Zero effort is not a
