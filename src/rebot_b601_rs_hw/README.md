@@ -373,12 +373,9 @@ Other `ros_global_params`, with their defaults: `rebot_leader_publish_rate`
 `rebot_leader_engage_jaw_speed_rad_s` (1.0, joint7) and
 `rebot_leader_engage_max_offset_rad` (0.6, arm joints only). Any value other than
 YAML `true`/`false` for `rebot_leader_enabled` fails the launch. The bridge
-checks targets against the selected config's own URDF and SRDF. The stock SRDF
-keeps link2/link5 checked: with the arm folded at HOME and J3 or J4 reading
-slightly below zero (for example J3 -0.01 rad), the stock model reports that
-contact and the bridge refuses to engage or follow. The Boston SRDF excludes
-the pair. Excluding it in a child SRDF also changes planning collision checks;
-verify the clearance on the installation first.
+checks targets against the selected config's own URDF and SRDF. Like the
+Boston SRDF, the stock SRDF excludes link2/link5, so a folded rest reading
+slightly off HOME (for example J3 -0.01 rad) is not reported as contact.
 
 ### Mirror reBot Leader engage
 
@@ -475,6 +472,34 @@ JTAC the arm position owner, so they also work after a teleoperation jog or
 Mirror left another position controller active; gravity stays active. The independent thermal
 recovery sequence remains required during physical use. Source integration and
 offline tests do not certify float quality or motor-side gain delivery.
+
+## Record and Replay reBot Motion
+
+`Record reBot Motion` saves a hand-guided motion of J1-J7 to
+`<recordings_folder>/<motion_name>.yaml`; `Replay reBot Motion` plays it back.
+Both reuse the stock `RecordJointTrajectory`, `SaveJointTrajectoryToYaml`,
+`LoadJointTrajectoryFromYaml` and `ExecuteTrajectory` Behaviors.
+
+- `recordings_folder` is an existing absolute folder inside the Runtime
+  container, outside this repository. Use one that the host mounts, for example
+  under the MoveIt Pro data directory. `~` and `$HOME` are refused, since they
+  resolve inside the container.
+- `motion_name` is required. A taken name fails before the arm floats unless
+  `overwrite` is true.
+- Record engages with spring gains, then asks for Start recording. Start floats
+  J1-J6 (Start Gravity Comp) and records. Stop recording restores spring gains
+  where the arm is released, then saves. Discard, a refused step or a failed
+  save also restores spring gains and saves nothing.
+- Use Stop recording or Discard, not the Objective Stop button. A stopped
+  Objective leaves the float on until the next reBot motion Objective engages.
+- The jaw stays spring-held during the float, so a recording carries the jaw
+  where it is held.
+- Replay engages, checks the recording against the current planning scene and
+  plans an approach to its first point. It then executes the recording with its
+  recorded timing and holds at the last point with spring gains. It never moves
+  HOME or relaxes.
+- An empty run-time text input reaches the tree as `null`, so `null` is refused
+  as a name or folder.
 
 ## Verification and rollback
 

@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root BTCPP_format="4" main_tree_to_execute="Replay reBot Motion">
+  <BehaviorTree
+    ID="Replay reBot Motion"
+    _description="Replay a motion saved by Record reBot Motion from recordings_folder/motion_name.yaml, jaw included. Loads it, then engages with spring gains, checks the recording against the current planning scene, plans an approach from the current pose to its first point, and executes it with its recorded timing. Ends at the recording's last point, held by JTAC with spring gains; it never moves HOME or relaxes."
+  >
+    <Control ID="Sequence" name="replay_rebot_motion">
+      <!-- A missing name or recording fails before anything engages or moves. -->
+      <!-- An empty run-time string input reaches the tree as 'null'. -->
+      <Control ID="Fallback" name="require_name_and_folder">
+        <Action
+          ID="ScriptCondition"
+          code="motion_name != '' &amp;&amp; motion_name != 'null' &amp;&amp; recordings_folder != '' &amp;&amp; recordings_folder != 'null'"
+        />
+        <Control ID="Sequence">
+          <Action
+            ID="LogMessage"
+            message="Enter recordings_folder and motion_name."
+            log_level="error"
+          />
+          <Action ID="AlwaysFailure" />
+        </Control>
+      </Control>
+      <Action
+        ID="Script"
+        code="recording_path := recordings_folder .. '/' .. motion_name .. '.yaml'"
+      />
+      <Action
+        ID="LoadJointTrajectoryFromYaml"
+        file_path="{recording_path}"
+        output="{recording}"
+      />
+      <SubTree ID="reBot Engage Arm" _collapsed="true" />
+      <Action ID="GetCurrentPlanningScene" planning_scene_msg="{scene}" />
+      <Action
+        ID="ValidateTrajectory"
+        planning_scene_msg="{scene}"
+        planning_group_name="manipulator_and_gripper"
+        joint_trajectory_msg="{recording}"
+        joint_space_step="0.02"
+        cartesian_space_step="0.005"
+      />
+      <Action
+        ID="GetRobotStateFromTrajectory"
+        joint_trajectory_msg="{recording}"
+        from_start="true"
+        time_from_reference="0.0"
+        joint_state="{recording_start}"
+      />
+      <SubTree
+        ID="Move to Joint State"
+        _collapsed="true"
+        target_joint_state="{recording_start}"
+        joint_group_name="manipulator_and_gripper"
+        velocity_scale_factor="0.10"
+        acceleration_scale_factor="0.10"
+        seed="0"
+        controller_names="joint_trajectory_admittance_controller"
+        controller_action_server="/joint_trajectory_admittance_controller/follow_joint_trajectory"
+        collision_check_params="[{override_scene_link_padding: true, link_padding: 0.0}]"
+        execution_pipeline="jtac"
+      />
+      <Action
+        ID="ExecuteTrajectory"
+        joint_trajectory_msg="{recording}"
+        execution_pipeline="jtac"
+        controller_action_name="/joint_trajectory_admittance_controller/follow_joint_trajectory"
+      />
+    </Control>
+  </BehaviorTree>
+  <TreeNodesModel>
+    <SubTree ID="Replay reBot Motion">
+      <MetadataFields>
+        <Metadata runnable="true" />
+        <Metadata subcategory="reBot" />
+      </MetadataFields>
+      <input_port name="recordings_folder" default="" type="std::string">
+        Folder the recording was saved in by Record reBot Motion.
+      </input_port>
+      <input_port name="motion_name" default="" type="std::string">
+        Recording name, without .yaml.
+      </input_port>
+    </SubTree>
+  </TreeNodesModel>
+</root>
