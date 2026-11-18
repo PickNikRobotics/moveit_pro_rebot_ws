@@ -2,7 +2,7 @@
 <root BTCPP_format="4" main_tree_to_execute="Record reBot Motion">
   <BehaviorTree
     ID="Record reBot Motion"
-    _description="Record a hand-guided reBot arm motion to recordings_folder/motion_name.yaml. Checks the name and folder first, then engages with spring gains. Press Start recording to float the arm (gravity compensated) and record J1-J7; press Stop recording to restore spring gains where the arm is released and save. Discard, a refused step or a failed save also restores spring gains and saves nothing. Use Stop recording or Discard, not the Objective Stop button: a stopped Objective leaves the float on until the next reBot motion Objective engages. Replay it with Replay reBot Motion."
+    _description="Record a hand-guided reBot arm motion to recordings_folder/motion_name.yaml. Checks the name and folder first, then engages with spring gains. Press Start recording to float the arm (gravity compensated) and record J1-J7; with float_jaw the jaw floats too, so it can be moved by hand. Press Stop recording to restore spring gains (arm and jaw) where they are released and save. Discard, a refused step or a failed save also restores spring gains and saves nothing. Use Stop recording or Discard, not the Objective Stop button: a stopped Objective leaves the float (and a floated jaw) on until the next reBot motion Objective engages. Replay it with Replay reBot Motion."
   >
     <Control ID="Sequence" name="record_rebot_motion">
       <!-- Fail before anything moves on a missing name, folder or a taken name.
@@ -72,6 +72,12 @@
       <Control ID="Fallback" name="record_or_restore_spring">
         <Control ID="Sequence" name="record_and_save">
           <SubTree ID="Start Gravity Comp" _collapsed="true" />
+          <!-- Opt-in jaw float. Start Gravity Comp has just anchored all seven
+               joints at the measured pose; reBot Set Spring Gains restores the
+               jaw's spring gains on every exit that runs Stop Gravity Comp. -->
+          <Decorator ID="Precondition" if="float_jaw == 'true'" else="SUCCESS">
+            <Action ID="SetRebotMotorGain" motor_id="7" gain="kp" value="0.0" />
+          </Decorator>
           <!-- The recorder sets recording only after the stop call, so the save runs once both children succeed. -->
           <Control ID="Parallel" failure_count="1" success_count="2">
             <Action
@@ -93,7 +99,7 @@
               />
               <Action
                 ID="WaitForUserDecision"
-                prompt="Recording. Guide the arm, then press Stop recording."
+                prompt="Recording. Guide the arm (and the jaw if float_jaw is true), then press Stop recording."
                 approve_label="Stop recording"
                 reject_label="Discard"
                 timeout_sec="{max_recording_seconds}"
@@ -146,6 +152,11 @@
       <input_port name="overwrite" default="false" type="bool">
         Replace an existing recording of the same name. If false, a taken name
         fails before the arm floats.
+      </input_port>
+      <input_port name="float_jaw" default="false" type="bool">
+        Also float the jaw (kp 0, damping kept) between Start recording and
+        Stop recording, so it can be opened and closed by hand and the
+        recording carries that jaw motion. If false the jaw stays spring-held.
       </input_port>
       <input_port name="joint_space_step" default="0.01" type="double">
         Keep a sample only after the arm has moved this far (L1 norm of the

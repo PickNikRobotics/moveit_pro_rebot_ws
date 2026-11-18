@@ -70,7 +70,7 @@ def guard():
     result.gain_commands = tuple(
         (i, gain, float(i + (10 if gain == "kp" else 0)))
         for gain in ("kd", "kp")
-        for i in range(1, 7)
+        for i in range(1, 7 if gain == "kd" else 8)
     )
     result.gain_index = 0
     result.gain_started = None
@@ -453,7 +453,7 @@ def gain_description(values=None):
     ET.SubElement(hardware, "plugin").text = (
         "robstride_hardware_interface/RobstrideHardware"
     )
-    for i, (kp, kd) in enumerate(values + [(12, 1)], 1):
+    for i, (kp, kd) in enumerate(values + [(10, 0.7)], 1):
         joint = ET.SubElement(control, "joint", name=f"joint{i}")
         ET.SubElement(joint, "param", name="id").text = str(i)
         gpio = ET.SubElement(control, "gpio", name=f"motor{i}")
@@ -499,7 +499,7 @@ def confirm_anchor(guard, monkeypatch):
     assert guard.stage == "restore"
 
 
-def test_every_trip_anchors_then_restores_all_configured_arm_gains_before_cancel(
+def test_every_trip_anchors_then_restores_all_configured_gains_before_cancel(
     guard, monkeypatch
 ):
     guard.measured = [(q, 0.0) for q in (0.4, 0.7, 0.8, -0.3, 0.2, -0.1, 0.015)]
@@ -521,7 +521,7 @@ def test_every_trip_anchors_then_restores_all_configured_arm_gains_before_cancel
         assert guard.gains.call_async.call_count == index + 1
         assert not guard.cancel.call_async.called
         guard.advance(10.02)
-    assert guard.stage == "cancel" and guard.gain_index == 12
+    assert guard.stage == "cancel" and guard.gain_index == 13
     assert not guard.home.send_goal_async.called and not guard.torque.call_async.called
     guard.advance(10.02)
     assert guard.cancel.call_async.call_count == 1
@@ -585,7 +585,7 @@ def test_missing_configuration_waits_without_default_gain_or_anchor(guard, monke
     assert not guard.switch_controllers.call_async.called
 
 
-def test_configuration_uses_gpio_id_not_order_and_excludes_jaw(guard):
+def test_configuration_uses_gpio_id_not_order_and_restores_only_jaw_kp(guard):
     root = gain_description()
     control = root.find("ros2_control")
     control[:] = list(reversed(control[:]))
@@ -604,6 +604,7 @@ def test_configuration_uses_gpio_id_not_order_and_excludes_jaw(guard):
         (4, "kp", 49.0),
         (5, "kp", 48.0),
         (6, "kp", 47.0),
+        (7, "kp", 10.0),
     )
     # Initial config is immutable even if another description later arrives.
     saved = guard.gain_commands
@@ -681,7 +682,7 @@ def test_prelude_failure_stops_without_home_or_torque(guard, monkeypatch, bad):
         assert guard.gains.call_async.call_count == 1
 
 
-def test_new_latch_discards_previous_anchor_and_repeats_all_twelve_gains(
+def test_new_latch_discards_previous_anchor_and_repeats_all_thirteen_gains(
     guard, monkeypatch
 ):
     original_gains = guard.gain_commands
@@ -691,10 +692,10 @@ def test_new_latch_discards_previous_anchor_and_repeats_all_twelve_gains(
         begin_anchor(guard, monkeypatch)
         assert guard.reference_samples == 0 and guard.gain_index == 0
         confirm_anchor(guard, monkeypatch)
-        for _ in range(24):
+        for _ in range(26):
             guard.advance(10.02)
         assert guard.stage == "cancel"
-        assert guard.gains.call_async.call_count == (trial + 1) * 12
+        assert guard.gains.call_async.call_count == (trial + 1) * 13
         assert guard.gain_commands == original_gains
         guard.stage = "cooling"  # existing recovery tests cover HOME/OFF to here
         guard.trip(Obj(data=False))
@@ -899,10 +900,81 @@ def test_controller_manager_unavailable_is_bounded(guard, monkeypatch):
     assert not guard.anchor.send_goal_async.called and not guard.gains.call_async.called
 
 
+def test_trip_during_float_jaw_recording_restores_configured_jaw_kp_before_home(
+    guard, monkeypatch
+):
+    """Record's float_jaw leaves the jaw at kp 0 when a motor trips mid-recording.
+    The guard anchors the jaw where the hand left it, restores the configured jaw
+    kp (jaw_kp from the description) before cancel, and only then requests HOME,
+    whose jaw leg closes the jaw at that stiffness before torque OFF."""
+    guard.gain_commands = None
+    guard.observe_description(
+        Obj(data=ET.tostring(gain_description(), encoding="unicode"))
+    )
+    events = []
+    guard.gains.call_async.side_effect = lambda request: (
+        events.append(("gain", request.id, request.item_name, request.item_data))
+        or future(Obj(result=True))
+    )
+    guard.cancel.call_async.side_effect = lambda request: (
+        events.append(("cancel",)) or future(Obj(return_code=0))
+    )
+    guard.home.send_goal_async.side_effect = lambda goal: (
+        events.append(("home", goal.objective_name))
+        or future(
+            Obj(
+                accepted=True,
+                get_result_async=lambda: future(
+                    Obj(status=4, result=Obj(error_code=Obj(val=1)))
+                ),
+            )
+        )
+    )
+    released = {"anchor": False}
+    anchor_result = Obj(done=lambda: released["anchor"])
+
+    def release_anchor():
+        events.append(("release",))
+        released["anchor"] = True
+        return future(Obj(return_code=0))
+
+    guard.anchor.send_goal_async.return_value = future(
+        Obj(
+            accepted=True,
+            status=2,
+            get_result_async=lambda: anchor_result,
+            cancel_goal_async=release_anchor,
+        )
+    )
+    hand_opened_jaw = 0.03
+    guard.measured = [(0.0, 0.0)] * 6 + [(hand_opened_jaw, 0.0)]
+    finish_gains(guard, monkeypatch)
+    assert guard.anchor_positions[6] == hand_opened_jaw
+    guard.advance(10.03)  # anchor cancel requested and terminal
+    guard.advance(10.03)
+    assert guard.stage == "home"
+    guard.hardware_time = guard.measured_time = 10.6
+    guard.advance(10.6)  # HOME requested
+    guard.advance(10.6)  # accepted
+    guard.measured = [(0.0, 0.0)] * 7  # HOME's jaw leg closed the jaw
+    guard.advance(10.6)  # HOME succeeded
+    guard.advance(10.6)  # dwell begins
+    guard.hardware_time = guard.measured_time = 11.2
+    guard.advance(11.2)  # torque OFF requested
+    assert guard.torque.call_async.call_args.args[0].data is False
+    jaw = events.index(("gain", 7, "kp", 10.0))
+    assert events[jaw + 1 :] == [
+        ("cancel",),
+        ("release",),
+        ("home", "Return reBot Leader Home Under Power"),
+    ]
+    assert ("gain", 7, "kd", 0.7) not in events
+
+
 def finish_gains(guard, monkeypatch):
     begin_anchor(guard, monkeypatch)
     confirm_anchor(guard, monkeypatch)
-    for _ in range(24):
+    for _ in range(26):
         guard.advance(10.02)
     assert guard.stage == "cancel"
     guard.advance(10.02)  # Objective cancel requested

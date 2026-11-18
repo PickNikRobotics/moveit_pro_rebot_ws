@@ -7,6 +7,10 @@ find_package(moveit_pro_behavior_interface REQUIRED)
 find_package(robstride_interfaces REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(std_srvs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(tinyxml2_vendor REQUIRED)
+find_package(TinyXML2 REQUIRED)
 add_library(rebot_hardware_behaviors SHARED
   src/set_rebot_motor_gain.cpp src/call_rebot_leader_service.cpp src/register_behaviors.cpp)
 target_compile_features(rebot_hardware_behaviors PUBLIC cxx_std_20)
@@ -14,7 +18,8 @@ target_include_directories(rebot_hardware_behaviors PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 ament_target_dependencies(rebot_hardware_behaviors
-  moveit_pro_behavior_interface robstride_interfaces pluginlib std_srvs)
+  moveit_pro_behavior_interface robstride_interfaces pluginlib std_srvs std_msgs rclcpp)
+target_link_libraries(rebot_hardware_behaviors tinyxml2::tinyxml2)
 install(TARGETS rebot_hardware_behaviors EXPORT rebot_hardware_behaviorsTargets
   LIBRARY DESTINATION lib ARCHIVE DESTINATION lib RUNTIME DESTINATION bin)
 install(DIRECTORY include/ DESTINATION include)
@@ -22,7 +27,8 @@ install(DIRECTORY description DESTINATION share/${PROJECT_NAME})
 pluginlib_export_plugin_description_file(moveit_pro_behavior_interface
   rebot_hardware_behaviors_plugin_description.xml)
 ament_export_targets(rebot_hardware_behaviorsTargets HAS_LIBRARY_TARGET)
-ament_export_dependencies(moveit_pro_behavior_interface robstride_interfaces pluginlib std_srvs)
+ament_export_dependencies(moveit_pro_behavior_interface robstride_interfaces pluginlib std_srvs std_msgs rclcpp
+  tinyxml2_vendor TinyXML2)
 include(cmake/generate_home.cmake)
 rebot_generate_home(objective
   ${CMAKE_CURRENT_SOURCE_DIR}/objectives/return_rebot_leader_home.xml.in
@@ -65,8 +71,6 @@ if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   find_package(moveit_pro_test_utils REQUIRED)
   find_package(moveit_pro_behavior REQUIRED)
-  find_package(tinyxml2_vendor REQUIRED)
-  find_package(TinyXML2 REQUIRED)
   ament_add_gtest(test_relax_objectives test/test_relax_objectives.cpp TIMEOUT 60)
   target_compile_features(test_relax_objectives PRIVATE cxx_std_20)
   ament_target_dependencies(test_relax_objectives moveit_pro_test_utils)

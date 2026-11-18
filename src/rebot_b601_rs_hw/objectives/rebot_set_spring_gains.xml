@@ -2,7 +2,7 @@
 <root BTCPP_format="4" main_tree_to_execute="reBot Set Spring Gains">
   <BehaviorTree
     ID="reBot Set Spring Gains"
-    _description="Re-anchor the already-active JTAC at the measured arm pose before queueing the configured spring gains (kd, then kp) for arm motors 1-6. JTAC and gravity compensation must be active and stay active; the jaw is unchanged."
+    _description="Re-anchor the already-active JTAC at the measured arm and jaw pose before queueing the configured spring gains (kd, then kp) for arm motors 1-6, then the jaw's (motor 7) configured kp from /robot_description, which also ends a jaw float. JTAC and gravity compensation must be active and stay active."
   >
     <Control ID="Sequence" name="set_spring_gains">
       <Action
@@ -39,6 +39,9 @@
       <Action ID="SetRebotMotorGain" motor_id="4" gain="kp" value="50.0" />
       <Action ID="SetRebotMotorGain" motor_id="5" gain="kp" value="50.0" />
       <Action ID="SetRebotMotorGain" motor_id="6" gain="kp" value="50.0" />
+      <!-- Jaw: no value writes its configured kp. That is a no-op unless
+           Record reBot Motion float_jaw left the jaw at kp 0 (damping kept). -->
+      <Action ID="SetRebotMotorGain" motor_id="7" gain="kp" />
     </Control>
   </BehaviorTree>
   <TreeNodesModel>

@@ -68,7 +68,7 @@ The float and spring gain constants are in
 [`rebot_set_float_gains.xml`](../objectives/rebot_set_float_gains.xml)
 and
 [`rebot_set_spring_gains.xml`](../objectives/rebot_set_spring_gains.xml),
-which Start/Stop and the engage-first entries call. If spring gains change,
+which Start/Stop and the engage-first entries call. If arm spring gains change,
 update both subtrees as well. The stock gravity
 controller gains are in
 [`rebot_b601_rs_mock/config/control/rebot.ros2_control.yaml`](../../rebot_b601_rs_mock/config/control/rebot.ros2_control.yaml);

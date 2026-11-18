@@ -34,11 +34,12 @@ claim its command interfaces, when Mirror or jog left another owner), then sends
 JTAC a nonzero-stamped stationary goal with two identical measured
 seven-joint poses. After two advancing controller-reference samples match that
 pose, it restores the configured `kd` for arm motor IDs 1–6, then their `kp`,
-one acknowledged request at a time through
+then the jaw's (ID 7) `kp`, one acknowledged request at a time through
 `/robstride_hardware_interface/set_data_to_robstride`. The values come from
-the initial `/robot_description` GPIO configuration; the jaw gains and gravity
-compensation are unchanged. JTAC stays active and the stationary goal remains
-observable for up to 10 s while gains are restored.
+the initial `/robot_description` GPIO configuration; the jaw `kd` and gravity
+compensation are unchanged. Restoring the jaw `kp` ends a Record `float_jaw`
+float, so HOME's jaw leg can close the jaw. JTAC stays active and the
+stationary goal remains observable for up to 10 s while gains are restored.
 
 Only after that restore does the guard cancel the active Objective, cancel its
 own anchor goal and wait for its terminal status (JTAC would stitch HOME onto an
@@ -492,8 +493,29 @@ Both reuse the stock `RecordJointTrajectory`, `SaveJointTrajectoryToYaml`,
   save also restores spring gains and saves nothing.
 - Use Stop recording or Discard, not the Objective Stop button. A stopped
   Objective leaves the float on until the next reBot motion Objective engages.
-- The jaw stays spring-held during the float, so a recording carries the jaw
-  where it is held.
+- By default (`float_jaw` false) the jaw stays spring-held during the float, so
+  a recording carries the jaw where it is held.
+- `float_jaw` true also floats the jaw while recording, so it can be opened and
+  closed by hand (for picking demos). After Start Gravity Comp has anchored all
+  seven joints at the measured pose, Record writes jaw kp 0 (kd unchanged).
+  The jaw's configured kp (`jaw_kp`, read from the `/robot_description` GPIO
+  for motor 7) comes back, anchored where the jaw is released, on every exit
+  that ends the arm float: Stop recording, Discard, a refused step or a failed
+  save run Stop Gravity Comp, after an Objective Stop the next
+  `reBot Engage Arm` does it, and a thermal trip's guard restores it before
+  HOME. `reBot Set Spring Gains` writes the configured jaw kp on every spring
+  restore, which changes nothing when the jaw was not floated, so a custom
+  `jaw_kp` is kept. This applies on RobStride hardware. In the MuJoCo twin or
+  mock the description has no RobStride block, so the jaw write is a no-op
+  that succeeds.
+- Replay commands the recorded jaw positions with the spring gains. A grasp
+  closed by hand on an object replays as the jaw position at contact, with no
+  extra squeeze.
+- **`float_jaw` is twin-proven only.** The MuJoCo twin does not model kp/kd, so
+  the twin proof checks the gain writes (driver stand-in; the configured jaw kp
+  restore writes nothing there) and the recorded and replayed jaw motion, not
+  how the jaw feels in the hand. The real-arm check of the jaw float and
+  restore gains is pending.
 - Replay engages, checks the recording against the current planning scene and
   plans an approach to its first point. It then executes the recording with its
   recorded timing and holds at the last point with spring gains. It never moves

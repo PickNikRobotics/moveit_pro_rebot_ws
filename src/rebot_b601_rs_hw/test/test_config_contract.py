@@ -226,12 +226,13 @@ def test_physical_spring_and_nominal_gravity_startup():
     ]
     arm_kp = [50.0, 150.0, 150.0, 50.0, 50.0, 50.0]
     arm_kd = [3.0, 10.0, 10.0, 5.0, 4.0, 4.0]
+    jaw_kp, jaw_kd = 12.0, 0.5
     for index, gpio in enumerate(robot.findall("ros2_control/gpio")):
         params = {p.get("name"): p.text for p in gpio.findall("param")}
         assert params["control_mode"] == "motion"
-        if index < 6:
-            assert float(params["kp"]) == arm_kp[index]
-            assert float(params["kd"]) == arm_kd[index]
+        kp, kd = (arm_kp[index], arm_kd[index]) if index < 6 else (jaw_kp, jaw_kd)
+        assert float(params["kp"]) == kp
+        assert float(params["kd"]) == kd
     path = Path(get_package_share_directory("rebot_b601_rs_mock"))
     controllers = yaml.safe_load(
         (path / "config/control/rebot.ros2_control.yaml").read_text()
@@ -258,17 +259,26 @@ def test_physical_spring_and_nominal_gravity_startup():
         assert limits[joint]["max_position"] == upper
         assert float(limit.get("lower")) == lower
         assert float(limit.get("upper")) == upper
-    # Stop's source values must track the configured spring gains. The execution
-    # regression separately proves the ordering and actual service requests.
+    # Stop's arm source values must track the configured spring gains; the jaw
+    # (motor 7) kp has no value, so the behavior writes the configured one and
+    # Stop also ends a Record float_jaw float. The execution regression
+    # separately proves the ordering and actual service requests.
     objectives = Path(get_package_share_directory("rebot_b601_rs_hw")) / "objectives"
     stop = ET.parse(objectives / "rebot_set_spring_gains.xml").getroot()
     requests = stop.findall(".//Action[@ID='SetRebotMotorGain']")
     assert [
-        (int(r.get("motor_id")), r.get("gain"), float(r.get("value"))) for r in requests
+        (
+            int(r.get("motor_id")),
+            r.get("gain"),
+            None if r.get("value") is None else float(r.get("value")),
+        )
+        for r in requests
     ] == [
         (i + 1, gain, value)
         for gain, values in [("kd", arm_kd), ("kp", arm_kp)]
         for i, value in enumerate(values)
+    ] + [
+        (7, "kp", None)
     ]
     # Both mode Objectives first make JTAC the position owner (a jog or leader
     # controller may hold it), then run their gain subtree unchanged. Start
