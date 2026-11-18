@@ -10,3 +10,6 @@
 [submodule "src/external_dependencies/rebot_description"]
 	path = src/external_dependencies/rebot_description
 	url = https://github.com/Seeed-Projects/reBot-DevArm.git
+[submodule "src/external_dependencies/OrbbecSDK_ROS2"]
+	path = src/external_dependencies/OrbbecSDK_ROS2
+	url = https://github.com/orbbec/OrbbecSDK_ROS2.git
