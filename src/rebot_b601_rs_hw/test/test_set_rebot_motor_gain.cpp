@@ -6,11 +6,14 @@
 #include <moveit_pro_test_utils/ros_test.hpp>
 #include <pluginlib/class_loader.hpp>
 #include <rebot_b601_rs_hw/set_rebot_motor_gain.hpp>
+#include <std_msgs/msg/string.hpp>
 
 #include <atomic>
 #include <chrono>
 #include <limits>
+#include <string>
 #include <thread>
+#include <utility>
 
 using namespace std::chrono_literals;
 using GainService = robstride_interfaces::srv::SetDataToRobstride;
@@ -106,7 +109,7 @@ TEST_F(MotorGainTest, QueuesExactArmGainWithBoundedTimeout)
 
 TEST_F(MotorGainTest, EveryRequiredPortMustBePresent)
 {
-  for (const auto* port : { "motor_id", "gain", "value" })
+  for (const auto* port : { "motor_id", "gain" })
   {
     SCOPED_TRACE(port);
     const auto saved = config.input_ports.at(port);
@@ -118,9 +121,116 @@ TEST_F(MotorGainTest, EveryRequiredPortMustBePresent)
   }
 }
 
-TEST_F(MotorGainTest, InvalidArmIdCannotReachDriver)
+// A RobStride description as the driver config publishes it: the jaw GPIO comes
+// first and carries a non-stock jaw_kp, so neither order nor a stock constant passes.
+std::string description(const std::string& extra_control = "")
 {
-  for (const auto* value : { "-1", "0", "7", "256", "motor2" })
+  return R"(<robot name="rebot"><ros2_control name="RebotSystem" type="system">
+    <hardware><plugin>robstride_hardware_interface/RobstrideHardware</plugin></hardware>
+    <gpio name="motor7"><param name="ID">7</param><param name="kp">10.0</param><param name="kd">0.7</param></gpio>
+    <gpio name="motor2"><param name="ID">2</param><param name="kp">150.0</param><param name="kd">10.0</param></gpio>
+    </ros2_control>)" +
+         extra_control + "</robot>";
+}
+
+class ConfiguredGainTest : public MotorGainTest
+{
+protected:
+  BT::NodeStatus runConfigured(const std::string& published)
+  {
+    auto publisher_node = std::make_shared<rclcpp::Node>("fake_robot_state_publisher");
+    auto publisher = publisher_node->create_publisher<std_msgs::msg::String>(
+        "/robot_description", rclcpp::QoS(1).reliable().transient_local());
+    std_msgs::msg::String message;
+    message.data = published;
+    publisher->publish(message);
+    rclcpp::executors::SingleThreadedExecutor executor;
+    executor.add_node(publisher_node);
+    executor.add_node(context->node);
+    config.input_ports.erase("value");
+    create();
+    return run(&executor);
+  }
+};
+
+TEST_F(ConfiguredGainTest, OmittedValueWritesTheConfiguredJawKp)
+{
+  config.input_ports = { { "motor_id", "7" }, { "gain", "kp" } };
+  EXPECT_EQ(runConfigured(description()), BT::NodeStatus::SUCCESS);
+  EXPECT_EQ(fake->request.id, 7);
+  EXPECT_EQ(fake->request.item_name, "kp");
+  EXPECT_FLOAT_EQ(fake->request.item_data, 10.0f);
+}
+
+TEST_F(ConfiguredGainTest, OmittedValueUsesTheGpioIdAndGain)
+{
+  EXPECT_EQ(runConfigured(description()), BT::NodeStatus::SUCCESS);
+  EXPECT_EQ(fake->request.id, 2);
+  EXPECT_EQ(fake->request.item_name, "kd");
+  EXPECT_FLOAT_EQ(fake->request.item_data, 10.0f);
+}
+
+TEST_F(ConfiguredGainTest, AmbiguousOrMissingConfigurationNeverReachesDriver)
+{
+  const std::string second_driver = R"(<ros2_control name="Other" type="system">
+    <hardware><plugin>robstride_hardware_interface/RobstrideHardware</plugin></hardware></ros2_control>)";
+  const std::string jaw_without_kp = R"(<robot name="rebot"><ros2_control name="RebotSystem" type="system">
+    <hardware><plugin>robstride_hardware_interface/RobstrideHardware</plugin></hardware>
+    <gpio name="motor7"><param name="ID">7</param><param name="kd">0.7</param></gpio></ros2_control></robot>)";
+  for (const auto& [motor, published] :
+       { std::pair{ "7", std::string("not xml") }, std::pair{ "7", description(second_driver) },
+         std::pair{ "4", description() }, std::pair{ "7", jaw_without_kp } })
+  {
+    SCOPED_TRACE(published);
+    config.input_ports = { { "motor_id", motor }, { "gain", "kp" } };
+    EXPECT_EQ(runConfigured(published), BT::NodeStatus::FAILURE);
+    EXPECT_FALSE(fake->started);
+  }
+}
+
+// The MuJoCo twin's ros2_control block (rebot.urdf.xacro, hardware_interface:=mujoco)
+// configures no RobStride motor, so there is no jaw float to end and nothing to write.
+TEST_F(ConfiguredGainTest, DescriptionWithoutRobstrideHardwareWritesNothingAndSucceeds)
+{
+  config.input_ports = { { "motor_id", "7" }, { "gain", "kp" } };
+  EXPECT_EQ(runConfigured(R"(<robot name="rebot"><ros2_control name="RebotSystem" type="system">
+    <hardware><plugin>picknik_mujoco_ros/MujocoSystem</plugin></hardware></ros2_control></robot>)"),
+            BT::NodeStatus::SUCCESS);
+  EXPECT_FALSE(fake->started);
+}
+
+TEST_F(MotorGainTest, OmittedValueWithoutRobotDescriptionNeverReachesDriver)
+{
+  rclcpp::executors::SingleThreadedExecutor executor;
+  executor.add_node(context->node);
+  config.input_ports = { { "motor_id", "7" }, { "gain", "kp" } };
+  create();
+  EXPECT_EQ(run(&executor), BT::NodeStatus::FAILURE);
+  EXPECT_FALSE(fake->started);
+  EXPECT_NE(context->logger->consumeErrorLogBuffer().find("/robot_description"), std::string::npos);
+}
+
+TEST_F(MotorGainTest, QueuesJawGainWithRs00Bounds)
+{
+  config.input_ports = { { "motor_id", "7" }, { "gain", "kp" }, { "value", "0.0" } };
+  create();
+  EXPECT_EQ(run(), BT::NodeStatus::SUCCESS);
+  EXPECT_EQ(fake->request.id, 7);
+  EXPECT_EQ(fake->request.item_name, "kp");
+  EXPECT_FLOAT_EQ(fake->request.item_data, 0.0f);
+  for (const auto& [gain, value] : { std::pair{ "kp", "500.01" }, std::pair{ "kd", "5.01" } })
+  {
+    SCOPED_TRACE(gain);
+    config.input_ports = { { "motor_id", "7" }, { "gain", gain }, { "value", value } };
+    create();
+    EXPECT_EQ(run(), BT::NodeStatus::FAILURE);
+    EXPECT_FALSE(fake->started);
+  }
+}
+
+TEST_F(MotorGainTest, InvalidMotorIdCannotReachDriver)
+{
+  for (const auto* value : { "-1", "0", "8", "256", "motor2" })
   {
     SCOPED_TRACE(value);
     config.input_ports["motor_id"] = value;

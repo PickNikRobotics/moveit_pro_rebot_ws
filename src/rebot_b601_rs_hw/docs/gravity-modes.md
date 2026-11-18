@@ -30,16 +30,25 @@ An installed Objective is not permission or evidence of safe physical use.
 The same JTAC switch, then the same measured-pose trajectory (the
 `reBot Set Spring Gains` subtree), precede all gain writes. Then restore the
 configured stock spring kd `[3,10,10,5,4,4]`, followed by kp
-`[50,150,150,50,50,50]`, and finish. Stop retains torque; it does not command HOME
-or disable motors. These values match the shipped GPIO configuration. A custom
-installation that changes its spring configuration must also update this
-Objective; the thermal guard separately reads its initial gains from the URDF.
+`[50,150,150,50,50,50]`, for arm motor IDs 1–6, then the jaw's (ID 7) kp, and
+finish. The jaw kp has no value in the subtree: `SetRebotMotorGain` reads the
+configured value from the `/robot_description` GPIO for motor 7. It changes
+nothing unless Record reBot Motion's `float_jaw` left the jaw at kp 0; on
+RobStride hardware every spring restore (Stop, Discard and `reBot Engage Arm`)
+therefore also ends a jaw float. In the MuJoCo twin or mock the description has
+no RobStride block, so there are no motor gains and the jaw write is a no-op
+that succeeds; more than one RobStride block, or one without a motor 7 kp,
+fails. Stop retains torque; it does not command HOME or disable motors. The arm
+values match the shipped GPIO configuration. A custom installation that changes
+its arm spring configuration must also update this Objective; the thermal guard
+separately reads its initial gains, jaw kp included, from the URDF.
 
 These reusable damping/stiffness values and sequence come from the published
 [gravity mode source](https://github.com/PickNikRobotics/moveit_pro_example_ws/pull/1138)
 and [integrated source](https://github.com/PickNikRobotics/moveit_pro_example_ws/pull/1139),
 not a new tuning or physical validation run. The two gain subtrees retain the
-original flat sixteen-Action sequence, with only model/category wording changed.
+original flat sixteen-Action sequence, with only model/category wording changed;
+the spring subtree adds the jaw kp restore write.
 The only controller change is the leading JTAC activation; neither Objective
 changes the gravity model, gains, offsets or feedforward caps.
 
@@ -53,8 +62,9 @@ Every top-level arm motion entry (Teleoperate, Mirror, Return reBot Leader Home
 and so Relax at HOME, Move to Raised/Rest, Collect reBot Gravity Data) runs `reBot Engage Arm`, which
 ends with the spring subtree, so it ends the float. The stack family does not.
 
-`SetRebotMotorGain` allows only arm IDs1–6 and kp/kd, validates protocol bounds,
-waits at most3s for service discovery and0.5s for a response, and never accesses
+`SetRebotMotorGain` allows only arm IDs1–6, the jaw ID7 and kp/kd, validates protocol bounds,
+waits at most3s for service discovery, at most 2 s for `/robot_description` when
+no value is given, and0.5s for a response, and never accesses
 CAN directly. Success means the driver queued a request, not motor gain readback.
 A timeout, rejection or cancellation can leave earlier writes applied; there is
 no rollback, arbitrary register write, motor enable or recovery monitor inside
@@ -70,8 +80,8 @@ hardware are fake. Command propagation is disabled so stale commands cannot be
 hidden by copying them into measured state.
 
 Each run starts with a different measured pose and a deliberately stale position
-command. All36gain-service requests observe all7position commands equal to the
-captured measured pose within1e-12rad, including12positive-kp restorations. JTAC
+command. All38gain-service requests observe all7position commands equal to the
+captured measured pose within1e-12rad, including14positive-kp restorations. JTAC
 stays active and the gravity effort remains nominal KDL plus finger payload with
 unit gains. This proves software command ordering, not motor timing, CAN delivery,
 physical holding or the independent thermal HOME path.

@@ -327,6 +327,17 @@ void runModeTest(const std::shared_ptr<rclcpp::executors::SingleThreadedExecutor
         response->scene.robot_state.joint_state.velocity.assign(7, 0.);
         response->scene.robot_state.joint_state.header.stamp = node->now();
       });
+  // The spring subtree's jaw write reads the driver's configured jaw kp; a
+  // non-stock value proves it is the configured gain, not a stock constant.
+  constexpr double kConfiguredJawKp = 10.;
+  auto driver_description =
+      node->create_publisher<std_msgs::msg::String>("/robot_description", rclcpp::QoS(1).reliable().transient_local());
+  std_msgs::msg::String driver;
+  driver.data = R"(<robot name="rebot"><ros2_control name="RebotSystem" type="system">
+    <hardware><plugin>robstride_hardware_interface/RobstrideHardware</plugin></hardware>
+    <gpio name="motor7"><param name="ID">7</param><param name="kp">10.0</param><param name="kd">0.5</param></gpio>
+    </ros2_control></robot>)";
+  driver_description->publish(driver);
   std::vector<GainService::Request> gains;
   std::string scenario;
   bool bad_order = false;
@@ -364,18 +375,20 @@ void runModeTest(const std::shared_ptr<rclcpp::executors::SingleThreadedExecutor
       tree.haltTree();
     require(status == BT::NodeStatus::SUCCESS,
             scenario + " did not succeed: " + context->logger->consumeErrorLogBuffer());
-    require(gains.size() == 12 && !bad_order, scenario + " gain count/order failure");
-    const std::array<double, 6> kd = filename == "rebot_set_float_gains.xml" ?
-                                         std::array<double, 6>{ 1.5, 3.5, 5., 1.25, 1., 1. } :
-                                         std::array<double, 6>{ 3., 10., 10., 5., 4., 4. };
-    const std::array<double, 6> kp = filename == "rebot_set_float_gains.xml" ?
-                                         std::array<double, 6>{} :
-                                         std::array<double, 6>{ 50., 150., 150., 50., 50., 50. };
+    // Float writes arm motors 1-6 only; spring then restores the jaw's (motor 7) configured kp.
+    const bool floating = filename == "rebot_set_float_gains.xml";
+    const std::array<double, 6> kd = floating ? std::array<double, 6>{ 1.5, 3.5, 5., 1.25, 1., 1. } :
+                                                std::array<double, 6>{ 3., 10., 10., 5., 4., 4. };
+    const std::array<double, 6> kp =
+        floating ? std::array<double, 6>{} : std::array<double, 6>{ 50., 150., 150., 50., 50., 50. };
+    require(gains.size() == (floating ? 12U : 13U) && !bad_order, scenario + " gain count/order failure");
     for (size_t i = 0; i < 12; ++i)
     {
       require(gains[i].id == i % 6 + 1 && gains[i].item_name == (i < 6 ? "kd" : "kp"), "gain order mismatch");
       require(gains[i].item_data == (i < 6 ? kd[i] : kp[i - 6]), "wrong gain value");
     }
+    require(floating || (gains[12].id == 7 && gains[12].item_name == "kp" && gains[12].item_data == kConfiguredJawKp),
+            "jaw kp is not the configured value");
     require(controller->activations == 1 && controller->deactivations == 0, "Objective changed JTAC lifecycle");
     require(gravity->get_lifecycle_state().id() == lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE,
             "gravity was deactivated");
@@ -391,7 +404,7 @@ void runModeTest(const std::shared_ptr<rclcpp::executors::SingleThreadedExecutor
   run("rebot_set_float_gains.xml", { -.15, 1.1, 1.3, .5, -.2, .6, .1 });
   run("rebot_set_spring_gains.xml", { .1, .8, 1.5, .2, .3, -.3, .15 });
   switch_controller(false);
-  std::cout << "3/3 exact source gain-subtree runs PASS; 36 fake driver writes checked, 12 positive kp restorations "
+  std::cout << "3/3 exact source gain-subtree runs PASS; 38 fake driver writes checked, 14 positive kp restorations "
                "preceded by exact measured commands.\n";
   executor->remove_node(node);
 }

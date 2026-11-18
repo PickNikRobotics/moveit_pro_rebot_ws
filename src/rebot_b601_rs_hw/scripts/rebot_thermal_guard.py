@@ -177,7 +177,7 @@ class ThermalGuard:
                 raise ValueError("expected one Robstride hardware component")
             control = controls[0]
             gains = {}
-            for motor_id, name in enumerate(JOINT_NAMES[:6], 1):
+            for motor_id, name in enumerate(JOINT_NAMES, 1):
                 joints = control.findall(f"joint[@name='{name}']")
                 if len(joints) != 1 or joints[0].findtext("param[@name='id']") != str(
                     motor_id
@@ -195,11 +195,12 @@ class ThermalGuard:
                     if not math.isfinite(value) or not 0 <= value <= 3.402823e38:
                         raise ValueError(f"motor {motor_id} has invalid {gain}")
                     gains[motor_id, gain] = value
-            # One outstanding service request; damping first, jaw gains untouched.
+            # One outstanding service request; damping first. A float_jaw float
+            # keeps jaw damping, so the jaw (motor 7) restores only its kp.
             self.gain_commands = tuple(
                 (motor_id, gain, gains[motor_id, gain])
                 for gain in ("kd", "kp")
-                for motor_id in range(1, 7)
+                for motor_id in range(1, 7 if gain == "kd" else 8)
             )
         except (ET.ParseError, TypeError, ValueError) as exc:
             self.node.get_logger().error(
@@ -596,7 +597,7 @@ class ThermalGuard:
             self.future = None
             if self.gain_index == len(self.gain_commands):
                 self.node.get_logger().info(
-                    "Measured-pose anchor confirmed; all 12 configured arm gains queued, "
+                    "Measured-pose anchor confirmed; all 13 configured arm and jaw gains queued, "
                     "continuing cancel/HOME/OFF (ACK is not motor gain readback)"
                 )
                 self.stage, self.started = "cancel", now

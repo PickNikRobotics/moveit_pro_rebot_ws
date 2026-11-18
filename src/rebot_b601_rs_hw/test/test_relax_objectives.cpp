@@ -8,6 +8,7 @@
 #include <moveit_pro_behavior_interface/shared_resources_node_loader.hpp>
 #include <moveit_pro_test_utils/ros_test.hpp>
 
+#include <algorithm>
 #include <fstream>
 #include <mutex>
 #include <set>
@@ -323,8 +324,7 @@ TEST_P(EngageFirstMotion, FailedSpringRestoreNeverMoves)
   EXPECT_EQ(run(GetParam()), BT::NodeStatus::FAILURE);
   EXPECT_EQ(receipt.events, (std::vector<std::string>{ kEngage, "switch", "spring" }));
 }
-INSTANTIATE_TEST_SUITE_P(Waypoints, EngageFirstMotion,
-                         testing::Values("Move to Raised", "Move to Rest"));
+INSTANTIATE_TEST_SUITE_P(Waypoints, EngageFirstMotion, testing::Values("Move to Raised", "Move to Rest"));
 
 TEST_F(RelaxObjectives, StartGravityCompEngagesBeforeFloat)
 {
@@ -393,6 +393,14 @@ protected:
                                    return save_fails ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
                                  },
                                  { port("message"), port("yaml_filename"), port("overwrite") });
+    factory.registerSimpleAction("SetRebotMotorGain",
+                                 [this](BT::TreeNode& node) {
+                                   receipt.record("gain:" + node.getInput<std::string>("motor_id").value() + ":" +
+                                                  node.getInput<std::string>("gain").value() + "=" +
+                                                  node.getInput<std::string>("value").value());
+                                   return BT::NodeStatus::SUCCESS;
+                                 },
+                                 { port("motor_id"), port("gain"), port("value") });
     factory.registerSimpleAction("GetCurrentPlanningScene", [](BT::TreeNode&) { return BT::NodeStatus::SUCCESS; },
                                  { out("planning_scene_msg") });
     factory.registerSimpleAction("ValidateTrajectory",
@@ -422,12 +430,13 @@ protected:
       factory.registerBehaviorTreeFromFile(std::string(HW_SHARE "/objectives/") + objective);
   }
   BT::NodeStatus runWith(const std::string& name, const std::string& motion = "wave",
-                         const std::string& overwrite = "false")
+                         const std::string& overwrite = "false", const std::string& float_jaw = "false")
   {
     auto blackboard = BT::Blackboard::create();
     blackboard->set<std::string>("recordings_folder", kFolder);
     blackboard->set<std::string>("motion_name", motion);
     blackboard->set<std::string>("overwrite", overwrite);
+    blackboard->set<std::string>("float_jaw", float_jaw);
     blackboard->set<std::string>("joint_space_step", "0.01");
     blackboard->set<std::string>("max_recording_seconds", "600.0");
     auto tree = factory.createTree(name, blackboard);
@@ -463,6 +472,56 @@ TEST_F(RecordReplay, DiscardRestoresSpringAndSavesNothing)
             (std::vector<std::string>{ kList, "load:" + kPath, kEngage, "switch", "spring", "ask:Start recording",
                                        kEngage, "switch", "float", "record:manipulator_and_gripper", kStart,
                                        "ask:Stop recording", "switch", "spring", "log:error" }));
+}
+// float_jaw: the jaw floats (kp 0) only after Start Gravity Comp anchored all seven
+// joints, and every exit ends it through Stop Gravity Comp's spring subtree.
+const std::string kJawFloat = "gain:7:kp=0.0";
+TEST_F(RecordReplay, FloatJawFloatsJawAfterArmAndRestoresSpringBeforeSave)
+{
+  answers = { true, true };
+  EXPECT_EQ(runWith("Record reBot Motion", "wave", "false", "true"), BT::NodeStatus::SUCCESS);
+  EXPECT_EQ(receipt.events,
+            (std::vector<std::string>{ kList, "load:" + kPath, kEngage, "switch", "spring", "ask:Start recording",
+                                       kEngage, "switch", "float", kJawFloat, "record:manipulator_and_gripper", kStart,
+                                       "ask:Stop recording", kStop, "switch", "spring", "save:" + kPath }));
+}
+TEST_F(RecordReplay, FloatJawDiscardRestoresSpring)
+{
+  answers = { true, false };
+  EXPECT_EQ(runWith("Record reBot Motion", "wave", "false", "true"), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(receipt.events,
+            (std::vector<std::string>{ kList, "load:" + kPath, kEngage, "switch", "spring", "ask:Start recording",
+                                       kEngage, "switch", "float", kJawFloat, "record:manipulator_and_gripper", kStart,
+                                       "ask:Stop recording", "switch", "spring", "log:error" }));
+}
+TEST_F(RecordReplay, FloatJawCancelAtStartNeverFloatsJaw)
+{
+  answers = { false };
+  EXPECT_EQ(runWith("Record reBot Motion", "wave", "false", "true"), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(receipt.events, (std::vector<std::string>{ kList, "load:" + kPath, kEngage, "switch", "spring",
+                                                       "ask:Start recording", "log:error" }));
+}
+TEST_F(RecordReplay, FloatJawFailedSaveRestoresSpring)
+{
+  answers = { true, true };
+  save_fails = true;
+  EXPECT_EQ(runWith("Record reBot Motion", "wave", "false", "true"), BT::NodeStatus::FAILURE);
+  const auto events = receipt.snapshot();
+  EXPECT_EQ(std::count(events.begin(), events.end(), kJawFloat), 1);
+  ASSERT_GE(events.size(), 4U);
+  EXPECT_EQ(std::vector<std::string>(events.end() - 4, events.end()),
+            (std::vector<std::string>{ "save:" + kPath, "switch", "spring", "log:error" }));
+}
+TEST_F(RecordReplay, DefaultRecordNeverWritesJawGains)
+{
+  for (const auto& answer : { std::vector<bool>{ true, true }, std::vector<bool>{ true, false } })
+  {
+    receipt.events.clear();
+    answers = answer;
+    runWith("Record reBot Motion");
+    const auto events = receipt.snapshot();
+    EXPECT_TRUE(std::none_of(events.begin(), events.end(), [](const auto& e) { return e.starts_with("gain:"); }));
+  }
 }
 TEST_F(RecordReplay, CancelAtStartNeverFloats)
 {
