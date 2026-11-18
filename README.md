@@ -171,12 +171,16 @@ The gitlink, rather than a floating branch name, fixes each revision.
 | [PickNikRobotics/RobstrideSDK](https://github.com/PickNikRobotics/RobstrideSDK) | `9d070193758b4d88d065f1b8add815c0f540cebc` | Fault-frame routing, decoding and temperature freshness |
 | [kmj060703/robstride_interfaces](https://github.com/kmj060703/robstride_interfaces) | `8278bb1bf3d8f1fb07803459e1de4e14e10b8fc0` | Driver messages/services |
 | [Seeed-Projects/reBot-DevArm](https://github.com/Seeed-Projects/reBot-DevArm) | `58f9e433deec2ba118c5c22d60c07b9897e92acc` | Stock description and editable mechanical sources |
+| [orbbec/OrbbecSDK_ROS2](https://github.com/orbbec/OrbbecSDK_ROS2) | `eceb296877ef22230e3da7da73dfa5f311875a79` | Wrist Gemini 305 driver v2.10.7, which labels its 8-term distortion `rational_polynomial` |
 
 The driver pin is `main` with the merged
 [safe-relax change](https://github.com/PickNikRobotics/robstride_hardware_interface/pull/4)
 and [joint-coordinate/soft-limit change](https://github.com/PickNikRobotics/robstride_hardware_interface/pull/3).
 The SDK revision above is an integration topic commit, not a merged fork
 default. Publication of topic revisions is a prerequisite for publishing these gitlinks.
+
+`git submodule update --init --depth 1` fetches the OrbbecSDK_ROS2 pin without
+its full history (about 45 MB instead of 700 MB).
 
 The upstream description has no ROS package. The small `rebot_description`
 ament adapter installs its unmodified RS mesh directory and exact license

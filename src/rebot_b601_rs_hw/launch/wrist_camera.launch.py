@@ -143,7 +143,11 @@ def wrist_camera_parameters(context):
         "color_format": "MJPG",
         # Meter color AE on the color image: with depth disabled, the default
         # depth-based AE stopped regulating and the image washed out (2026-11-10).
-        "ae_mode": "colorbased",
+        # Driver 2.8.6 renamed ae_mode: colorbased to this parameter.
+        "ae_reference_stream": "color",
+        # 2.10.x applies AE only when the parameter is supplied; keep it on at
+        # every restart as 2.7.6 did.
+        "enable_color_auto_exposure": True,
         "enable_depth": False,
         "enable_left_ir": False,
         "enable_right_ir": False,
@@ -204,7 +208,8 @@ def launch_wrist_camera(context):
             "Gemini 305 detected, but orbbec_camera is unavailable; skipping driver."
         )
         logger.info(
-            "Install ros-jazzy-orbbec-camera in the selected image, then restart."
+            "Initialize the OrbbecSDK_ROS2 submodule, rebuild the workspace, "
+            "then restart."
         )
         return []
     return [

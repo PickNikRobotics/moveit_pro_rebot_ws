@@ -1,0 +1,14 @@
+{
+  "names": {
+    "orbbec_camera": {
+      "cmake-args": [
+        "-DBUILD_TESTING=OFF",
+        "-DCMAKE_C_COMPILER=gcc",
+        "-DCMAKE_CXX_COMPILER=g++"
+      ]
+    },
+    "orbbec_camera_msgs": {
+      "cmake-args": ["-DBUILD_TESTING=OFF"]
+    }
+  }
+}

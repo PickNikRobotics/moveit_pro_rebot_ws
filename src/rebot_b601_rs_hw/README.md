@@ -92,18 +92,37 @@ or set it only for a host with multiple cameras. The scan runs once during
 startup; attach or reconnect a camera, then restart the physical backend to
 start its driver.
 
-The package declares `orbbec_camera`; the Jazzy rosdep key resolves to
-`ros-jazzy-orbbec-camera`. If the selected physical deployment image lacks the
-driver, startup logs a warning and leaves the arm backend available; install the
-driver image, then restart before camera use.
+The driver must be `orbbec_camera` **2.10.6 or newer**. Older releases,
+including the 2.7.6 apt package in MoveIt Pro's pinned ROS snapshot, label the
+Gemini 305's 8-term rational distortion `plumb_bob`, so `DetectCharucoBoard`
+and the stock hand-eye calibration reject its `camera_info`. The workspace
+therefore builds `orbbec_camera`, `orbbec_camera_msgs` and `orbbec_description`
+from the `src/external_dependencies/OrbbecSDK_ROS2` submodule, pinned to
+v2.10.7; the image's `rosdep install --skip-keys orbbec_camera` never installs
+the apt package, even when the submodule is not initialized. The root
+`colcon.meta` builds `orbbec_camera` and `orbbec_camera_msgs` with
+`BUILD_TESTING=OFF`, and compiles `orbbec_camera` with gcc because its
+unconditional `-Werror` fails under clang; see the root README for a shallow
+[submodule fetch](../../README.md#immutable-source-dependencies). Keep the
+distortion coefficients as published; never truncate them to five terms.
+Startup skips the driver when none is built, leaving the arm backend available.
+
+Driver 2.10.7 always registers two services that write files as the driver's
+user to a caller-chosen path: `/wrist_mounted_camera/export_config_json`
+(device configuration JSON) and `/wrist_mounted_camera/set_bag_recording`
+(stream recording). The driver offers no parameter to disable them, and any
+participant on the ROS domain can call them, outside the frontend's protected
+endpoints. The deployment assumes a trusted robot network and DDS domain.
 
 The launch publishes color only at **1280×800 MJPG, 10 Hz** under
 `/wrist_mounted_camera`. It leaves `color_info_url` unset so the driver derives
 `camera_info` from the active device's factory stream calibration, disables
-depth/IR/point clouds, and does not publish driver TF. `ae_mode: colorbased`
-meters auto-exposure from the color stream rather than the disabled depth
-stream. No exposure value, gain or AE region of interest is overridden.
-The robot description is the sole source of
+depth/IR/point clouds, and does not publish driver TF.
+`ae_reference_stream: color` meters auto-exposure from the color stream rather
+than the disabled depth stream, and `enable_color_auto_exposure: true` turns
+color AE on at every start, because 2.10.x applies it only when supplied. No
+exposure value, gain or AE region of interest is overridden. The robot
+description is the sole source of
 `wrist_mounted_camera_color_optical_frame`.
 
 Install Orbbec's host USB rule before connecting the camera; the container's
@@ -111,7 +130,7 @@ Install Orbbec's host USB rule before connecting the camera; the container's
 
 ```bash
 sudo install -m 644 \
-  <OrbbecSDK_ROS2>/orbbec_camera/scripts/99-obsensor-libusb.rules \
+  src/external_dependencies/OrbbecSDK_ROS2/orbbec_camera/scripts/99-obsensor-libusb.rules \
   /etc/udev/rules.d/99-obsensor-libusb.rules
 sudo udevadm control --reload-rules
 sudo udevadm trigger

@@ -64,6 +64,9 @@ RUN groupadd realtime && \
 # NOTE: The /opt/overlay_ws folder contains MoveIt Pro binary packages and the source file.
 # KDL comes from orocos_kdl_vendor (a kdl_gravity_compensation_controller dependency);
 # --skip-keys orocos_kdl only stops rosdep from resolving the bare orocos_kdl key.
+# orbbec_camera builds only from the OrbbecSDK_ROS2 submodule; --skip-keys orbbec_camera
+# keeps the ROS snapshot's older apt driver, which mislabels rational distortion, out of
+# the image even when the submodule is not initialized.
 # hadolint ignore=SC1091
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -73,7 +76,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     rosdep install -q -y \
       --from-paths src \
       --ignore-src \
-      --skip-keys orocos_kdl
+      --skip-keys orocos_kdl \
+      --skip-keys orbbec_camera
 
 # Install the optional FashionStar SDK into the same Python used by ROS.
 # No user-managed interpreter or environment is needed when enabling it in YAML.
