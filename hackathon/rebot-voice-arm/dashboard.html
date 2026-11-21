@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>reBot Control</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #ffffff; --ink: #16181d; --muted: #6b7280; --line: #e3e5ea;
+    --accent: #2563eb; --ok: #15803d; --bad: #b91c1c; --warn: #b45309; --stop: #dc2626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1115; --panel: #181b21; --ink: #e8eaee; --muted: #9aa1ad; --line: #2a2f38;
+      --accent: #60a5fa; --ok: #4ade80; --bad: #f87171; --warn: #fbbf24; --stop: #ef4444;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1115; --panel: #181b21; --ink: #e8eaee; --muted: #9aa1ad; --line: #2a2f38;
+    --accent: #60a5fa; --ok: #4ade80; --bad: #f87171; --warn: #fbbf24; --stop: #ef4444;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; align-items: center; gap: 16px; padding: 14px 20px;
+           border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; font-weight: 650; }
+  .links { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+  .pill { font-size: 12px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .pill.on { color: var(--ok); border-color: currentColor; }
+  .pill.off { color: var(--bad); border-color: currentColor; }
+  main { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; padding: 16px 20px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; padding: 12px 16px; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  .stack { display: grid; gap: 16px; align-content: start; }
+  img.feed { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 8px; background: #000; display: block; }
+  .items { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  button { font: inherit; border-radius: 10px; border: 1px solid var(--line); background: var(--panel);
+           color: var(--ink); padding: 12px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .item b { display: block; font-size: 20px; }
+  .item span { color: var(--muted); font-size: 13px; }
+  .item.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
+  .stopbtn { width: 100%; margin-top: 10px; background: var(--stop); color: #fff; border: 0; font-weight: 700; font-size: 17px; padding: 14px; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .muted { color: var(--muted); font-size: 13px; }
+  #state { font-weight: 600; }
+  .result img { width: 100%; border-radius: 8px; margin-top: 8px; display: block; }
+  .verdict { font-weight: 700; }
+  .verdict.ok { color: var(--ok); } .verdict.bad { color: var(--bad); } .verdict.warn { color: var(--warn); }
+  .mic { width: 100%; padding: 18px; font-size: 17px; font-weight: 650; background: var(--accent); color: #fff; border: 0;
+         user-select: none; -webkit-user-select: none; touch-action: none; }
+  .mic.rec { background: var(--bad); }
+  .chatlog { max-height: 260px; overflow-y: auto; display: grid; gap: 8px; margin-top: 10px; }
+  .msg { padding: 8px 11px; border-radius: 10px; max-width: 90%; }
+  .msg.you { background: var(--bg); justify-self: end; }
+  .msg.bot { border: 1px solid var(--line); }
+  form.type { display: flex; gap: 8px; margin-top: 10px; }
+  form.type input { flex: 1; min-width: 0; font: inherit; padding: 10px; border-radius: 10px; border: 1px solid var(--line);
+                    background: var(--bg); color: var(--ink); }
+  .log { font: 12px/1.5 ui-monospace, monospace; max-height: 200px; overflow-y: auto; color: var(--muted); white-space: pre-wrap; margin: 0; }
+  input[type=range] { flex: 1; min-width: 120px; }
+  .moves { display: flex; flex-wrap: wrap; gap: 8px; }
+  .moves button { padding: 10px 14px; text-transform: capitalize; }
+  .moves button.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
+  .queue { margin-top: 8px; }
+  .hf { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .hf button { padding: 8px 14px; }
+  .hf button.on { background: var(--ok); color: #fff; border-color: transparent; }
+  .meter { flex: 1; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  .meter i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .08s; }
+  .msg.dim { opacity: .55; font-size: 13px; }
+  .phonenum { font-size: 22px; font-weight: 700; letter-spacing: .02em; }
+  #phonemode { padding: 10px 16px; font-weight: 650; }
+  #phonemode.on { background: var(--ok); color: #fff; border-color: transparent; }
+</style>
+</head>
+<body>
+<header>
+  <h1>reBot Control</h1>
+  <span id="state" class="muted">connecting…</span>
+  <div class="links" id="links"></div>
+</header>
+
+<main>
+  <div class="stack">
+    <section class="card">
+      <h2>Camera</h2>
+      <img class="feed" src="/video" alt="Live camera">
+    </section>
+    <section class="card">
+      <h2>Pick up</h2>
+      <div class="items" id="items"></div>
+      <div id="queue" class="muted queue"></div>
+      <button class="stopbtn" id="stop">STOP</button>
+      <div class="row" style="margin-top:12px">
+        <span class="muted">Speed</span>
+        <input type="range" id="speed" min="0.25" max="1" step="0.05">
+        <span id="speedval" class="muted"></span>
+      </div>
+    </section>
+    <section class="card">
+      <h2>Dances &amp; moves</h2>
+      <div class="moves" id="moves"></div>
+      <div class="muted" id="nomoves" style="margin-top:6px">
+        Record one: <code>./teleop.sh move wave</code> &mdash; it appears here right away.</div>
+    </section>
+  </div>
+
+  <div class="stack">
+    <section class="card">
+      <h2>Talk to the robot</h2>
+      <button class="mic" id="mic">Hold to talk</button>
+      <div class="hf">
+        <button id="hf" type="button">Hands-free: off</button>
+        <div class="meter"><i id="level"></i></div>
+      </div>
+      <div class="muted" id="hfhint" style="margin-top:6px">Try: "pick up item two", "do the wave",
+        "grab the tape then dance", "stop". Hold Space to talk.</div>
+      <form class="type" id="typeform">
+        <input id="typed" placeholder="…or type here" autocomplete="off">
+        <button type="submit">Send</button>
+      </form>
+      <div class="chatlog" id="chat"></div>
+    </section>
+    <section class="card">
+      <h2>Phone control</h2>
+      <div class="row">
+        <div style="flex:1">
+          <div class="phonenum" id="phonenum">No number yet</div>
+          <div class="muted" id="phoneinfo">Run ./phone.sh to connect the phone line.</div>
+        </div>
+        <button id="phonemode" type="button">Phone: off</button>
+      </div>
+    </section>
+    <section class="card result">
+      <h2>Last pick</h2>
+      <div id="last" class="muted">None yet.</div>
+    </section>
+    <section class="card">
+      <h2>Log</h2>
+      <pre class="log" id="log"></pre>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let lastAudioId = null, speedTouched = false;
+
+let botTalkingUntil = 0;          // hands-free ignores the mic while the robot speaks
+function play(b64) {
+  if (!b64) return;
+  const a = new Audio("data:audio/mpeg;base64," + b64);
+  botTalkingUntil = Date.now() + 15000;
+  a.onended = a.onerror = () => { botTalkingUntil = Date.now() + 400; };
+  a.play().catch(() => { botTalkingUntil = 0; });
+}
+
+function addMsg(who, text) {
+  if (!text) return;
+  const d = document.createElement("div");
+  d.className = "msg " + who;
+  d.textContent = text;
+  $("chat").prepend(d);
+}
+
+async function refresh() {
+  let s;
+  try { s = await (await fetch("/status")).json(); } catch { $("state").textContent = "dashboard offline"; return; }
+  $("state").textContent = s.busy ? `Doing ${s.job || "…"}` : "Ready";
+  $("queue").textContent = s.queue.length ? "Up next: " + s.queue.join(" → ") : "";
+  const L = s.links;
+  $("links").innerHTML = [["Follower", L.follower], ["Leader", L.leader], ["Camera", L.camera],
+                          ["Voice", L.voice], ["Claude", L.claude]]
+    .map(([n, v]) => `<span class="pill ${v ? "on" : "off"}">${n}</span>`).join("");
+
+  const items = $("items");
+  if (!items.children.length) {
+    for (const [n, name] of Object.entries(s.items)) {
+      const b = document.createElement("button");
+      b.className = "item"; b.dataset.n = n;
+      b.innerHTML = `<b>${n}</b><span>${name}</span>`;
+      b.onclick = () => fetch(`/pick/${n}`, { method: "POST" }).then(refresh);
+      items.append(b);
+    }
+  }
+  for (const b of items.children) {
+    b.disabled = !s.chosen.includes(b.dataset.n);   // busy is fine: it queues
+    b.classList.toggle("active", !!s.job_kind && s.job_kind[0] === "pick" && String(s.job_kind[1]) === b.dataset.n);
+  }
+
+  const mv = $("moves"), names = s.moves.map((m) => m.name).join(",");
+  if (mv.dataset.names !== names) {                 // rebuild when a new move is recorded
+    mv.dataset.names = names; mv.innerHTML = "";
+    for (const m of s.moves) {
+      const b = document.createElement("button");
+      b.dataset.name = m.name; b.textContent = m.label;
+      b.onclick = () => fetch(`/move/${encodeURIComponent(m.name)}`, { method: "POST" }).then(refresh);
+      mv.append(b);
+    }
+  }
+  $("nomoves").style.display = s.moves.length ? "none" : "";
+  for (const b of mv.children)
+    b.classList.toggle("active", !!s.job_kind && s.job_kind[0] === "move" && s.job_kind[1] === b.dataset.name);
+
+  if (!speedTouched) { $("speed").value = s.speed; }
+  $("speedval").textContent = Number($("speed").value).toFixed(2) + "×";
+
+  if (s.last) {
+    const l = s.last;
+    const v = l.stopped ? `<span class="verdict warn">Item ${l.item}: stopped</span>`
+            : `<span class="verdict ${l.ok ? "ok" : "bad"}">Item ${l.item}: ${l.ok ? "on the plate" : "missed"}</span>
+               <span class="muted"> (${l.frac}% of plate changed)</span>`;
+    $("last").innerHTML = v + (l.image ? `<img src="/image/${l.image}?t=${Date.now()}" alt="Camera check">` : "");
+  }
+  $("log").textContent = s.log.join("\n");
+
+  const P = s.phone, fmt = (n) => n ? n.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, "+1 ($1) $2-$3") : "No number yet";
+  $("phonenum").textContent = fmt(P.number);
+  $("phoneinfo").textContent = !P.number ? "Run ./phone.sh to connect the phone line."
+    : (P.ready ? "Line live" : "Line offline (run ./phone.sh)") + (P.pin ? ` · PIN ${P.pin}` : " · no PIN") +
+      (P.on ? " · callers can pick & dance" : " · callers can only talk and stop");
+  $("phonemode").textContent = P.on ? "Phone: on" : "Phone: off";
+  $("phonemode").classList.toggle("on", P.on);
+
+  if (lastAudioId === null) lastAudioId = s.audio_id;          // don't replay old news on page load
+  else if (s.audio_id !== lastAudioId) {
+    lastAudioId = s.audio_id;
+    const a = await (await fetch("/announcement")).json();
+    addMsg("bot", a.text); play(a.audio);
+  }
+}
+
+$("stop").onclick = () => fetch("/stop", { method: "POST" });
+$("speed").oninput = () => { speedTouched = true; $("speedval").textContent = Number($("speed").value).toFixed(2) + "×"; };
+$("speed").onchange = () => fetch("/speed", { method: "POST", headers: { "Content-Type": "application/json" },
+                                              body: JSON.stringify({ speed: $("speed").value }) });
+
+function showReply(r) {
+  if (r.ignored) {                  // noise, or hands-free speech without the robot's name
+    if (r.heard && !/^\W*(\[.*\]|\(.*\))?\W*$/.test(r.heard)) addMsg("you dim", r.heard + "  (not for me)");
+    return;
+  }
+  addMsg("you", r.heard); addMsg("bot", r.reply); play(r.audio); refresh();
+}
+
+$("typeform").onsubmit = async (e) => {
+  e.preventDefault();
+  const text = $("typed").value.trim(); if (!text) return;
+  $("typed").value = "";
+  showReply(await (await fetch("/chat", { method: "POST", headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({ text }) })).json());
+};
+
+// Hold-to-talk: record while pressed, send on release.
+let rec = null, chunks = [];
+async function startRec() {
+  if (rec) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    rec = new MediaRecorder(stream);
+    chunks = [];
+    rec.ondataavailable = (e) => chunks.push(e.data);
+    rec.onstop = async () => {
+      stream.getTracks().forEach((t) => t.stop());
+      const blob = new Blob(chunks, { type: rec.mimeType });
+      rec = null;
+      $("mic").textContent = "Thinking…";
+      const fd = new FormData(); fd.append("audio", blob, "speech.webm");
+      try { showReply(await (await fetch("/voice", { method: "POST", body: fd })).json()); }
+      finally { $("mic").textContent = "Hold to talk"; $("mic").classList.remove("rec"); }
+    };
+    rec.start();
+    $("mic").textContent = "Listening… release to send"; $("mic").classList.add("rec");
+  } catch (err) { addMsg("bot", "Microphone blocked: allow it in Chrome's address bar."); }
+}
+function stopRec() { if (rec && rec.state === "recording") rec.stop(); }
+const mic = $("mic");
+mic.addEventListener("pointerdown", (e) => { e.preventDefault(); startRec(); });
+mic.addEventListener("pointerup", stopRec);
+mic.addEventListener("pointerleave", stopRec);
+document.addEventListener("keydown", (e) => { if (e.code === "Space" && e.target.tagName !== "INPUT" && !e.repeat) { e.preventDefault(); startRec(); } });
+document.addEventListener("keyup", (e) => { if (e.code === "Space" && e.target.tagName !== "INPUT") stopRec(); });
+
+// Hands-free: an always-open mic. Speech is detected by loudness, recorded until a pause,
+// and sent. The robot only acts when you say its name ("robot, do the wave"); "stop" always works.
+let hf = null;
+async function hfStart() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    const ctx = new AudioContext(), an = ctx.createAnalyser();
+    an.fftSize = 1024; ctx.createMediaStreamSource(stream).connect(an);
+    hf = { stream, ctx, an, buf: new Float32Array(an.fftSize), noise: 0.01, rec: null, loudAt: 0, startAt: 0, busy: false };
+    hf.timer = setInterval(hfTick, 50);
+    $("hf").textContent = "Hands-free: on"; $("hf").classList.add("on");
+    $("hfhint").textContent = 'Listening. Say "robot, pick up item one" or "robot, dance". "Stop" always works.';
+  } catch { addMsg("bot", "Microphone blocked: allow it in Chrome's address bar."); }
+}
+function hfStop() {
+  if (!hf) return;
+  clearInterval(hf.timer);
+  if (hf.rec && hf.rec.state === "recording") { hf.rec.onstop = null; hf.rec.stop(); }
+  hf.stream.getTracks().forEach((t) => t.stop()); hf.ctx.close(); hf = null;
+  $("hf").textContent = "Hands-free: off"; $("hf").classList.remove("on"); $("level").style.width = "0";
+  $("hfhint").textContent = 'Try: "pick up item two", "do the wave", "grab the tape then dance", "stop". Hold Space to talk.';
+}
+function hfTick() {
+  hf.an.getFloatTimeDomainData(hf.buf);
+  let sum = 0; for (const v of hf.buf) sum += v * v;
+  const rms = Math.sqrt(sum / hf.buf.length), now = Date.now();
+  $("level").style.width = Math.min(100, rms * 800) + "%";
+  const talking = now < botTalkingUntil;
+  if (!hf.rec) {
+    if (talking || hf.busy || rec) return;
+    const thresh = Math.max(0.02, hf.noise * 3);
+    if (rms > thresh) {                      // speech started
+      const r = new MediaRecorder(hf.stream), parts = [];
+      r.ondataavailable = (e) => parts.push(e.data);
+      r.onstop = () => hfSend(new Blob(parts, { type: r.mimeType }), now - hf.startAt);
+      hf.rec = r; hf.startAt = hf.loudAt = now; r.start();
+      $("hf").textContent = "Hands-free: hearing you…";
+    } else hf.noise = hf.noise * 0.95 + rms * 0.05;   // track the room's background level
+  } else {
+    if (rms > Math.max(0.015, hf.noise * 2)) hf.loudAt = now;
+    if (now - hf.loudAt > 900 || now - hf.startAt > 12000) { hf.rec.stop(); }
+  }
+}
+async function hfSend(blob, ms) {
+  const h = hf; if (!h) return;
+  h.rec = null;
+  if (ms < 600 || blob.size < 2000) { $("hf").textContent = "Hands-free: on"; return; }   // a click or a cough
+  h.busy = true; $("hf").textContent = "Hands-free: thinking…";
+  const fd = new FormData(); fd.append("audio", blob, "speech.webm"); fd.append("hands_free", "1");
+  try { showReply(await (await fetch("/voice", { method: "POST", body: fd })).json()); }
+  catch {}
+  finally { h.busy = false; if (hf) $("hf").textContent = "Hands-free: on"; }
+}
+$("hf").onclick = () => (hf ? hfStop() : hfStart());
+$("phonemode").onclick = async () => {
+  const on = !$("phonemode").classList.contains("on");
+  await fetch("/phone/mode", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on }) });
+  refresh();
+};
+
+refresh(); setInterval(refresh, 1000);
+</script>
+</body>
+</html>
