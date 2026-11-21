@@ -1,0 +1,14 @@
+# secrets
+.env
+# environments and third-party checkouts (see README for setup)
+.venv/
+.venv-*/
+lerobot/
+StampBot/
+bin/
+__pycache__/
+# machine-specific / generated
+data/phone.json
+replays/
+outputs/
+backup_*/
